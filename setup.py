@@ -21,7 +21,7 @@ setup(
         'h5py',
         'scipy',
         'librosa',
-        'tensorflow>=2.0'
+        'tensorflow>=2.0.0'
     ],
     #zip_safe=False,
 )
