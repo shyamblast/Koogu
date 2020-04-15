@@ -17,7 +17,6 @@ setup(
     packages=find_packages(),
     python_requires='>=3.6.0',
     install_requires=[
-        'os',
         'numpy',
         'h5py',
         'scipy',
