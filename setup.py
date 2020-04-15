@@ -21,7 +21,21 @@ setup(
         'h5py',
         'scipy',
         'librosa',
-        'tensorflow>=2.0.0'
+        #'tensorflow-gpu>=2.0'
     ],
     #zip_safe=False,
 )
+
+# Below piece of code copied (and adapted) from
+#     https://github.com/openai/baselines/blob/master/setup.py
+# Ensure there is some tensorflow build with version above 2.0
+import pkg_resources
+tf_pkg = None
+for tf_pkg_name in ['tensorflow', 'tensorflow-gpu', 'tf-nightly', 'tf-nightly-gpu']:
+    try:
+        tf_pkg = pkg_resources.get_distribution(tf_pkg_name)
+    except pkg_resources.DistributionNotFound:
+        pass
+assert tf_pkg is not None, 'TensorFlow needed, of version at least 2.0'
+from distutils.version import LooseVersion
+assert LooseVersion(re.sub(r'-?rc\d+$', '', tf_pkg.version)) >= LooseVersion('2.0')
