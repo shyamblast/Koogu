@@ -8,7 +8,7 @@ import logging
 import functools
 from pkg_resources import parse_version
 
-from koogu.data import Filters, Settings
+from koogu.data.raw import Filters, Settings
 
 
 class Linear2dB(tf.keras.layers.Layer):
