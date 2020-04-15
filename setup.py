@@ -37,5 +37,6 @@ for tf_pkg_name in ['tensorflow', 'tensorflow-gpu', 'tf-nightly', 'tf-nightly-gp
     except pkg_resources.DistributionNotFound:
         pass
 assert tf_pkg is not None, 'TensorFlow needed, of version at least 2.0'
+import re
 from distutils.version import LooseVersion
-assert LooseVersion(re.sub(r'-?rc\d+$', '', tf_pkg.version)) >= LooseVersion('2.0')
+assert LooseVersion(re.sub(r'-?rc\d+$', '', tf_pkg.version)) >= LooseVersion('2.0'), 'TensorFlow needed, of version at least 2.0'
