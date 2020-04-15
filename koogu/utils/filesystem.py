@@ -2,8 +2,8 @@ import os
 import numpy as np
 import warnings
 
-from .detections import SelectionTableReader
-from .terminal import ProgressBar
+from koogu.utils.detections import SelectionTableReader
+from koogu.utils.terminal import ProgressBar
 
 
 def recursive_listing(root_dir, match_extensions=None):

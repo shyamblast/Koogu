@@ -3,8 +3,8 @@ import os
 import numpy as np
 import tensorflow as tf
 
-from . import DatasetDigest, DirectoryNames, FilenameExtensions,\
-    tfrecord_helper
+from koogu.data import DatasetDigest, DirectoryNames, \
+    FilenameExtensions, tfrecord_helper
 
 
 class DataFeeder(metaclass=abc.ABCMeta):

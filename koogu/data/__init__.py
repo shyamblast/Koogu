@@ -2,7 +2,7 @@
 import os
 import h5py
 
-from .raw import Settings, Audio, Convert, Process
+from koogu.data.raw import Settings, Audio, Convert, Process
 
 
 class FilenameExtensions:

@@ -4,8 +4,8 @@ import tensorflow as tf
 
 from tensorflow import keras as K
 
-from .trained_model import TrainedModel
-from . import architectures
+from koogu.model.trained_model import TrainedModel
+from koogu.model import architectures
 
 
 # class _Classifier:
