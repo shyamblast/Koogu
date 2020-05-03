@@ -35,7 +35,7 @@ def _squeeze_streak(starts, scores, num_samples, group_size):
     grp_start_det_idxs = np.arange(min(group_size, len(starts)) - 1, len(starts))
     grp_end_det_idxs = np.arange(len(starts) - min(group_size, len(starts)) + 1)
     group_extents = np.stack([starts[grp_start_det_idxs], starts[grp_end_det_idxs] + num_samples - 1]).T
-    group_scores = np.asarray([np.median(scores[st_idx:(en_idx + 1)])
+    group_scores = np.asarray([np.max(scores[st_idx:(en_idx + 1)])
                                for st_idx, en_idx in zip(grp_end_det_idxs, grp_start_det_idxs)])
 
     # Now combine successive maximal overlapping groups if they are contiguous (or also further overlapping)
@@ -60,7 +60,7 @@ def _squeeze_streak(starts, scores, num_samples, group_size):
         group_extents[noncontiguous_groups_mask, ...]],
         axis=0)
     group_scores = np.concatenate([
-        [np.mean(group_scores[s_idx:e_idx+1])
+        [np.median(group_scores[s_idx:e_idx+1])
          for s_idx, e_idx in zip(contiguous_groups_onsets, contiguous_groups_ends)],
         group_scores[noncontiguous_groups_mask]],
         axis=0)
