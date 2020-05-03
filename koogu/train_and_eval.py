@@ -132,9 +132,9 @@ def _main(data_feeder, model_dir, data_cfg, model_cfg, training_cfg,
     os.makedirs(model_dir, exist_ok=True)
 
     tf.keras.backend.clear_session()
+    if 'random_seed' in kwargs:
+        tf.random.set_seed(kwargs.pop('random_seed'))
 
-    file_writer = tf.summary.create_file_writer(os.path.join(model_dir, 'metrics'))
-    file_writer.set_as_default()
     tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=model_dir, write_graph=True, write_images=True)
 
 #    # If patch splitting is enabled, validate it and set estimator params accordingly
