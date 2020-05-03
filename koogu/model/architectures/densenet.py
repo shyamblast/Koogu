@@ -1,6 +1,6 @@
 
-#import numpy as np
-#import tensorflow as tf
+import numpy as np
+import tensorflow as tf
 from tensorflow.keras import layers as kl
 from tensorflow.keras.initializers import VarianceScaling
 
@@ -232,10 +232,13 @@ def build_model(inputs, arch_params, **kwargs):
 
     channel_axis = 3 if data_format == 'channels_last' else 1
 
-    version = arch_params['version']
+    # Parameters configurable as per the DenseNET paper
     growth_rate = arch_params['growth_rate']
     with_bottleneck = arch_params['with_bottleneck']
     compression = arch_params['compression']
+    # Parameters that are my additions
+    semi_dense = arch_params.get('semi_dense', False)
+    implicit_pooling = arch_params.get('implicit_pooling', False)
 
     pooling = kl.MaxPooling2D if 'pooling_type' in arch_params and arch_params['pooling_type'] == 'max' \
         else kl.AveragePooling2D
@@ -263,7 +266,7 @@ def build_model(inputs, arch_params, **kwargs):
         db_outputs = [db_inputs]
 
         for layer in range(num_layers_in_block):
-            if version in [1, 2] and len(db_outputs) > 1:
+            if not semi_dense and len(db_outputs) > 1:
                 db_outputs = [kl.Concatenate(axis=channel_axis,
                                              name=name_prefix + 'Concat{:d}'.format(layer + 1))(db_outputs)]
 
@@ -304,27 +307,35 @@ def build_model(inputs, arch_params, **kwargs):
         # Dense block
         outputs = dense_block(outputs, num_layers, block_idx + 1)
 
-        # Transition layer. If not ver 2, add transition layers for all but the last dense block
-        if block_idx < len(arch_params['layers_per_block']) - 1 or version in [2, 3]:
+        # Transition layer.
+        # If implicit_pooling is set, add transition layers for all dense blocks. Otherwise,
+        # add transition layers for all but the last dense block.
+        if block_idx < len(arch_params['layers_per_block']) - 1 or implicit_pooling:
             # Transition layer
             if compression < 1.0:  # if compression is enabled
                 num_features = int(outputs.get_shape().as_list()[channel_axis] * compression)
             else:
                 num_features = outputs.get_shape().as_list()[channel_axis]
 
-            if version in [1]:
+            # Ensure that pixels at boundaries are properly accounted for when stride > 1.
+            outputs = pad_for_valid_conv(outputs,
+                                         arch_params['pool_sizes'][block_idx],
+                                         arch_params['pool_strides'][block_idx],
+                                         data_format)
+
+            if implicit_pooling:    # Achieve pooling by strided convolutions
+                outputs = composite_fn(outputs, num_features,
+                                       arch_params['pool_sizes'][block_idx],
+                                       arch_params['pool_strides'][block_idx],
+                                       'valid', '', n_pre='T{:d}_'.format(block_idx + 1))
+            else:
                 outputs = composite_fn(outputs, num_features, [1, 1], [1, 1], 'valid', '',
                                        n_pre='T{:d}_'.format(block_idx + 1))
 
                 outputs = pooling(pool_size=arch_params['pool_sizes'][block_idx],
                                   strides=arch_params['pool_strides'][block_idx],
-                                  padding='same', data_format=data_format,
+                                  padding='valid', data_format=data_format,
                                   name='T{:d}_Pool'.format(block_idx + 1))(outputs)
-            else:  # If version is 2 or 3, do implicit pooling
-                outputs = composite_fn(outputs, num_features,
-                                       arch_params['pool_sizes'][block_idx],
-                                       arch_params['pool_strides'][block_idx],
-                                       'same', '', n_pre='T{:d}_'.format(block_idx + 1))
 
     # Final batch_norm & activation
     outputs = kl.BatchNormalization(axis=channel_axis, fused=True, scale=False, epsilon=1e-8)(outputs)
@@ -336,5 +347,29 @@ def build_model(inputs, arch_params, **kwargs):
     else:
         # This is the default - take global mean
         outputs = kl.GlobalAveragePooling2D(data_format=data_format)(outputs)
+
+    return outputs
+
+
+def pad_for_valid_conv(inputs, kernel_shape, strides, data_format):
+    # Ensure that pixels at boundaries are properly accounted for when stride > 1.
+
+    f_axis, t_axis = (1, 2) if data_format == 'channels_last' else (2, 3)
+
+    feature_dims = inputs.get_shape().as_list()
+    outputs = inputs
+
+    spatial_dims = np.asarray([feature_dims[f_axis], feature_dims[t_axis]])
+    remainders = spatial_dims - (
+            (np.floor((spatial_dims - kernel_shape) /
+             strides) * strides) +
+            kernel_shape)
+    if np.any(remainders):
+        additional = np.where(remainders, kernel_shape - remainders, [0, 0]).astype(np.int)
+        pad_amt = np.asarray([[0, 0], [0, 0], [0, 0], [0, 0]])
+        pad_amt[f_axis, 1] = additional[0]
+        pad_amt[t_axis, 1] = additional[1]
+        #print('Pad amount {} for feature dims {}'.format(pad_amt, feature_dims))
+        outputs = tf.pad(outputs, pad_amt, mode='CONSTANT', constant_values=0)
 
     return outputs
