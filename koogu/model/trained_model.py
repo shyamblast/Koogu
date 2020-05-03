@@ -36,12 +36,10 @@ class TrainedModel:
 
         # Describe outputs
         logits = classifier(new_output)
-        probs = tf.nn.softmax(logits * tf.cast(class_mask,
-                                               dtype=logits.dtype))
-        new_output = tf.identity(probs, name='probabilities')
+        probs = logits * tf.cast(class_mask, dtype=logits.dtype)
+        new_output = tf.identity(probs, name='scores')
 
-        full_model = tf.keras.Model(input_signature, new_output)#,
-                                    #trainable=False)
+        full_model = tf.keras.Model(input_signature, new_output)
         full_model.trainable = False
 
         tf.saved_model.save(full_model, output_dir)
@@ -82,7 +80,7 @@ class TrainedModel:
             class_mask=tf.constant(class_mask, tf.bool) \
                 if class_mask is not None else self._default_class_mask)
 
-        return res['tf_op_layer_probabilities'].numpy()
+        return res['tf_op_layer_scores'].numpy()
 
     @property
     def audio_settings(self):

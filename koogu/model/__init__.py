@@ -1,9 +1,6 @@
 
-import sys
 import tensorflow as tf
-
 from tensorflow import keras as K
-
 from koogu.model.trained_model import TrainedModel
 from koogu.model import architectures
 
@@ -220,13 +217,19 @@ def get_model(model_cfg,
 
     # Add dense layers as requested
     for dense_layer_idx, num_nodes in enumerate(model_cfg['dense_layers']):
-        outputs = K.layers.Dense(units=num_nodes,
-                                 activation='relu', use_bias=False,
-                                 name='Dense-{:d}'.format(dense_layer_idx + 1)
+        outputs = K.layers.Dense(units=num_nodes, use_bias=False,
+                                 name='FC-D{:d}'.format(dense_layer_idx + 1)
                                  )(outputs)
+        outputs = K.layers.BatchNormalization(
+            scale=False,
+            name='BatchNorm-D{:d}'.format(dense_layer_idx + 1))(outputs)
+        outputs = K.layers.Activation(
+            'relu', name='ReLu-D{:d}'.format(dense_layer_idx + 1))(outputs)
 
     # Classification layer
-    outputs = K.layers.Dense(units=num_classes, #activation='softmax',
+    activation_type = 'sigmoid' if model_cfg.get('multilabel', False) else 'softmax'
+    outputs = K.layers.Dense(units=num_classes,
+                             activation=activation_type,
                              name='Logits'
                              )(outputs)
 

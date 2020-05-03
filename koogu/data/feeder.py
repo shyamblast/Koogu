@@ -188,7 +188,7 @@ class TFRecordFeeder(DataFeeder):
 
     def transform(self, sample, label, is_training, **kwargs):
         # Pass as-is, nothing to do
-        return sample, label
+        return sample, tf.one_hot(label, self.num_classes)
 
     def make_dataset(self, is_training):
 

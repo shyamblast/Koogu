@@ -132,10 +132,11 @@ def _main(data_feeder, model_dir, data_cfg, model_cfg, training_cfg,
     os.makedirs(model_dir, exist_ok=True)
 
     tf.keras.backend.clear_session()
+    callbacks = []
     if 'random_seed' in kwargs:
         tf.random.set_seed(kwargs.pop('random_seed'))
 
-    tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=model_dir, write_graph=True, write_images=True)
+    callbacks.append(tf.keras.callbacks.TensorBoard(log_dir=model_dir, write_graph=True, write_images=True))
 
 #    # If patch splitting is enabled, validate it and set estimator params accordingly
 #    if model_cfg.fcn_patch_size is not None:
@@ -169,7 +170,7 @@ def _main(data_feeder, model_dir, data_cfg, model_cfg, training_cfg,
     else:
         # Static learning rate
         def get_learning_rate(_): return training_cfg['learning_rate']
-    lrate = tf.keras.callbacks.LearningRateScheduler(get_learning_rate)
+    callbacks.append(tf.keras.callbacks.LearningRateScheduler(get_learning_rate))
 
     model_input_shape = data_feeder.data_shape[0]
     data_transformation = None
@@ -196,10 +197,13 @@ def _main(data_feeder, model_dir, data_cfg, model_cfg, training_cfg,
             if hasattr(layer, 'kernel_regularizer'):
                 setattr(layer, 'kernel_regularizer', regularizer)
 
+    loss_fn = tf.keras.losses.BinaryCrossentropy() if model_cfg.get('multilabel', False) \
+        else tf.keras.losses.CategoricalCrossentropy()
+
     classifier.compile(
         optimizer=training_cfg['optimizer'],
-        loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
-        metrics=['sparse_categorical_accuracy'])
+        loss=loss_fn,
+        metrics=[tf.keras.metrics.CategoricalAccuracy()])
     classifier.summary()
 
     # Enable loss weighting (if enabled)
@@ -218,7 +222,7 @@ def _main(data_feeder, model_dir, data_cfg, model_cfg, training_cfg,
         class_weight=class_weights,
 #        steps_per_epoch=int(np.ceil(steps_per_epoch)),
 #        validation_steps=val_steps,
-        callbacks=[tensorboard_callback, lrate])
+        callbacks=callbacks)
 
     # Reset metrics before saving
     classifier.reset_metrics()
@@ -254,7 +258,7 @@ class SpectralDataFeeder(feeder.TFRecordFeeder):
             self._data_cfg['audio_settings']['desired_fs'],
             self._data_cfg['spec_settings'])(output)
 
-        return output, label
+        return output, tf.one_hot(label, self.num_classes)
 
 
 def _get_settings_from_config(args):
