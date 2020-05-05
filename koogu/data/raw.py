@@ -196,8 +196,10 @@ class Audio:
 
         # Normalize each clip, if not disabled
         if normalize_clips:
-            sliced_data = sliced_data - sliced_data.mean(axis=1, keepdims=True)     # Remove DC
-            sliced_data = sliced_data / np.abs(sliced_data).max(axis=1, keepdims=True)  # Bring to range [-1.0, 1.0]
+            # Remove DC
+            sliced_data = sliced_data - sliced_data.mean(axis=1, keepdims=True)
+            # Bring to range [-1.0, 1.0]
+            sliced_data = sliced_data / np.maximum(np.abs(sliced_data).max(axis=1, keepdims=True), 1e-16)
 
         return (sliced_data, clip_start_samples) if return_clip_indices else sliced_data
 
