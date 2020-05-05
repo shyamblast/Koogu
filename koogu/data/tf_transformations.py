@@ -261,8 +261,9 @@ class Audio2Spectral(tf.keras.layers.Layer):
 
 
 class LoG(tf.keras.layers.Layer):
-    """Layer for Laplacian of Gaussian operator(s) to time-frequency (tf)
-    representations.
+    """
+    Layer for applying Laplacian of Gaussian operator(s) to
+    time-frequency (tf) representations.
 
     Arguments:
       scales_sigmas: Must be a tuple or list of sigma values at different
@@ -270,16 +271,30 @@ class LoG(tf.keras.layers.Layer):
         to determine the possible set of sigma values beyond the lowest_sigma:
             lowest_sigma * (2 ^ (range(2, floor(
                 log2((max_len - 1) / ((2 x 3) x lowest_sigma)) + 1) + 1) - 1))
-        For example, if lowest_sigma is 4 & max_len is 243, the resulting set of
-        sigmas should be (4, 8, 16, 32).
-      suppress_negative: If True, will suppress negative values (by applying
-        ReLu) before returning. Default is False.
+        For example, if lowest_sigma is 4 & max_len is 243, the resulting set
+        of sigmas should be (4, 8, 16, 32).
+      add_offsets: If True (default is False), add a trainable offset value to
+        LoG responses.
+      conv_filters: If not None, must be either a single integer (applicable
+        to outputs of all scales) or a list-like group of integers (one per
+        scale, applicable to outputs of respective scales). As many 3x3
+        filters (trainable) will be created and they will be applied to the
+        final outputs of this layer.
+      retain_LoG: If True, and if conv_filters is enabled, the LoG outputs
+        will be included in the outputs.
     """
 
-    def __init__(self, scales_sigmas=(4,), suppress_negative=False,
+    def __init__(self, scales_sigmas=(4,),
+                 add_offsets=False,
+                 conv_filters=None,
+                 retain_LoG=None,
                  **kwargs):
 
         assert len(scales_sigmas) > 0
+        assert isinstance(add_offsets, bool)
+        assert conv_filters is None or isinstance(conv_filters, int) or \
+            (isinstance(conv_filters, (list, tuple)) and
+             len(conv_filters) == len(scales_sigmas))
 
         data_format = kwargs.pop('data_format') if 'data_format' in kwargs \
             else 'channels_last'
@@ -287,8 +302,9 @@ class LoG(tf.keras.layers.Layer):
         assert data_format in ['channels_first', 'channels_last'], \
             'Only 2 formats supported'
 
-        if 'trainable' not in kwargs:
-            kwargs['trainable'] = False
+        kwargs['trainable'] = \
+            True if (add_offsets or conv_filters is not None) else False
+
         super(LoG, self).__init__(
             name=kwargs.pop('name') if 'name' in kwargs else 'LoG',
             **kwargs)
@@ -296,10 +312,13 @@ class LoG(tf.keras.layers.Layer):
 #        scales_sigmas = np.asarray(scales_sigmas)
 #        temp = ((2 * 3) * scales_sigmas) + 1  # compute 6 x sigma width
 #        if any(temp > height):
-#            logging.warning('Ignoring blob scales_sigmas larger than %.2f' % ((height - 1) / (2 * 3)))
+#            logging.warning(
+#               'Ignoring blob scales_sigmas larger than {:.2f}'.format(
+#                   (height - 1) / (2 * 3)))
 
         self.sigmas = sorted(scales_sigmas)
-        self.suppress_negative = suppress_negative
+        self.add_offsets = add_offsets
+        self.conv_filters = conv_filters
         self.data_format = data_format
 
         self.kernels = [tf.constant(
@@ -326,6 +345,41 @@ class LoG(tf.keras.layers.Layer):
         self.f_padding_vec = [tf.constant(pv, dtype=tf.int32)
                               for pv in f_padding_vec]
 
+        self.offsets = None
+        if add_offsets:
+            self.offsets = [
+                self.add_weight(
+                    name='offset{:d}'.format(sc_idx),
+                    shape=[],
+                    initializer=tf.keras.initializers.zeros(),
+                    regularizer=None,
+                    constraint=tf.keras.constraints.non_neg(),
+                    trainable=True,
+                    dtype=self.kernels[0].dtype)
+                for sc_idx in range(len(scales_sigmas))]
+
+        if conv_filters is None:
+            self.conv_ops = None
+            self.retain_LoG = None  # Force this to be unset
+        else:
+            if isinstance(conv_filters, int):   # One for all
+                self.conv_ops = [tf.keras.layers.Conv2D(
+                    filters=conv_filters,
+                    kernel_size=(3, 3), strides=(1, 1),
+                    padding='same', use_bias=False, data_format=data_format,
+                    kernel_initializer=tf.keras.initializers.VarianceScaling(),
+                    name='LoG_Conv2D')]
+            else:
+                self.conv_ops = [tf.keras.layers.Conv2D(
+                    filters=num_filters,
+                    kernel_size=(3, 3), strides=(1, 1),
+                    padding='same', use_bias=False, data_format=data_format,
+                    kernel_initializer=tf.keras.initializers.VarianceScaling(),
+                    name='LoG{:d}_Conv2D'.format(sc_idx+1))
+                    for sc_idx, num_filters in enumerate(conv_filters)]
+
+            self.retain_LoG = (retain_LoG is not None and retain_LoG is True)
+
         self.input_spec = tf.keras.layers.InputSpec(ndim=4)
 
     def call(self, inputs, **kwargs):
@@ -339,29 +393,44 @@ class LoG(tf.keras.layers.Layer):
 
         # Process at all scales
         blob_det_inputs = inputs
+        conv_op_idxs = ([0] * len(self.kernels)) if len(self.conv_ops) == 1 \
+            else np.arange(len(self.kernels))
         all_scale_LoGs = list()
-        for f_padding_vec, curr_kernel in zip(self.f_padding_vec, self.kernels):
+        conv_outputs = list()
+        for sc_idx in range(len(self.kernels)):
             # Add padding (incrementally) prior to convolutions so that values
             # at boundaries are not very unrealistic.
-            blob_det_inputs = tf.pad(blob_det_inputs, f_padding_vec, 'SYMMETRIC')
+            blob_det_inputs = tf.pad(blob_det_inputs,
+                                     self.f_padding_vec[sc_idx], 'SYMMETRIC')
 
             # Apply LoG filter
-            curr_scale_LoG = tf.nn.conv2d(blob_det_inputs, curr_kernel,
-                                          strides=[1, 1, 1, 1], padding='VALID',
-                                          data_format=data_format_other)
+            curr_scale_LoG = tf.nn.conv2d(
+                blob_det_inputs,
+                self.kernels[sc_idx],
+                strides=[1, 1, 1, 1],
+                padding='VALID',
+                data_format=data_format_other)
+
+            # Add offset, if enabled
+            if self.offsets is not None:
+                curr_scale_LoG = curr_scale_LoG + self.offsets[sc_idx]
 
             all_scale_LoGs.append(curr_scale_LoG)
 
-        if len(all_scale_LoGs) > 1:
-            all_scale_blobs = tf.concat(all_scale_LoGs, axis=channel_axis)
+            # Apply post-conv, if enabled
+            if self.conv_ops is not None:
+                # Add offset and suppress values below zero. Then apply conv.
+                conv_outputs.append(
+                    self.conv_ops[conv_op_idxs[sc_idx]](
+                        tf.nn.relu(curr_scale_LoG)))
+
+        outputs = all_scale_LoGs + conv_outputs
+        if len(outputs) > 1:
+            outputs = tf.concat(outputs, axis=channel_axis)
         else:
-            all_scale_blobs = all_scale_LoGs[0]
+            outputs = outputs[0]
 
-        # Suppress responses below threshold
-        if self.suppress_negative:
-            all_scale_blobs = tf.nn.relu(all_scale_blobs)
-
-        return all_scale_blobs
+        return outputs
 
     def compute_output_shape(self, input_shape):
         output_shape = input_shape
@@ -372,7 +441,9 @@ class LoG(tf.keras.layers.Layer):
     def get_config(self):
         config = {
             'scales_sigmas': self.sigmas,
-            'suppress_negative': self.suppress_negative,
+            'add_offsets': self.add_offsets,
+            'conv_filters': self.conv_filters,
+            'retain_LoG': self.retain_LoG,
             'data_format': self.data_format
         }
 
@@ -1277,7 +1348,9 @@ class _Augmentations_SpectroTemporal:
                            lambda: data,
                            name=fn.__name__)
 
-        return tf.clip_by_value(data, 0.0, 1.0)  # Clip to valid range
+        #data = tf.clip_by_value(data, 0.0, 1.0)  # Clip to valid range
+
+        return data
 
     def _upsample_and_crop(self, data, f_incr=None, crop_out_higher_f=True, t_incr=None, crop_out_later_t=True):
         """
@@ -1405,10 +1478,10 @@ class _Augmentations_SpectroTemporal:
         """
 
         #start_stop = tf.cond(tf.less(val, 0), lambda: [0.0, val], lambda: [-val, 0.0])
-        amp_scale = tf.math.pow(10., tf.linspace(tf.abs(val) * (-1/10), 0.0, obj._height))
+        amp_scale = tf.linspace(tf.abs(val) * (-1/10), 0.0, obj._height)
 
-        amp_scale = tf.cond(tf.greater_equal(val, 0), lambda: amp_scale, lambda: (1 + amp_scale[0]) - amp_scale)
-        amp_scale = (10 / np.log(10)) * tf.math.log(amp_scale)
+        amp_scale = tf.cond(tf.greater_equal(val, 0), lambda: amp_scale, lambda: tf.reverse(amp_scale, [-1]))
+        #amp_scale = (10 / np.log(10)) * tf.math.log(amp_scale)
 
         # Expand dims
         for _ in range(obj._f_axis):
