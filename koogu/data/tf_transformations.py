@@ -360,6 +360,7 @@ class LoG(tf.keras.layers.Layer):
 
         if conv_filters is None:
             self.conv_ops = None
+            self.activation = None
             self.retain_LoG = None  # Force this to be unset
         else:
             if isinstance(conv_filters, int):   # One for all
@@ -378,6 +379,7 @@ class LoG(tf.keras.layers.Layer):
                     name='LoG{:d}_Conv2D'.format(sc_idx+1))
                     for sc_idx, num_filters in enumerate(conv_filters)]
 
+            self.activation = tf.keras.layers.Activation('relu', name='LoG_ReLu')
             self.retain_LoG = (retain_LoG is not None and retain_LoG is True)
 
         self.input_spec = tf.keras.layers.InputSpec(ndim=4)
@@ -422,7 +424,7 @@ class LoG(tf.keras.layers.Layer):
                 # Add offset and suppress values below zero. Then apply conv.
                 conv_outputs.append(
                     self.conv_ops[conv_op_idxs[sc_idx]](
-                        tf.nn.relu(curr_scale_LoG)))
+                        self.activation(curr_scale_LoG)))
 
         outputs = all_scale_LoGs + conv_outputs
         if len(outputs) > 1:
