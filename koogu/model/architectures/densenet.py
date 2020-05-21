@@ -249,6 +249,11 @@ def build_model(inputs, arch_params, **kwargs):
         cf_outputs = kl.BatchNormalization(axis=channel_axis, fused=True, scale=False,
                                            name=name_prefix + 'BatchNorm')(cf_inputs)
         cf_outputs = kl.Activation('relu', name=name_prefix + 'ReLu')(cf_outputs)
+
+        if padding == 'valid':
+            # Ensure that pixels at boundaries are properly accounted for when stride > 1.
+            cf_outputs = pad_for_valid_conv(cf_outputs, kernel_size, strides, data_format)
+
         cf_outputs = kl.Conv2D(filters=num_filters, kernel_size=kernel_size, strides=strides,
                                padding=padding, use_bias=False, data_format=data_format,
                                kernel_initializer=VarianceScaling(),
@@ -316,12 +321,6 @@ def build_model(inputs, arch_params, **kwargs):
                 num_features = int(outputs.get_shape().as_list()[channel_axis] * compression)
             else:
                 num_features = outputs.get_shape().as_list()[channel_axis]
-
-            # Ensure that pixels at boundaries are properly accounted for when stride > 1.
-            outputs = pad_for_valid_conv(outputs,
-                                         arch_params['pool_sizes'][block_idx],
-                                         arch_params['pool_strides'][block_idx],
-                                         data_format)
 
             if implicit_pooling:    # Achieve pooling by strided convolutions
                 outputs = composite_fn(outputs, num_features,
