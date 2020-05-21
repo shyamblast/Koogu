@@ -199,7 +199,7 @@ class Audio:
             # Remove DC
             sliced_data = sliced_data - sliced_data.mean(axis=1, keepdims=True)
             # Bring to range [-1.0, 1.0]
-            sliced_data = sliced_data / np.maximum(np.abs(sliced_data).max(axis=1, keepdims=True), 1e-16)
+            sliced_data = sliced_data / np.maximum(np.abs(sliced_data).max(axis=1, keepdims=True), 1e-24)
 
         return (sliced_data, clip_start_samples) if return_clip_indices else sliced_data
 
