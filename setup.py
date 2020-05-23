@@ -1,5 +1,5 @@
 from setuptools import setup, find_packages
-from . import koogu
+import koogu
 
 
 with open('README.md', 'r') as fd:
