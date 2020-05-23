@@ -294,3 +294,66 @@ def match_detections_to_groundtruth(gt_times, det_times, overlap_thld=0.6,
 
     return (tp_mask, stats, gt_matches) if return_gt_matches else (tp_mask, stats)
 
+
+def match_clip_detections_to_groundtruth(clip_starts, clip_dur,
+                                         gt_extents, gt_class_ids,
+                                         clip_det_scores,
+                                         score_thlds,
+                                         fn_lenient_frac_thld=0.0):
+    """
+
+    :param clip_starts: An M-length list containing start times of clips.
+    :param clip_dur: Duration (in seconds) of each clip.
+    :param gt_extents: An Nx2 numpy array containing start (col 1) and end (col 2) times of ground truth annotations.
+    :param gt_class_ids: Must be a list of N ground truth class IDs (as integer indices in the range [0, P-1]
+        corresponding to P classes).
+    :param clip_det_scores: Must be an MxP numpy array containing per-clip per-class detection scores.
+    :param score_thlds: A S-length list of monotonically increasing threshold values that are applied to
+        clip_det_scores for matching.
+    :param fn_lenient_frac_thld: A clip having lesser overlap (than this threshold) with an annotation will not be
+        considered as FN when it doesn't have a matching detection.
+
+    :return:
+        SxP-sized counts of TP, FP and FN
+    """
+
+    assert len(gt_extents.shape) == 2 and gt_extents.shape[1] == 2
+    assert gt_extents.shape[0] == len(gt_class_ids)
+    assert len(clip_det_scores.shape) == 2
+    assert len(clip_starts) == clip_det_scores.shape[0]
+    assert max(gt_class_ids) <= clip_det_scores.shape[1]
+
+    num_clips, num_classes = clip_det_scores.shape
+
+    clip_starts = np.asarray(clip_starts)
+    clip_ends = clip_starts + clip_dur
+    gt_class_ids = np.asarray(gt_class_ids)
+
+    def overlap_with_clips(annot_times):
+        if annot_times.shape[0] == 0:
+            return np.zeros((num_clips, ))
+        else:
+            denom = np.stack([
+                np.where(
+                    np.logical_and(clip_s <= annot_times[:, 0], clip_e >= annot_times[:, 1]),
+                    annot_times[:, 1] - annot_times[:, 0], clip_dur)
+                for clip_s, clip_e in zip(clip_starts, clip_ends)])
+            overlaps = np.stack([(np.minimum(annot_times[:, 1], clip_e) -
+                                  np.maximum(annot_times[:, 0], clip_s))
+                                 for clip_s, clip_e in zip(clip_starts, clip_ends)])
+            return (overlaps / denom).max(axis=1)
+
+    gt_class_clip_overlap = np.stack(                   # will result in a MxP array
+        [overlap_with_clips(gt_extents[gt_class_ids == cl_idx, :])
+         for cl_idx in range(num_classes)], axis=1)
+    gt_class_clip_mask = (gt_class_clip_overlap > 0.0)
+    gt_class_clip_lenient_mask = (gt_class_clip_overlap > fn_lenient_frac_thld)
+
+    # This will be an SxMxP array
+    score_dets_mask = np.stack([(clip_det_scores >= score_thld) for score_thld in score_thlds])
+
+    # Return SxP-sized masks of TP, FP and FN
+    return \
+        np.logical_and(score_dets_mask, np.expand_dims(gt_class_clip_mask, axis=0)).sum(axis=1), \
+        np.logical_and(score_dets_mask, np.expand_dims(np.logical_not(gt_class_clip_mask), axis=0)).sum(axis=1), \
+        np.logical_and(np.logical_not(score_dets_mask), np.expand_dims(gt_class_clip_lenient_mask, axis=0)).sum(axis=1)
