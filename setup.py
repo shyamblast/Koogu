@@ -1,4 +1,5 @@
 from setuptools import setup, find_packages
+from . import koogu
 
 
 with open('README.md', 'r') as fd:
@@ -6,7 +7,7 @@ with open('README.md', 'r') as fd:
 
 setup(
     name='koogu',
-    version='0.2.2',
+    version=koogu.__version__,
     description='...',
     long_description=long_description,
     long_description_content_type='text/markdown',
