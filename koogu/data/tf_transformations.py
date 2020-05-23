@@ -1193,7 +1193,7 @@ class _Augmentations_Temporal:
     def add_echo(obj, data, val):
         """
         Produce echo effect by adding a dampened and delayed copy of data to data. The dampened copy is produced by
-        using a random attenuation factor in the range [-40 dB, -15 dB].
+        using a random attenuation factor in the range [-15 dB, -12 dB].
 
         :param obj: An instance of _Augmentations_Temporal.
         :param data: Time-domain signal (single dimension) or a batch of time-domain signals (multidimensional).
@@ -1202,7 +1202,7 @@ class _Augmentations_Temporal:
             Signal with added echo.
         """
 
-        echo_amp = tf.pow(10.0, (tf.random.uniform([], minval=-40.0, maxval=-15.0) / 20))
+        echo_amp = tf.pow(10.0, (tf.random.uniform([], minval=-15.0, maxval=-12.0) / 20))
 
         echo_offset = tf.cast(tf.round(np.float32(obj._fs) * val), tf.int32)
 
