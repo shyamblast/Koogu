@@ -330,7 +330,11 @@ def build_model(inputs, arch_params, **kwargs):
             else:
                 outputs = composite_fn(outputs, num_features, [1, 1], [1, 1], 'valid', '',
                                        n_pre='T{:d}_'.format(block_idx + 1))
-
+                # Ensure that pixels at boundaries are properly accounted for when stride > 1.
+                outputs = pad_for_valid_conv(outputs,
+                                         arch_params['pool_sizes'][block_idx],
+                                         arch_params['pool_strides'][block_idx],
+                                         data_format)
                 outputs = pooling(pool_size=arch_params['pool_sizes'][block_idx],
                                   strides=arch_params['pool_strides'][block_idx],
                                   padding='valid', data_format=data_format,
