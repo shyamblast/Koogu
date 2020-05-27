@@ -122,7 +122,7 @@ def combine_streaks(det_scores, clip_start_samples, num_samples, squeeze_min_len
             [[clip_start_samples[streak_onset_idxs[idx]], clip_start_samples[streak_end_idxs[idx]] + num_samples - 1]
              for idx in range(num_detections)], dtype=np.uint64)
         ret_scores = np.asarray(
-            [np.mean(det_scores[streak_onset_idxs[idx]:(streak_end_idxs[idx] + 1), streak_class_idxs[idx]])
+            [np.max(det_scores[streak_onset_idxs[idx]:(streak_end_idxs[idx] + 1), streak_class_idxs[idx]])
              for idx in range(num_detections)])
 
     return ret_extents, ret_scores, streak_class_idxs
