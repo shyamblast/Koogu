@@ -299,7 +299,8 @@ def match_clip_detections_to_groundtruth(clip_starts, clip_dur,
                                          gt_extents, gt_class_ids,
                                          clip_det_scores,
                                          score_thlds,
-                                         fn_lenient_frac_thld=0.0):
+                                         fn_lenient_frac_thld=0.50,
+                                         centralize_match=None):
     """
 
     :param clip_starts: An M-length list containing start times of clips.
@@ -311,7 +312,14 @@ def match_clip_detections_to_groundtruth(clip_starts, clip_dur,
     :param score_thlds: A S-length list of monotonically increasing threshold values that are applied to
         clip_det_scores for matching.
     :param fn_lenient_frac_thld: A clip having lesser overlap (than this threshold) with an annotation will not be
-        considered as FN when it doesn't have a matching detection.
+        considered as FN when it doesn't have a matching detection. Expressed as a fraction of the clip duration and
+        must be in the range [0.0, 1.0).
+    :param centralize_match: When an annotation is shorter in duration than a concurrent clip which doesn't have a
+        corresponding matching detection, the clip will not be considered as FN if the annotation didn't occur
+        "centralized" within the clip. The parameter value, in the range (0.0, 1.0], defines the fractional duration
+        around it's center of the clip within which an annotation must be fully contained. An annotation is considered
+        "centralized" if it satisfies the above condition or if it spans across the temporal mid-point of the clip.
+        Setting the parameter to None disables this feature.
 
     :return:
         SxP-sized counts of TP, FP and FN
@@ -322,6 +330,8 @@ def match_clip_detections_to_groundtruth(clip_starts, clip_dur,
     assert len(clip_det_scores.shape) == 2
     assert len(clip_starts) == clip_det_scores.shape[0]
     assert max(gt_class_ids) <= clip_det_scores.shape[1]
+    assert 0.0 <= fn_lenient_frac_thld < 1.0
+    assert centralize_match is None or 0.0 < centralize_match <= 1.0
 
     num_clips, num_classes = clip_det_scores.shape
 
@@ -329,31 +339,56 @@ def match_clip_detections_to_groundtruth(clip_starts, clip_dur,
     clip_ends = clip_starts + clip_dur
     gt_class_ids = np.asarray(gt_class_ids)
 
-    def overlap_with_clips(annot_times):
-        if annot_times.shape[0] == 0:
-            return np.zeros((num_clips, ))
-        else:
-            denom = np.stack([
-                np.where(
-                    np.logical_and(clip_s <= annot_times[:, 0], clip_e >= annot_times[:, 1]),
-                    annot_times[:, 1] - annot_times[:, 0], clip_dur)
-                for clip_s, clip_e in zip(clip_starts, clip_ends)])
-            overlaps = np.stack([(np.minimum(annot_times[:, 1], clip_e) -
-                                  np.maximum(annot_times[:, 0], clip_s))
-                                 for clip_s, clip_e in zip(clip_starts, clip_ends)])
-            return (overlaps / denom).max(axis=1)
+    # MxN array of temporal overlap amounts expressed as a fraction.
+    # The denominators will either be -
+    #   annot duration if annotation is fully contained within a clip, or
+    #   clip duration otherwise.
+    # Resulting values will be <= clip_dur and, where clips have no overlap with a gt, will be non-positive.
+    overlaps = np.stack([
+        (np.minimum(gt_extents[:, 1], clip_e) - np.maximum(gt_extents[:, 0], clip_s))
+        for clip_s, clip_e in zip(clip_starts, clip_ends)])
 
-    gt_class_clip_overlap = np.stack(                   # will result in a MxP array
-        [overlap_with_clips(gt_extents[gt_class_ids == cl_idx, :])
-         for cl_idx in range(num_classes)], axis=1)
-    gt_class_clip_mask = (gt_class_clip_overlap > 0.0)
-    gt_class_clip_lenient_mask = (gt_class_clip_overlap > fn_lenient_frac_thld)
+    # MxP mask array indicating clips having any overlap with one or more gt annotations per class
+    clip_class_mask = np.stack([
+        (overlaps[:, gt_class_ids == cl_idx] > 0.0).any(axis=1)
+        for cl_idx in range(num_classes)
+    ], axis=1)
 
-    # This will be an SxMxP array
+    # MxN mask array indicating whether a gt is fully contained within a clip
+    containment_mask = np.stack([
+        np.logical_and(clip_s <= gt_extents[:, 0], clip_e >= gt_extents[:, 1])
+        for clip_s, clip_e in zip(clip_starts, clip_ends)])
+
+    if centralize_match is not None:
+        diff = clip_dur * ((1.0 - centralize_match) / 2.0)
+        # Update mask array to further indicate whether a gt is either
+        #   fully contained within reduced bounds inside of a clip, or
+        #   spans across the midpoint of the clip.
+        containment_mask = \
+            np.logical_and(containment_mask,
+                           np.stack([
+                               np.logical_or(
+                                   np.logical_and(clip_s <= gt_extents[:, 0], clip_e >= gt_extents[:, 1]),
+                                   np.logical_and(clip_m >= gt_extents[:, 0], clip_m <= gt_extents[:, 1])
+                                   ) for clip_s, clip_e, clip_m in zip(clip_starts + diff,
+                                                                       clip_ends - diff,
+                                                                       clip_starts + (clip_dur / 2.0))])
+                           )
+
+    clip_gt_lenient_mask = np.logical_or(
+        overlaps > (fn_lenient_frac_thld * clip_dur), containment_mask)
+
+    # MxP mask array indicating clips having necessary minimum overlap with one or more gt annotations per class
+    clip_class_lenient_mask = np.stack([
+        clip_gt_lenient_mask[:, gt_class_ids == cl_idx].any(axis=1)
+        for cl_idx in range(num_classes)
+    ], axis=1)
+
+    # This will be an SxMxP mask
     score_dets_mask = np.stack([(clip_det_scores >= score_thld) for score_thld in score_thlds])
 
-    # Return SxP-sized masks of TP, FP and FN
+    # Return SxP-sized counts of TP, FP and FN
     return \
-        np.logical_and(score_dets_mask, np.expand_dims(gt_class_clip_mask, axis=0)).sum(axis=1), \
-        np.logical_and(score_dets_mask, np.expand_dims(np.logical_not(gt_class_clip_mask), axis=0)).sum(axis=1), \
-        np.logical_and(np.logical_not(score_dets_mask), np.expand_dims(gt_class_clip_lenient_mask, axis=0)).sum(axis=1)
+        np.logical_and(score_dets_mask, np.expand_dims(clip_class_mask, axis=0)).sum(axis=1), \
+        np.logical_and(score_dets_mask, np.expand_dims(np.logical_not(clip_class_mask), axis=0)).sum(axis=1), \
+        np.logical_and(np.logical_not(score_dets_mask), np.expand_dims(clip_class_lenient_mask, axis=0)).sum(axis=1)
