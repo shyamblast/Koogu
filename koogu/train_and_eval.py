@@ -36,11 +36,13 @@ def train_and_eval(data_dir, model_dir,
 
     # Check fields in training_config
     required_fields = ['batch_size', 'epochs', 'epochs_between_evals',
-                       'learning_rate', 'optimizer']
+                       'learning_rate']
     if any([field not in training_config for field in required_fields]):
         print('Required fields missing in \'training_config\'',
               file=sys.stderr)
         return 1
+    if 'optimizer' not in training_config:
+        training_config['optimizer'] = [tf.keras.optimizers.Adam, {}]
     if 'weighted_loss' not in training_config:
         training_config['weighted_loss'] = False
     if 'l2_weight_decay' not in training_config:
@@ -96,9 +98,9 @@ def train_and_eval(data_dir, model_dir,
         data_dir.validation_samples))
 
     # Invoke the underlying main function
-    _main(data_dir, model_dir,
-          data_config, model_config, training_config,
-          **kwargs)
+    return _main(data_dir, model_dir,
+                 data_config, model_config, training_config,
+                 **kwargs)
 
 
 # def _validate_fcn_splitting(raw_data_shape, data_cfg, patch_size, patch_overlap):
@@ -212,7 +214,7 @@ def _main(data_feeder, model_dir, data_cfg, model_cfg, training_cfg,
         class_weights = {idx: weight for idx, weight in enumerate(
             data_feeder.training_samples / (data_feeder.num_classes * data_feeder.training_samples_per_class))}
 
-    classifier.fit(
+    history = classifier.fit(
         x=data_feeder(True),
         validation_data=data_feeder(False),
         initial_epoch=0, epochs=training_cfg['epochs'],
@@ -235,6 +237,8 @@ def _main(data_feeder, model_dir, data_cfg, model_cfg, training_cfg,
                                    data_transformation,
                                    data_feeder.class_names,
                                    data_cfg['audio_settings'])
+
+    return history
 
 
 class SpectralDataFeeder(feeder.TFRecordFeeder):
