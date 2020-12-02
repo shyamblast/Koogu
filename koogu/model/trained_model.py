@@ -18,8 +18,6 @@ class TrainedModel:
                           classes_list, audio_settings):
         """Create a new model encompassing an already-trained 'classifier'."""
 
-        keras.backend.set_learning_phase(0)
-
         inputs = keras.Input(input_shape, name='inputs')
         class_mask = keras.Input(classifier.output.get_shape().as_list()[1],
                                  name='class_mask', batch_size=1,

@@ -138,7 +138,11 @@ def _main(data_feeder, model_dir, data_cfg, model_cfg, training_cfg,
     if 'random_seed' in kwargs:
         tf.random.set_seed(kwargs.pop('random_seed'))
 
-    callbacks.append(tf.keras.callbacks.TensorBoard(log_dir=model_dir, write_graph=True, write_images=True))
+    os.makedirs(os.path.join(model_dir, 'checkpoints'), exist_ok=True)
+    callbacks.append(tf.keras.callbacks.ModelCheckpoint(
+        filepath=os.path.join(model_dir, 'checkpoints', 'ckpt_weights_e-{epoch:03d}.h5'),
+        save_weights_only=True,
+        monitor='val_loss', mode='min', save_best_only=True))
 
 #    # If patch splitting is enabled, validate it and set estimator params accordingly
 #    if model_cfg.fcn_patch_size is not None:
@@ -228,7 +232,8 @@ def _main(data_feeder, model_dir, data_cfg, model_cfg, training_cfg,
 
     # Reset metrics before saving
     classifier.reset_metrics()
-    classifier.save(os.path.join(model_dir, 'classifier.h5'))
+    classifier.trainable = False
+    classifier.save(os.path.join(model_dir, 'classifier.h5'), include_optimizer=False)
 
     new_subdir = '1'
     TrainedModel.finalize_and_save(classifier,
