@@ -171,10 +171,9 @@ def get_model(model_cfg,
 
     # Build the functional model here onwards
 
-    inputs = K.Input(shape=input_shape)
+    inputs = K.Input(shape=input_shape, dtype=dtype)
 
     outputs = tf.expand_dims(inputs, axis=3 if data_format == 'channels_last' else 1)
-    outputs = tf.stop_gradient(outputs)
 
     # Do preprocessing feature transformations (if any)
     for trans_layer in model_cfg['preproc']:
