@@ -35,6 +35,7 @@ def _squeeze_streak(starts, scores, num_samples, group_size):
     grp_start_det_idxs = np.arange(min(group_size, len(starts)) - 1, len(starts))
     grp_end_det_idxs = np.arange(len(starts) - min(group_size, len(starts)) + 1)
     group_extents = np.stack([starts[grp_start_det_idxs], starts[grp_end_det_idxs] + num_samples - 1]).T
+    group_extent_idxs = np.stack([grp_start_det_idxs, grp_end_det_idxs]).T
     group_scores = np.asarray([np.max(scores[st_idx:(en_idx + 1)])
                                for st_idx, en_idx in zip(grp_end_det_idxs, grp_start_det_idxs)])
 
@@ -55,6 +56,10 @@ def _squeeze_streak(starts, scores, num_samples, group_size):
         for d_idx in range(s_idx, e_idx + 1)]] = False
 
     # Combine results of both contiguous groups and non-contiguous ones
+    group_extent_idxs = np.concatenate([
+        np.stack([group_extent_idxs[contiguous_groups_onsets, 1], group_extent_idxs[contiguous_groups_ends, 0]]).T,
+        group_extent_idxs[noncontiguous_groups_mask, ...]],
+        axis=0)
     group_extents = np.concatenate([
         np.stack([group_extents[contiguous_groups_onsets, 0], group_extents[contiguous_groups_ends, 1]]).T,
         group_extents[noncontiguous_groups_mask, ...]],
@@ -65,10 +70,10 @@ def _squeeze_streak(starts, scores, num_samples, group_size):
         group_scores[noncontiguous_groups_mask]],
         axis=0)
 
-    return group_extents, group_scores
+    return group_extents, group_scores, np.sort(group_extent_idxs, axis=1)
 
 
-def combine_streaks(det_scores, clip_start_samples, num_samples, squeeze_min_len=None):
+def combine_streaks(det_scores, clip_start_samples, num_samples, squeeze_min_len=None, return_idxs=False):
     """
     Combine together groupings of successive independent detections.
     :param det_scores: An [N x M] array containing M per-class scores for each of the N clips.
@@ -77,7 +82,8 @@ def combine_streaks(det_scores, clip_start_samples, num_samples, squeeze_min_len
     :param squeeze_min_len: If not None, will run the algorithm to squish contiguous detections of the same class.
         Squeezing will be limited to produce detections that are at least squeeze_min_len samples long.
     :return:
-        A tuple containing sample idxs (array of start and end pairs), aggregated scores and class IDs.
+        A tuple containing sample idxs (array of start and end pairs), aggregated scores, class IDs and, if requested,
+        start-end indices making up each combined streak.
     """
 
     assert squeeze_min_len is None or squeeze_min_len <= num_samples
@@ -100,32 +106,41 @@ def combine_streaks(det_scores, clip_start_samples, num_samples, squeeze_min_len
         max_num_overlapping_clips = \
             1 + (clip_start_samples[1:] <= (clip_start_samples[0] + (num_samples - squeeze_min_len))).sum()
 
+        ret_samp_extents = list()
         ret_extents = list()
         ret_scores = list()
         ret_class_idxs = list()
         for idx in range(num_detections):
             str_st_idx = streak_onset_idxs[idx]
             str_en_idx = streak_end_idxs[idx] + 1
-            c_exts, c_scores = _squeeze_streak(clip_start_samples[str_st_idx:str_en_idx],
+            c_samp_exts, c_scores, c_exts = _squeeze_streak(clip_start_samples[str_st_idx:str_en_idx],
                                        det_scores[str_st_idx:str_en_idx, streak_class_idxs[idx]],
                                        num_samples, max_num_overlapping_clips)
 
-            ret_extents.append(c_exts)
+            ret_samp_extents.append(c_samp_exts)
+            ret_extents.append(c_exts + str_st_idx)
             ret_scores.append(c_scores)
             ret_class_idxs.append(np.full((len(c_scores),), streak_class_idxs[idx]))
 
+        ret_samp_extents = np.concatenate(ret_samp_extents, axis=0)
         ret_extents = np.concatenate(ret_extents, axis=0)
         ret_scores = np.concatenate(ret_scores, axis=0)
         streak_class_idxs = np.concatenate(ret_class_idxs, axis=0)
     else:
-        ret_extents = np.asarray(
+        ret_samp_extents = np.asarray(
             [[clip_start_samples[streak_onset_idxs[idx]], clip_start_samples[streak_end_idxs[idx]] + num_samples - 1]
+             for idx in range(num_detections)], dtype=np.uint64)
+        ret_extents = np.asarray(
+            [[streak_onset_idxs[idx], streak_end_idxs[idx]]
              for idx in range(num_detections)], dtype=np.uint64)
         ret_scores = np.asarray(
             [np.max(det_scores[streak_onset_idxs[idx]:(streak_end_idxs[idx] + 1), streak_class_idxs[idx]])
              for idx in range(num_detections)])
 
-    return ret_extents, ret_scores, streak_class_idxs
+    if return_idxs:
+        return ret_samp_extents, ret_scores, streak_class_idxs, ret_extents
+    else:
+        return ret_samp_extents, ret_scores, streak_class_idxs
 
 
 class SelectionTableReader(Generator):
