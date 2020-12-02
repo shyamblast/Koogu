@@ -152,6 +152,7 @@ class Audio2Spectral(tf.keras.layers.Layer):
     # obtain log10(val) as tf.log(val) / np.log(10).
     _db_conversion_constant = (10. / np.log(10.))
 
+    @tf.function
     def call(self, inputs, **kwargs):
 
         # Compute STFT
@@ -195,6 +196,7 @@ class Audio2Spectral(tf.keras.layers.Layer):
         axes[-2:] = np.flip(axes[-2:])
         return tf.transpose(outputs, perm=axes)
 
+    @tf.function
     def _to_psd(self, stft):
         """This function provides a graph-optimized implementation of the
         following operations
@@ -384,6 +386,7 @@ class LoG(tf.keras.layers.Layer):
 
         self.input_spec = tf.keras.layers.InputSpec(ndim=4)
 
+    @tf.function
     def call(self, inputs, **kwargs):
 
         if self.data_format == 'channels_last':
