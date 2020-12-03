@@ -2,8 +2,8 @@
 import os
 import sys
 import tensorflow as tf
+#import numpy as np
 import logging
-from tensorflow.python.tools import freeze_graph
 from tensorflow.python.client import device_lib
 import argparse
 
@@ -138,11 +138,11 @@ def _main(data_feeder, model_dir, data_cfg, model_cfg, training_cfg,
     if 'random_seed' in kwargs:
         tf.random.set_seed(kwargs.pop('random_seed'))
 
-    os.makedirs(os.path.join(model_dir, 'checkpoints'), exist_ok=True)
-    callbacks.append(tf.keras.callbacks.ModelCheckpoint(
-        filepath=os.path.join(model_dir, 'checkpoints', 'ckpt_weights_e-{epoch:03d}.h5'),
-        save_weights_only=True,
-        monitor='val_loss', mode='min', save_best_only=True))
+#    os.makedirs(os.path.join(model_dir, 'checkpoints'), exist_ok=True)
+#    callbacks.append(tf.keras.callbacks.ModelCheckpoint(
+#        filepath=os.path.join(model_dir, 'checkpoints', 'ckpt_weights_e-{epoch:03d}.h5'),
+#        save_weights_only=True,
+#        monitor='val_loss', mode='min', save_best_only=True))
 
 #    # If patch splitting is enabled, validate it and set estimator params accordingly
 #    if model_cfg.fcn_patch_size is not None:
@@ -259,8 +259,9 @@ class SpectralDataFeeder(feeder.TFRecordFeeder):
         output = clip
 
         # Normalize the waveforms
-        output = output / \
-                 tf.reduce_max(tf.abs(output), axis=-1, keepdims=True)
+        output = output - tf.reduce_mean(output, axis=-1, keepdims=True)
+        output = output / tf.maximum(
+            tf.reduce_max(tf.abs(output), axis=-1, keepdims=True), 1e-24)
 
         # Convert to spectrogram
         output = Audio2Spectral(
