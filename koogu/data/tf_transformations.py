@@ -429,7 +429,8 @@ class LoG(tf.keras.layers.Layer):
                     self.conv_ops[conv_op_idxs[sc_idx]](
                         self.activation(curr_scale_LoG)))
 
-        outputs = all_scale_LoGs + conv_outputs
+        outputs = (all_scale_LoGs + conv_outputs) if self.retain_LoG else conv_outputs
+
         if len(outputs) > 1:
             outputs = tf.concat(outputs, axis=channel_axis)
         else:
