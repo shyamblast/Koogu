@@ -6,6 +6,7 @@ import tensorflow as tf
 import logging
 from tensorflow.python.client import device_lib
 import argparse
+import json
 
 from koogu.model import get_model, TrainedModel
 from koogu.data import feeder
@@ -22,17 +23,21 @@ def train_and_eval(data_dir, model_dir,
                    data_config,
                    model_config,
                    training_config,
+                   verbose=2,
                    **kwargs):
 
     # Check fields in model_config
     required_fields = ['arch', 'arch_params']
     if any([field not in model_config for field in required_fields]):
         print('Required fields missing in \'model_config\'', file=sys.stderr)
-        return 1
-    if 'preproc' not in model_config:
-        model_config['preproc'] = []    # force to be an empty list
-    if 'dense_layers' not in model_config:
-        model_config['dense_layers'] = []   # force to be an empty list
+        return -1
+    # Copy needed vals
+    model_cfg = {key: model_config[key] for key in required_fields}
+    # Copy/set default vals for non-mandatory fields
+    model_cfg['preproc'] = model_config['preproc'] \
+        if 'preproc' in model_config else []  # force to be an empty list
+    model_cfg['dense_layers'] = model_config['dense_layers'] \
+        if 'dense_layers' in model_config else []  # force to be an empty list
 
     # Check fields in training_config
     required_fields = ['batch_size', 'epochs', 'epochs_between_evals',
@@ -40,19 +45,19 @@ def train_and_eval(data_dir, model_dir,
     if any([field not in training_config for field in required_fields]):
         print('Required fields missing in \'training_config\'',
               file=sys.stderr)
-        return 1
-    if 'optimizer' not in training_config:
-        training_config['optimizer'] = [tf.keras.optimizers.Adam, {}]
-    if 'weighted_loss' not in training_config:
-        training_config['weighted_loss'] = False
-    if 'l2_weight_decay' not in training_config:
-        training_config['l2_weight_decay'] = None
-    if 'lr_change_at_epochs' not in training_config or \
-        'lr_update_factors' not in training_config:
-        training_config['lr_change_at_epochs'] = None
-    else:
-        assert len(training_config['lr_change_at_epochs']) == \
-               (len(training_config['lr_update_factors']) - 1)
+        return -1
+    # Copy needed vals
+    training_cfg = {key: training_config[key] for key in required_fields}
+    # Copy/set default vals for non-mandatory fields
+    training_cfg['optimizer'] = training_config['optimizer'] \
+        if 'optimizer' in training_config else \
+        [tf.keras.optimizers.Adam, {'epsilon': 1e-10}]
+    training_cfg['weighted_loss'] = training_config['weighted_loss'] \
+        if 'weighted_loss' in training_config else True
+    training_cfg['l2_weight_decay'] = training_config['l2_weight_decay'] \
+        if 'l2_weight_decay' in training_config else None
+    training_cfg['lr_change_at_epochs'] = None
+    training_cfg['lr_update_factors'] = None
 
     # Handle kwargs
     if 'data_format' not in kwargs:
@@ -61,46 +66,88 @@ def train_and_eval(data_dir, model_dir,
         assert kwargs['data_format'] in ['channels_first', 'channels_last']
     if 'dropout_rate' in training_config:
         # Move this into kwargs. It's needed during model-building
-        kwargs['dropout_rate'] = training_config.pop('dropout_rate')
+        kwargs['dropout_rate'] = training_config['dropout_rate']
 
     # Instantiate settings that need instantiation
     try:
-        model_config['preproc'] = [
+        model_cfg['preproc'] = [
             preproc_op(**preproc_params, data_format=kwargs['data_format'])
-            for (preproc_op, preproc_params) in model_config['preproc']]
+            for (preproc_op, preproc_params) in model_cfg['preproc']]
     except Exception as exc:
         print('Error setting-up model pre-processing: {:s}'.format(repr(exc)),
               file=sys.stderr)
-        return 2
+        return -2
     try:
-        training_config['optimizer'] = training_config['optimizer'][0](
-            learning_rate=training_config['learning_rate'],
-            **training_config['optimizer'][1])
+        if hasattr(training_cfg['learning_rate'], '__len__'):
+            initial_val = training_cfg['learning_rate'][0]
+        elif callable(training_cfg['learning_rate']):
+            initial_val = training_cfg['learning_rate'](1)
+        else:
+            initial_val = training_cfg['learning_rate']
+        training_cfg['optimizer'] = training_cfg['optimizer'][0](
+            learning_rate=initial_val,
+            **training_cfg['optimizer'][1])
     except Exception as exc:
         print('Error setting-up optimizer: {:s}'.format(repr(exc)),
               file=sys.stderr)
-        return 2
+        return -2
 
-    # If data_dir parameter was already an instantialized DataFeeder object,
-    # pass it on. Otherwise, create one.
+    # If data_dir parameter was already an instantiated DataFeeder object,
+    # pass it on. Otherwise, create a default one.
     if not isinstance(data_dir, feeder.DataFeeder):
-        num_gpu_devices = len(
-            [x.name for x in device_lib.list_local_devices()
-             if x.device_type == 'GPU'])
-        data_dir = \
-            SpectralDataFeeder(data_dir, data_config,
-                               training_config['batch_size'],
-                               cache=True,
-                               num_prefetch_batches=max(1, num_gpu_devices))
-
-    print('Dataset: {:d} classes, {:d} training & {:d} eval samples'.format(
-        data_dir.num_classes, data_dir.training_samples,
-        data_dir.validation_samples))
+        data_feeder = _get_default_data_feeder(
+            data_dir, data_config, training_cfg['batch_size'])
+    else:
+        data_feeder = data_dir
 
     # Invoke the underlying main function
-    return _main(data_dir, model_dir,
-                 data_config, model_config, training_config,
-                 **kwargs)
+    return _main(data_feeder, model_dir,
+                 data_config, model_cfg, training_cfg,
+                 verbose, **kwargs)
+
+
+def _get_default_data_feeder(data_dir, data_config, batch_size):
+
+    num_gpu_devices = len(
+        [x.name for x in device_lib.list_local_devices()
+         if x.device_type == 'GPU'])
+
+    return feeder.SpectralTFRecordFeeder(
+        data_dir, data_config, batch_size,
+        cache=True, num_prefetch_batches=max(1, num_gpu_devices))
+
+
+def _get_learning_rate_scheduler(lr, lr_change_at_epochs=None,
+                                 lr_update_factors=None):
+
+    if lr_change_at_epochs is not None:
+        # Variable rate is enabled, from command line
+        # Set the piecewise learning rates
+        def get_learning_rate(epoch):
+            var_rates = [lr * factor for factor in lr_update_factors]
+            for idx, boundary in enumerate(lr_change_at_epochs):
+                if epoch < boundary:
+                    tf.summary.scalar('learning rate', data=var_rates[idx],
+                                      step=epoch)
+                    return var_rates[idx]
+            tf.summary.scalar('learning rate', data=var_rates[-1], step=epoch)
+            return var_rates[-1]
+    elif hasattr(lr, '__len__'):    # If it's a list
+        # Not called from command line and per-epoch values are defined
+        def get_learning_rate(epoch):
+            retval = lr[-1] if epoch >= len(lr) else lr[epoch]
+            tf.summary.scalar('learning rate', data=retval, step=epoch)
+            return retval
+    elif callable(lr):  # If it's a function
+        def get_learning_rate(epoch):
+            return lr(epoch + 1)
+    else:
+        # Static learning rate
+        def get_learning_rate(epoch):
+            tf.summary.scalar('learning rate', data=lr, step=epoch)
+            return lr
+
+    return tf.keras.callbacks.LearningRateScheduler(get_learning_rate)
 
 
 # def _validate_fcn_splitting(raw_data_shape, data_cfg, patch_size, patch_overlap):
@@ -128,21 +175,15 @@ def train_and_eval(data_dir, model_dir,
 
 
 def _main(data_feeder, model_dir, data_cfg, model_cfg, training_cfg,
-          show_progress=False,
+          verbose=2,
           **kwargs):
 
     os.makedirs(model_dir, exist_ok=True)
 
     tf.keras.backend.clear_session()
-    callbacks = []
+
     if 'random_seed' in kwargs:
         tf.random.set_seed(kwargs.pop('random_seed'))
-
-#    os.makedirs(os.path.join(model_dir, 'checkpoints'), exist_ok=True)
-#    callbacks.append(tf.keras.callbacks.ModelCheckpoint(
-#        filepath=os.path.join(model_dir, 'checkpoints', 'ckpt_weights_e-{epoch:03d}.h5'),
-#        save_weights_only=True,
-#        monitor='val_loss', mode='min', save_best_only=True))
 
 #    # If patch splitting is enabled, validate it and set estimator params accordingly
 #    if model_cfg.fcn_patch_size is not None:
@@ -161,22 +202,6 @@ def _main(data_feeder, model_dir, data_cfg, model_cfg, training_cfg,
 #    if model_cfg.fcn_patch_size is not None:
 #        estimator_params['FCN_patch_size'] = model_cfg.fcn_patch_size
 #        estimator_params['FCN_patch_overlap'] = model_cfg.fcn_patch_overlap
-
-    # Set the learning rate
-    if training_cfg['lr_change_at_epochs'] is not None:   # If variable learning rate is enabled
-        # Set the piecewise learning rates
-        def get_learning_rate(epoch):
-            var_rates = [training_cfg['learning_rate'] * factor for factor in training_cfg['lr_update_factors']]
-            for idx, boundary in enumerate(training_cfg['lr_change_at_epochs']):
-                if epoch <= boundary:
-                    tf.summary.scalar('learning rate', data=var_rates[idx], step=epoch)
-                    return var_rates[idx]
-            tf.summary.scalar('learning rate', data=var_rates[-1], step=epoch)
-            return var_rates[-1]
-    else:
-        # Static learning rate
-        def get_learning_rate(_): return training_cfg['learning_rate']
-    callbacks.append(tf.keras.callbacks.LearningRateScheduler(get_learning_rate))
 
     model_input_shape = data_feeder.data_shape[0]
     data_transformation = None
@@ -210,13 +235,34 @@ def _main(data_feeder, model_dir, data_cfg, model_cfg, training_cfg,
         optimizer=training_cfg['optimizer'],
         loss=loss_fn,
         metrics=[tf.keras.metrics.CategoricalAccuracy()])
-    classifier.summary()
 
-    # Enable loss weighting (if enabled)
-    class_weights = None
-    if training_cfg['weighted_loss']:
+    if verbose > 0:
+        print('Data: {:d} classes, {:d} training & {:d} eval samples'.format(
+            data_feeder.num_classes, data_feeder.training_samples,
+            data_feeder.validation_samples))
+
+        classifier.summary()
+
+    # Disable loss weighting if requested
+    if 'weighted_loss' in training_cfg and not training_cfg['weighted_loss']:
+        class_weights = None
+    else:
         class_weights = {idx: weight for idx, weight in enumerate(
-            data_feeder.training_samples / (data_feeder.num_classes * data_feeder.training_samples_per_class))}
+            data_feeder.training_samples /
+            (data_feeder.num_classes * data_feeder.training_samples_per_class)
+        )}
+
+    callbacks = []
+    # Set the learning rate
+    callbacks.append(
+        _get_learning_rate_scheduler(training_cfg['learning_rate'],
+                                     training_cfg['lr_change_at_epochs'],
+                                     training_cfg['lr_update_factors']))
+#    os.makedirs(os.path.join(model_dir, 'checkpoints'), exist_ok=True)
+#    callbacks.append(tf.keras.callbacks.ModelCheckpoint(
+#        filepath=os.path.join(model_dir, 'checkpoints', 'ckpt_weights_e-{epoch:03d}.h5'),
+#        save_weights_only=True,
+#        monitor='val_loss', mode='min', save_best_only=True))
 
     history = classifier.fit(
         x=data_feeder(True),
@@ -224,7 +270,7 @@ def _main(data_feeder, model_dir, data_cfg, model_cfg, training_cfg,
         initial_epoch=0, epochs=training_cfg['epochs'],
         validation_freq=training_cfg['epochs_between_evals'],
         shuffle=False,
-        verbose=1 + (0 if show_progress else 1),
+        verbose=verbose,
         class_weight=class_weights,
 #        steps_per_epoch=int(np.ceil(steps_per_epoch)),
 #        validation_steps=val_steps,
@@ -233,7 +279,21 @@ def _main(data_feeder, model_dir, data_cfg, model_cfg, training_cfg,
     # Reset metrics before saving
     classifier.reset_metrics()
     classifier.trainable = False
-    classifier.save(os.path.join(model_dir, 'classifier.h5'), include_optimizer=False)
+    #classifier.save(os.path.join(model_dir, 'classifier.h5'), include_optimizer=False)
+    with open(os.path.join(model_dir, 'classifier.json'), 'w') as of:
+        of.write(classifier.to_json())
+    classifier.save_weights(os.path.join(model_dir, 'classifier_weights.h5'))
+
+    # Write out training history. Include epoch numbers for train & eval
+    with open(os.path.join(model_dir, 'training_history.json'), 'w') as of:
+        history_c = history.history.copy()
+        history_c['train_epochs'] = \
+            [x for x in range(1, training_cfg['epochs'] + 1)]
+        history_c['eval_epochs'] = \
+            [x for x in range(training_cfg['epochs_between_evals'],
+                              training_cfg['epochs'] + 1,
+                              training_cfg['epochs_between_evals'])]
+        of.write(json.dumps(str(history_c)))
 
     new_subdir = '1'
     TrainedModel.finalize_and_save(classifier,
@@ -244,31 +304,6 @@ def _main(data_feeder, model_dir, data_cfg, model_cfg, training_cfg,
                                    data_cfg['audio_settings'])
 
     return history
-
-
-class SpectralDataFeeder(feeder.TFRecordFeeder):
-    def __init__(self, data_dir, data_cfg, batch_size, **kwargs):
-
-        super(SpectralDataFeeder, self).__init__(
-            data_dir, batch_size, **kwargs)
-
-        self._data_cfg = data_cfg
-
-    def transform(self, clip, label, is_training, **kwargs):
-
-        output = clip
-
-        # Normalize the waveforms
-        output = output - tf.reduce_mean(output, axis=-1, keepdims=True)
-        output = output / tf.maximum(
-            tf.reduce_max(tf.abs(output), axis=-1, keepdims=True), 1e-24)
-
-        # Convert to spectrogram
-        output = Audio2Spectral(
-            self._data_cfg['audio_settings']['desired_fs'],
-            self._data_cfg['spec_settings'])(output)
-
-        return output, tf.one_hot(label, self.num_classes)
 
 
 def _get_settings_from_config(args):
@@ -428,6 +463,8 @@ if __name__ == '__main__':
                         args.loglevel, args, filemode='a')
     log_config(logging.getLogger(__name__), data_cfg.originals, model_cfg, training_cfg, **kwargs)
 
-    _main(args.datadir, args.modeldir, data_cfg, model_cfg, training_cfg, **kwargs)
+    _main(_get_default_data_feeder(args.data_dir, data_cfg, training_cfg['batch_size']),
+          args.modeldir, data_cfg, model_cfg, training_cfg,
+          verbose=1, **kwargs)
 
     logging.shutdown()

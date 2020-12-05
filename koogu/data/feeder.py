@@ -5,6 +5,7 @@ import tensorflow as tf
 
 from koogu.data import DatasetDigest, DirectoryNames, \
     FilenameExtensions, tfrecord_helper
+from koogu.data.tf_transformations import Audio2Spectral
 
 
 class DataFeeder(metaclass=abc.ABCMeta):
@@ -235,3 +236,32 @@ class TFRecordFeeder(DataFeeder):
         label = tf.cast(label, tf.int32)
 
         return data, label
+
+
+class SpectralTFRecordFeeder(TFRecordFeeder):
+    """
+    A handy TFRecord feeder, which normalizes and converts raw audio to
+    time-frequency format.
+    """
+    def __init__(self, data_dir, data_cfg, batch_size, **kwargs):
+
+        super(SpectralTFRecordFeeder, self).__init__(
+            data_dir, batch_size, **kwargs)
+
+        self._data_cfg = data_cfg
+
+    def transform(self, clip, label, is_training, **kwargs):
+
+        output = clip
+
+        # Normalize the waveforms
+        output = output - tf.reduce_mean(output, axis=-1, keepdims=True)
+        output = output / \
+            tf.reduce_max(tf.abs(output), axis=-1, keepdims=True)
+
+        # Convert to spectrogram
+        output = Audio2Spectral(
+            self._data_cfg['audio_settings']['desired_fs'],
+            self._data_cfg['spec_settings'])(output)
+
+        return output, tf.one_hot(label, self.num_classes)
