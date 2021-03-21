@@ -9,7 +9,7 @@ import json
 
 from koogu.model import get_model, TrainedModel
 from koogu.data import feeder
-from koogu.data.tf_transformations import LoG, Linear2dB, spatial_split
+from koogu.data.tf_transformations import LoG
 from koogu.utils import instantiate_logging
 from koogu.utils.terminal import ArgparseConverters
 from koogu.utils.config import Config, ConfigError, datasection2dict, log_config
@@ -48,15 +48,10 @@ def train_and_eval(data_dir, model_dir,
     # Copy needed vals
     training_cfg = {key: training_config[key] for key in required_fields}
     # Copy/set default vals for non-mandatory fields
-    training_cfg['optimizer'] = \
-        training_config.get('optimizer', ['Adam', {'epsilon': 1e-10}])
+    training_cfg['optimizer'] = training_config.get('optimizer', ['Adam', {}])
     training_cfg['weighted_loss'] = training_config.get('weighted_loss', True)
     training_cfg['l2_weight_decay'] = \
         training_config.get('l2_weight_decay', None)
-    training_cfg['lr_change_at_epochs'] = \
-        training_config.get('lr_change_at_epochs', None)
-    training_cfg['lr_update_factors'] = \
-        training_config.get('lr_update_factors', None)
 
     # Handle kwargs
     if 'data_format' not in kwargs:
@@ -70,22 +65,34 @@ def train_and_eval(data_dir, model_dir,
     # Instantiate settings that need instantiation
     try:
         model_cfg['preproc'] = [
-            preproc_op(**preproc_params, data_format=kwargs['data_format'])
+            _get_preproc_instance(preproc_op,
+                                  data_format=kwargs['data_format'],
+                                  **preproc_params)
             for (preproc_op, preproc_params) in model_cfg['preproc']]
     except Exception as exc:
         print('Error setting-up model pre-processing: {:s}'.format(repr(exc)),
               file=sys.stderr)
         return -2
     try:
-        if hasattr(training_cfg['learning_rate'], '__len__'):
-            initial_val = training_cfg['learning_rate'][0]
-        elif callable(training_cfg['learning_rate']):
-            initial_val = training_cfg['learning_rate'](1)
+        training_cfg['learning_rate_fn'] = _get_learning_rate_fn(
+            training_cfg['learning_rate'],
+            training_config.get('lr_change_at_epochs', None),
+            training_config.get('lr_update_factors', None))
+    except Exception as exc:
+        print('Error setting-up learning rates: {:s}'.format(repr(exc)),
+              file=sys.stderr)
+        return -2
+    try:
+        if hasattr(training_cfg['optimizer'], '__len__'):
+            training_cfg['optimizer'][1]['learning_rate'] = \
+                training_cfg['learning_rate_fn'](0)     # initial value
+            training_cfg['optimizer'] = tf.keras.optimizers.get({
+                'class_name': training_cfg['optimizer'][0],
+                'config': training_cfg['optimizer'][1]})
         else:
-            initial_val = training_cfg['learning_rate']
-        training_cfg['optimizer'] = training_cfg['optimizer'][0](
-            learning_rate=initial_val,
-            **training_cfg['optimizer'][1])
+            # was possibly already an optimizer instance
+            training_cfg['optimizer'] = tf.keras.optimizers.get(
+                training_cfg['optimizer'])
     except Exception as exc:
         print('Error setting-up optimizer: {:s}'.format(repr(exc)),
               file=sys.stderr)
@@ -102,8 +109,8 @@ def train_and_eval(data_dir, model_dir,
                  verbose, **kwargs)
 
 
-def _get_learning_rate_scheduler(lr, lr_change_at_epochs=None,
-                                 lr_update_factors=None):
+def _get_learning_rate_fn(lr, lr_change_at_epochs=None,
+                          lr_update_factors=None):
 
     if lr_change_at_epochs is not None:
         # Variable rate is enabled, from command line
@@ -132,7 +139,17 @@ def _get_learning_rate_scheduler(lr, lr_change_at_epochs=None,
             tf.summary.scalar('learning rate', data=lr, step=epoch)
             return lr
 
-    return tf.keras.callbacks.LearningRateScheduler(get_learning_rate)
+    return get_learning_rate
+
+
+def _get_preproc_instance(name, **kwargs):
+
+    if name == 'LoG':
+        return LoG(**kwargs)
+    # Add others here in an if-elif ladder
+
+    # Raise exception if unknown option requested
+    raise ValueError('Unknown preproc option requested: {:s}'.format(name))
 
 
 # def _validate_fcn_splitting(raw_data_shape, data_cfg, patch_size, patch_overlap):
@@ -218,21 +235,18 @@ def _main(data_feeder, model_dir, data_cfg, model_cfg, training_cfg,
 
         classifier.summary()
 
-    # Disable loss weighting if requested
-    if 'weighted_loss' in training_cfg and not training_cfg['weighted_loss']:
-        class_weights = None
-    else:
-        class_weights = {idx: weight for idx, weight in enumerate(
+    # Disable loss weighting if explicitly requested
+    class_weights = None if not training_cfg.get('weighted_loss', True) else {
+        idx: weight for idx, weight in enumerate(
             data_feeder.training_samples /
-            (data_feeder.num_classes * data_feeder.training_samples_per_class)
-        )}
+            (data_feeder.num_classes * data_feeder.training_samples_per_class))
+        }
 
     callbacks = []
     # Set the learning rate
     callbacks.append(
-        _get_learning_rate_scheduler(training_cfg['learning_rate'],
-                                     training_cfg['lr_change_at_epochs'],
-                                     training_cfg['lr_update_factors']))
+        tf.keras.callbacks.LearningRateScheduler(training_cfg['learning_rate_fn'])
+    )
 #    os.makedirs(os.path.join(model_dir, 'checkpoints'), exist_ok=True)
 #    callbacks.append(tf.keras.callbacks.ModelCheckpoint(
 #        filepath=os.path.join(model_dir, 'checkpoints', 'ckpt_weights_e-{epoch:03d}.h5'),
