@@ -13,7 +13,6 @@ class DataFeeder(metaclass=abc.ABCMeta):
                  num_training_samples,
                  num_validation_samples,
                  class_names,
-                 batch_size,
                  **kwargs):
         """
 
@@ -21,8 +20,6 @@ class DataFeeder(metaclass=abc.ABCMeta):
         :param num_training_samples: int or list
         :param num_validation_samples: int or list
         :param class_names:
-        :param batch_size:
-        :param num_prefetch_batches: (optional)
         """
 
         self._shape = data_shape
@@ -39,13 +36,6 @@ class DataFeeder(metaclass=abc.ABCMeta):
             self._num_validation_samples = np.asarray(num_validation_samples)
         else:
             self._num_validation_samples = num_validation_samples
-
-        self._batch_size = batch_size
-
-        # Number of prefetch batches. Generally tied to the number of GPUs
-        # Set to 1 if not specified
-        self._num_prefetch_batches = kwargs['num_prefetch_batches'] \
-            if 'num_prefetch_batches' in kwargs else 1
 
     @abc.abstractmethod
     def transform(self, sample, label, is_training, **kwargs):
@@ -68,13 +58,14 @@ class DataFeeder(metaclass=abc.ABCMeta):
             'transform() method not implemented in derived class')
 
     @abc.abstractmethod
-    def make_dataset(self, is_training):
+    def make_dataset(self, is_training, batch_size, **kwargs):
         """
         This function must be implemented in the derived class.
         It should contain logic to load training & validation data (usually
         from stored files) and construct a TensorFlow Dataset.
 
         :param is_training: Boolean, indicating if operating in training mode.
+        :param batch_size:
 
         :return: A tf.data.Dataset
         """
@@ -82,14 +73,15 @@ class DataFeeder(metaclass=abc.ABCMeta):
         raise NotImplementedError(
             'make_dataset() method not implemented in derived class')
 
-    def __call__(self, is_training):
+    def __call__(self, is_training, batch_size, **kwargs):
+        """
 
-        dataset = self.make_dataset(is_training)
+        :param is_training: Boolean, indicating if operating in training mode.
+        :param batch_size:
+        :param kwargs: Passed as is to make_dataset() of inherited class.
+        """
 
-        dataset = dataset.batch(self._batch_size)
-        dataset = dataset.prefetch(self._num_prefetch_batches)
-
-        return dataset
+        return self.make_dataset(is_training, batch_size, **kwargs)
 
     @property
     def data_shape(self):
@@ -133,15 +125,10 @@ class DataFeeder(metaclass=abc.ABCMeta):
 
 
 class TFRecordFeeder(DataFeeder):
-    def __init__(self, data_dir, batch_size, **kwargs):
+    def __init__(self, data_dir, **kwargs):
         """
 
         :param data_dir:
-        :param batch_size:
-        :param num_threads: (optional, int) Number of parallel read/transform
-            threads. Generally tied to number of CPUs (default if unspecified)
-        :param queue_capacity: (optional, int)
-        :param cache: (optional, bool, default: False) Cache loaded TFRecords
         :param kwargs: Passed as-is to parent class.
         """
 
@@ -153,45 +140,53 @@ class TFRecordFeeder(DataFeeder):
             raise ValueError('Invalid data directory: {:s}'.format(
                 repr(data_dir)))
 
-        self._num_threads = \
-            kwargs.pop('num_threads',
-                       len(os.sched_getaffinity(0)))  # Default to num. CPUs
-        self._cache = bool(kwargs.pop('cache', False))
-        # Process this later
-        queue_capacity = kwargs.pop('queue_capacity', None)
-        # Hidden setting; default to tfrecord_helper.WaveformTFRecordHandler
-        self._tfrecord_handler = \
-            kwargs.pop('tfrecord_handler',
-                       tfrecord_helper.WaveformTFRecordHandler())
+        self._data_dir = data_dir
+
+        # Hidden setting; default to what's best for the data
+        if 'tfrecord_handler' in kwargs:
+            self._tfrecord_handler = kwargs.pop('tfrecord_handler')
+        else:
+            ndim = DatasetDigest.GetDataShape(data_dir).shape[0]
+            if ndim == 1:  # waveforms
+                self._tfrecord_handler = \
+                    tfrecord_helper.WaveformTFRecordHandler()
+            else:   # time-freq representation; assuming 2D if it wasn't 1D
+                self._tfrecord_handler = \
+                    tfrecord_helper.SpectrogramTFRecordHandler()
+
+        self._in_shape = DatasetDigest.GetDataShape(data_dir).tolist()
 
         # Load some dataset info & initialize the base class
         train_eval_samples = \
             DatasetDigest.GetPerClassAndGroupSpecCounts(data_dir)[:, :2]
         super(TFRecordFeeder, self).__init__(
-            DatasetDigest.GetDataShape(data_dir),
+            self._in_shape,
             train_eval_samples[:, 0],
             train_eval_samples[:, 1],
             DatasetDigest.GetOrderedClassList(data_dir),
-            batch_size, **kwargs)
-
-        self._data_dir = data_dir
-
-        if queue_capacity is not None:
-            self._queue_capacity = queue_capacity
-        else:
-            # the more remaining after each dequeue, better the shuffling
-            min_after_dequeue = (8 * self._batch_size)
-            self._queue_capacity = min_after_dequeue + (
-                    self._batch_size * (
-                        self._num_threads + self._num_prefetch_batches))
-        self._queue_capacity = min(self._queue_capacity,
-                                   self.training_samples)
+            **kwargs)
 
     def transform(self, sample, label, is_training, **kwargs):
         # Pass as-is, nothing to do
         return sample, tf.one_hot(label, self.num_classes)
 
-    def make_dataset(self, is_training):
+    def make_dataset(self, is_training, batch_size, **kwargs):
+        """
+        *** Do not call this directly ***
+
+        :param is_training: (bool)
+        :param batch_size: (int)
+        :param num_prefetch_batches: (optional) Number of prefetch batches.
+            Generally tied to the number of GPUs. (default is 1)
+        :param num_threads: (optional, int) Number of parallel read/transform
+            threads. Generally tied to number of CPUs (default if unspecified)
+        :param queue_capacity: (optional, int)
+        :param cache: (optional, bool, default: False) Cache loaded TFRecords
+        """
+
+        num_threads = \
+            kwargs.pop('num_threads',
+                       len(os.sched_getaffinity(0)))  # Default to num. CPUs
 
         # Read in the list of TFRecord files
         filenames = tf.io.gfile.glob(
@@ -202,7 +197,7 @@ class TFRecordFeeder(DataFeeder):
         # print('{:d} {:s} TFRecord files'.format(
         #     len(filenames), 'training' if is_training else 'validation'))
 
-        interleave_cycle_length = min(self._num_threads, len(filenames))
+        interleave_cycle_length = min(num_threads, len(filenames))
 
         # Create a dataset of available TFRecord files
         record_fileset = tf.data.Dataset.from_tensor_slices(filenames)
@@ -214,17 +209,31 @@ class TFRecordFeeder(DataFeeder):
             cycle_length=interleave_cycle_length,
             num_parallel_calls=interleave_cycle_length)
 
-        if self._cache:
+        if bool(kwargs.pop('cache', False)):
             dataset = dataset.cache()
 
+        num_prefetch_batches = kwargs.pop('num_prefetch_batches', 1)
+
         if is_training:  # Shuffle and repeat
-            dataset = dataset.shuffle(self._queue_capacity,
+            if 'queue_capacity' in kwargs:
+                queue_capacity = kwargs.pop('queue_capacity')
+            else:
+                # the more remaining after each dequeue, better the shuffling
+                min_after_dequeue = (8 * batch_size)
+                queue_capacity = min_after_dequeue + (
+                        batch_size * (
+                            num_threads + num_prefetch_batches))
+            queue_capacity = min(queue_capacity, self.training_samples)
+            dataset = dataset.shuffle(queue_capacity,
                                       reshuffle_each_iteration=True)
             # dataset = dataset.repeat(5)
 
         # Apply the transformation operation(s)
         dataset = dataset.map(lambda x, y: self.transform(x, y, is_training),
-                              num_parallel_calls=self._num_threads)
+                              num_parallel_calls=num_threads)
+
+        dataset = dataset.batch(batch_size)
+        dataset = dataset.prefetch(num_prefetch_batches)
 
         return dataset
 
@@ -232,7 +241,7 @@ class TFRecordFeeder(DataFeeder):
 
         data, label = self._tfrecord_handler.parse_record(record)
 
-        data = tf.reshape(data, self._shape)
+        data = tf.reshape(data, self._in_shape)
         label = tf.cast(label, tf.int32)
 
         return data, label
@@ -243,12 +252,18 @@ class SpectralTFRecordFeeder(TFRecordFeeder):
     A handy TFRecord feeder, which normalizes and converts raw audio to
     time-frequency format.
     """
-    def __init__(self, data_dir, data_cfg, batch_size, **kwargs):
+    def __init__(self, data_dir, data_cfg, **kwargs):
 
         super(SpectralTFRecordFeeder, self).__init__(
-            data_dir, batch_size, **kwargs)
+            data_dir, **kwargs)
 
-        self._data_cfg = data_cfg
+        self._transformation = Audio2Spectral(
+            data_cfg['audio_settings']['desired_fs'],
+            data_cfg['spec_settings'])
+
+        # Update to what the transformed output shape would be
+        self._shape = self._transformation.compute_output_shape(
+            [1] + self._in_shape)[1:]
 
     def transform(self, clip, label, is_training, **kwargs):
 
@@ -260,8 +275,6 @@ class SpectralTFRecordFeeder(TFRecordFeeder):
             tf.reduce_max(tf.abs(output), axis=-1, keepdims=True)
 
         # Convert to spectrogram
-        output = Audio2Spectral(
-            self._data_cfg['audio_settings']['desired_fs'],
-            self._data_cfg['spec_settings'])(output)
+        output = self._transformation(output)
 
         return output, tf.one_hot(label, self.num_classes)

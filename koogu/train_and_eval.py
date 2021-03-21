@@ -2,7 +2,6 @@
 import os
 import sys
 import tensorflow as tf
-#import numpy as np
 import logging
 from tensorflow.python.client import device_lib
 import argparse
@@ -10,7 +9,7 @@ import json
 
 from koogu.model import get_model, TrainedModel
 from koogu.data import feeder
-from koogu.data.tf_transformations import Audio2Spectral, LoG, Linear2dB, spatial_split
+from koogu.data.tf_transformations import LoG, Linear2dB, spatial_split
 from koogu.utils import instantiate_logging
 from koogu.utils.terminal import ArgparseConverters
 from koogu.utils.config import Config, ConfigError, datasection2dict, log_config
@@ -94,27 +93,13 @@ def train_and_eval(data_dir, model_dir,
 
     # If data_dir parameter was already an instantiated DataFeeder object,
     # pass it on. Otherwise, create a default one.
-    if not isinstance(data_dir, feeder.DataFeeder):
-        data_feeder = _get_default_data_feeder(
-            data_dir, data_config, training_cfg['batch_size'])
-    else:
-        data_feeder = data_dir
+    data_feeder = data_dir if isinstance(data_dir, feeder.DataFeeder) \
+        else feeder.TFRecordFeeder(data_dir)
 
     # Invoke the underlying main function
     return _main(data_feeder, model_dir,
                  data_config, model_cfg, training_cfg,
                  verbose, **kwargs)
-
-
-def _get_default_data_feeder(data_dir, data_config, batch_size):
-
-    num_gpu_devices = len(
-        [x.name for x in device_lib.list_local_devices()
-         if x.device_type == 'GPU'])
-
-    return feeder.SpectralTFRecordFeeder(
-        data_dir, data_config, batch_size,
-        cache=True, num_prefetch_batches=max(1, num_gpu_devices))
 
 
 def _get_learning_rate_scheduler(lr, lr_change_at_epochs=None,
@@ -203,21 +188,11 @@ def _main(data_feeder, model_dir, data_cfg, model_cfg, training_cfg,
 #        estimator_params['FCN_patch_size'] = model_cfg.fcn_patch_size
 #        estimator_params['FCN_patch_overlap'] = model_cfg.fcn_patch_overlap
 
-    model_input_shape = data_feeder.data_shape[0]
-    data_transformation = None
-    if data_cfg['spec_settings'] is not None and \
-        data_cfg['spec_settings']['tf_rep_type'] is not None:
-        data_transformation = \
-            Audio2Spectral(data_cfg['audio_settings']['desired_fs'],
-                           data_cfg['spec_settings'])
-        model_input_shape = \
-            data_transformation.compute_output_shape(
-                [1, model_input_shape])[1:]
-    #print(data_feeder.data_shape, model_input_shape)
+    #print(data_feeder.data_shape)
 
     # Create a Classifier instance
     classifier = get_model(model_cfg,
-                           input_shape=model_input_shape,
+                           input_shape=data_feeder.data_shape,
                            num_classes=data_feeder.num_classes,
                            **kwargs)
 
@@ -264,9 +239,16 @@ def _main(data_feeder, model_dir, data_cfg, model_cfg, training_cfg,
 #        save_weights_only=True,
 #        monitor='val_loss', mode='min', save_best_only=True))
 
+    num_gpu_devices = len(
+        [x.name for x in device_lib.list_local_devices()
+         if x.device_type == 'GPU'])
+    feeder_args = dict(batch_size=training_cfg['batch_size'],
+                       num_prefetch_batches=max(1, num_gpu_devices),
+                       cache=True)
+
     history = classifier.fit(
-        x=data_feeder(True),
-        validation_data=data_feeder(False),
+        x=data_feeder(True, **feeder_args),
+        validation_data=data_feeder(False, **feeder_args),
         initial_epoch=0, epochs=training_cfg['epochs'],
         validation_freq=training_cfg['epochs_between_evals'],
         shuffle=False,
@@ -299,7 +281,7 @@ def _main(data_feeder, model_dir, data_cfg, model_cfg, training_cfg,
     TrainedModel.finalize_and_save(classifier,
                                    os.path.join(model_dir, new_subdir),
                                    data_feeder.data_shape,
-                                   data_transformation,
+                                   None,
                                    data_feeder.class_names,
                                    data_cfg['audio_settings'])
 
