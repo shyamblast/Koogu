@@ -33,10 +33,10 @@ def train_and_eval(data_dir, model_dir,
     # Copy needed vals
     model_cfg = {key: model_config[key] for key in required_fields}
     # Copy/set default vals for non-mandatory fields
-    model_cfg['preproc'] = model_config['preproc'] \
-        if 'preproc' in model_config else []  # force to be an empty list
-    model_cfg['dense_layers'] = model_config['dense_layers'] \
-        if 'dense_layers' in model_config else []  # force to be an empty list
+    model_cfg['preproc'] = \
+        model_config.get('preproc', [])       # default to an empty list
+    model_cfg['dense_layers'] = \
+        model_config.get('dense_layers', [])  # default to an empty list
 
     # Check fields in training_config
     required_fields = ['batch_size', 'epochs', 'epochs_between_evals',
@@ -48,15 +48,15 @@ def train_and_eval(data_dir, model_dir,
     # Copy needed vals
     training_cfg = {key: training_config[key] for key in required_fields}
     # Copy/set default vals for non-mandatory fields
-    training_cfg['optimizer'] = training_config['optimizer'] \
-        if 'optimizer' in training_config else \
-        [tf.keras.optimizers.Adam, {'epsilon': 1e-10}]
-    training_cfg['weighted_loss'] = training_config['weighted_loss'] \
-        if 'weighted_loss' in training_config else True
-    training_cfg['l2_weight_decay'] = training_config['l2_weight_decay'] \
-        if 'l2_weight_decay' in training_config else None
-    training_cfg['lr_change_at_epochs'] = None
-    training_cfg['lr_update_factors'] = None
+    training_cfg['optimizer'] = \
+        training_config.get('optimizer', ['Adam', {'epsilon': 1e-10}])
+    training_cfg['weighted_loss'] = training_config.get('weighted_loss', True)
+    training_cfg['l2_weight_decay'] = \
+        training_config.get('l2_weight_decay', None)
+    training_cfg['lr_change_at_epochs'] = \
+        training_config.get('lr_change_at_epochs', None)
+    training_cfg['lr_update_factors'] = \
+        training_config.get('lr_update_factors', None)
 
     # Handle kwargs
     if 'data_format' not in kwargs:
