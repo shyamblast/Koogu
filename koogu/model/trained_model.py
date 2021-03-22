@@ -1,7 +1,7 @@
 
 import os
 import json
-import numpy as np
+#import numpy as np
 import tensorflow as tf
 from tensorflow import keras
 
@@ -19,22 +19,22 @@ class TrainedModel:
         """Create a new model encompassing an already-trained 'classifier'."""
 
         inputs = keras.Input(input_shape, name='inputs')
-        class_mask = keras.Input(classifier.output.get_shape().as_list()[1],
-                                 name='class_mask', batch_size=1,
-                                 dtype=tf.bool)
+#        class_mask = keras.Input(classifier.output.get_shape().as_list()[1],
+#                                 name='class_mask', batch_size=1,
+#                                 dtype=tf.bool)
 
         # Define input signature
         input_signature = {
             'inputs': inputs,
-            'class_mask': class_mask
+#            'class_mask': class_mask
         }
 
         # Apply transformation
         new_output = trans_fn(inputs) if trans_fn is not None else inputs
 
         # Describe outputs
-        logits = classifier(new_output)
-        probs = logits * tf.cast(class_mask, dtype=logits.dtype)
+        probs = classifier(new_output)
+#        probs = probs * tf.cast(class_mask, dtype=logits.dtype)
         new_output = tf.identity(probs, name='scores')
 
         full_model = tf.keras.Model(input_signature, new_output)
@@ -65,18 +65,18 @@ class TrainedModel:
             open(os.path.join(saved_model_dir, TrainedModel.assets_dirname,
                               AssetsExtraNames.audio_settings), 'r'))
 
-        self._default_class_mask = tf.constant(
-            np.full((1, len(self._class_names)), True, np.bool),
-            tf.bool)
+#        self._default_class_mask = tf.constant(
+#            np.full((1, len(self._class_names)), True, np.bool),
+#            tf.bool)
 
-    def infer(self, inputs, class_mask=None):
+    def infer(self, inputs):#, class_mask=None):
 
-        assert class_mask is None or len(class_mask) == len(self._class_names)
+#        assert class_mask is None or len(class_mask) == len(self._class_names)
 
         res = self._loaded_model.signatures['serving_default'](
-            inputs=tf.constant(inputs, tf.float32),
-            class_mask=tf.constant(class_mask, tf.bool) \
-                if class_mask is not None else self._default_class_mask)
+            inputs=tf.constant(inputs, tf.float32))#,
+#            class_mask=tf.constant(class_mask, tf.bool) \
+#                if class_mask is not None else self._default_class_mask)
 
         return res['tf_op_layer_scores'].numpy()
 
