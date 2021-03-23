@@ -273,8 +273,8 @@ def _main(data_feeder, model_dir, data_cfg, model_cfg, training_cfg,
         callbacks=callbacks)
 
     # Reset metrics before saving
-    classifier.reset_metrics()
-    classifier.trainable = False
+#    classifier.reset_metrics()
+#    classifier.trainable = False
     #classifier.save(os.path.join(model_dir, 'classifier.h5'), include_optimizer=False)
     with open(os.path.join(model_dir, 'classifier.json'), 'w') as of:
         of.write(classifier.to_json())
