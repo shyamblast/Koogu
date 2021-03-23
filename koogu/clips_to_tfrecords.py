@@ -30,7 +30,6 @@ def write_time_domain_records(src_root, output_root,
     _batch_process(tfrecord_handler, transformation_fn,
                    src_root, output_root,
                    validation_split, test_split,
-                   npz_data_container_fieldname='clips',
                    show_progress=True,
                    **kwargs)
 
@@ -43,20 +42,24 @@ def write_spectral_records(src_root, output_root,
     spec_settings = Settings.Spectral(fs, **spec_settings)
 
     tfrecord_handler = tfrecord_helper.SpectrogramTFRecordHandler(tracing_on=False)
-    transformation_fn = _TransformationFunction(_TransformationFunction.audio2spectral, fs, spec_settings)
+    transformation_fn = [
+        _TransformationFunction(_TransformationFunction.pcm2float, np.float32),
+        _TransformationFunction(_TransformationFunction.audio2spectral, fs, spec_settings)
+        ]
 
     _batch_process(tfrecord_handler, transformation_fn,
                    src_root, output_root,
                    validation_split, test_split,
-                   npz_data_container_fieldname='specs',
                    show_progress=True,
                    **kwargs)
+
+
+_npz_data_container_fieldname = 'clips'
 
 
 def _batch_process(tfrecord_handler, transformation_fn,
                    src_root, dest_root,
                    val_split=0.0, test_split=0.0,
-                   npz_data_container_fieldname='clips',
                    **kwargs):
 
     # List of classes (first level directory names)
@@ -119,7 +122,6 @@ def _batch_process(tfrecord_handler, transformation_fn,
         future_to_idx = {
             executor.submit(_get_class_details,
                             src_root, class_dir,
-                            npz_data_container_fieldname=npz_data_container_fieldname,
                             masks_dir=masksdir): class_idx
             for class_idx, class_dir in enumerate(class_dirs)}
         step2_futures = []
@@ -216,7 +218,6 @@ def _batch_process(tfrecord_handler, transformation_fn,
                                                spec_files, clips_full_idxs[offset:(offset + max_per_tfrecord_file)],
                                                output_path_fmt.format(subdir, curr_class_idx, class_dir, fc),
                                                tfrecord_handler,
-                                               npz_data_container_fieldname=npz_data_container_fieldname,
                                                transformation_fn=transformation_fn)
                         offset += max_per_tfrecord_file
                         fc += 1
@@ -228,7 +229,6 @@ def _batch_process(tfrecord_handler, transformation_fn,
                                            spec_files, clips_full_idxs[offset:limit],
                                            output_path_fmt.format(subdir, curr_class_idx, class_dir, fc),
                                            tfrecord_handler,
-                                           npz_data_container_fieldname=npz_data_container_fieldname,
                                            transformation_fn=transformation_fn)
                     step2_futures.append(futr)
 
@@ -259,8 +259,13 @@ def _batch_process(tfrecord_handler, transformation_fn,
     # Write out the rest of the digest while the child threads continue writing
     DatasetDigest.AddOrderedClassList(dest_root, class_dirs)
     DatasetDigest.AddPerClassAndGroupSpecCounts(dest_root, class_stats[:, 2:])
-    DatasetDigest.AddDataShape(dest_root, data_shape if transformation_fn is None
-                                                    else transformation_fn.outshape(data_shape))
+    if transformation_fn is not None:
+        if hasattr(transformation_fn, '__len__'):
+            for tf_fn in transformation_fn:
+                data_shape = tf_fn.outshape(data_shape)
+        else:
+            data_shape = transformation_fn.outshape(data_shape)
+    DatasetDigest.AddDataShape(dest_root, data_shape)
 
     t_end = datetime.now()
     logger.info('Started at: {}'.format(t_end))
@@ -292,7 +297,8 @@ def _print_and_log(msg, logger):
     print(msg)
     logger.info(msg)
 
-def _get_class_details(src_dir, class_name, npz_data_container_fieldname='clips', masks_dir=None, mask_val=1):
+
+def _get_class_details(src_dir, class_name, masks_dir=None, mask_val=1):
     """Load info about data available for the class"""
 
     assert isinstance(mask_val, int)
@@ -321,7 +327,7 @@ def _get_class_details(src_dir, class_name, npz_data_container_fieldname='clips'
         for spec_file in (os.path.join(src_dir, class_name, s + FilenameExtensions.numpy) for s in spec_files):
             try:
                 with np.load(spec_file) as filedata:
-                    clip_shape = filedata[npz_data_container_fieldname].shape[1:]
+                    clip_shape = filedata[_npz_data_container_fieldname].shape[1:]
             except Exception as exc:
                 logger.error('Exception encountered while loading {:s}: {:s}'.format(repr(spec_file), exc))
             else:
@@ -341,9 +347,9 @@ def _get_class_details(src_dir, class_name, npz_data_container_fieldname='clips'
                 logger.error('Exception encountered while loading {:s}: {:s}'.format(repr(spec_filepath), exc))
                 valid_files[s_idx] = False
             else:
-                spec_files_mask_idxs[s_idx] = np.arange(filedata[npz_data_container_fieldname].shape[0])
+                spec_files_mask_idxs[s_idx] = np.arange(filedata[_npz_data_container_fieldname].shape[0])
                 if clip_shape is None:
-                    clip_shape = filedata[npz_data_container_fieldname].shape[1:]
+                    clip_shape = filedata[_npz_data_container_fieldname].shape[1:]
                 filedata.close()
 
         valid_files = np.asarray(np.where(valid_files)).ravel()
@@ -363,7 +369,6 @@ def _get_class_details(src_dir, class_name, npz_data_container_fieldname='clips'
 
 def _write_single_tfrecord_file(class_root, class_idx, files_list, file_spec_idxs, output_path,
                                 tfrecord_handler,
-                                npz_data_container_fieldname='clips',
                                 transformation_fn=None):
     """
     Write clips/specs to a TFRecord file.
@@ -375,8 +380,8 @@ def _write_single_tfrecord_file(class_root, class_idx, files_list, file_spec_idx
         file gets written to the TFRecord file.
     :param output_path: Full path to the TFRecord file to be written.
     :param tfrecord_handler: An instance of one of data.tfrecord_helper.TFRecordHandler's inheritors.
-    :param npz_data_container_fieldname: 'clips' or 'specs'.
-    :param transformation_fn: A callable (that takes one argument - a clip) that transforms the clip as needed.
+    :param transformation_fn: A callable (that takes one argument - a clip) that transforms the clip as needed. Multiple
+        transformations can be chained by specifying them in a list.
     """
 
     logger = logging.getLogger(__name__)
@@ -396,19 +401,23 @@ def _write_single_tfrecord_file(class_root, class_idx, files_list, file_spec_idx
         spec_filepath = os.path.join(class_root, files_list[file_idx] + FilenameExtensions.numpy)
         try:
             with np.load(spec_filepath) as d:
-                data = d[npz_data_container_fieldname][infile_clip_idxs, ...]
+                data = d[_npz_data_container_fieldname][infile_clip_idxs, ...]
 
         except Exception as exc:
             logger.error('Exception loading file {:s} while writing tfrecords to {:s}: {:s}'.format(
                 repr(spec_filepath), repr(output_path), exc))
             continue
 
-        # ... apply transformation, if requested, and...
+        # ... apply transformation(s), if requested, and...
         if transformation_fn is not None:
             try:
-                data = transformation_fn(data)
+                if hasattr(transformation_fn, '__len__'):   # if chained, apply in sequence
+                    for tf_fn in transformation_fn:
+                        data = tf_fn(data)
+                else:
+                    data = transformation_fn(data)
             except Exception as exc:
-                logger.error('Exception applying requested transformation. File {:s}: {:s}'.format(
+                logger.error('Exception applying requested transformation(s). File {:s}: {:s}'.format(
                     repr(spec_filepath), exc))
                 continue
 
