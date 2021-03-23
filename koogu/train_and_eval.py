@@ -291,13 +291,14 @@ def _main(data_feeder, model_dir, data_cfg, model_cfg, training_cfg,
                               training_cfg['epochs_between_evals'])]
         of.write(json.dumps(str(history_c)))
 
-    new_subdir = '1'
+    new_subdir = 'saved_model'
     TrainedModel.finalize_and_save(classifier,
                                    os.path.join(model_dir, new_subdir),
                                    data_feeder.data_shape,
                                    None,
                                    data_feeder.class_names,
-                                   data_cfg['audio_settings'])
+                                   data_cfg['audio_settings'],
+                                   spec_settings=data_cfg['spec_settings'])
 
     return history
 

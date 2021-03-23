@@ -8,7 +8,7 @@ import concurrent.futures
 import logging
 import librosa
 
-from koogu.data import Audio, Settings
+from koogu.data import Audio, Settings, Convert
 from koogu.model import TrainedModel
 from koogu.utils import processed_items_generator_mp, detections
 from koogu.utils.terminal import ProgressBar, ArgparseConverters
@@ -32,17 +32,30 @@ output_spec = [
     ['High Frequency (Hz)',    '47']]
 
 
-def _fetch_clips(audio_filepath, audio_settings, downmix_channels, channels):
+def _fetch_clips(audio_filepath, audio_settings, downmix_channels, channels, spec_settings=None):
+    """
+
+    If spec_settings is not None, the clips will be converted to time-frequency representation.
+    """
 
     clips, clip_start_samples = Audio.get_file_clips(audio_settings, audio_filepath,
                                                      downmix_channels=downmix_channels,
                                                      chosen_channels=channels,
                                                      return_clip_indices=True)
 
-    # return file duration, loaded clips & their starting samples
     # add the channel axis if it doesn't already exist
-    return librosa.get_duration(filename=audio_filepath), \
-        clips if len(clips.shape) == 3 else np.expand_dims(clips, 0), clip_start_samples
+    if len(clips.shape) < 3:
+        clips = np.expand_dims(clips, 0)
+
+    num_samples = clips.shape[-1]
+
+    if spec_settings is not None:
+        clips = np.stack([
+            Convert.audio2spectral(clips[ch, ...], audio_settings.fs, spec_settings)
+            for ch in range(clips.shape[0])])
+
+    # return file duration, loaded clips, their starting samples, & num samples per clip
+    return librosa.get_duration(filename=audio_filepath), clips, clip_start_samples, num_samples
 
 
 def analyze_clips(classifier, clips, class_mask, batch_size=1, audio_filepath=None):
@@ -258,6 +271,9 @@ def main(args):
     # Query some dataset info
     class_names = classifier.class_names
     audio_settings = classifier.audio_settings
+    spec_settings = None if classifier.spec_settings is None \
+        else Settings.Spectral(audio_settings['desired_fs'], **classifier.spec_settings)
+
 
     class_mask = np.full([len(class_names)], True)  # Selectively set to False to disable any particular class(es)
     if args.whitelist is not None:  # Apply whitelist
@@ -399,14 +415,15 @@ def main(args):
     total_audio_dur = 0.
     total_time_taken = 0.
     last_file_relpath = 'WTF? Blooper!'
-    for audio_filepath, (curr_file_dur, clips, clip_start_samples) in \
+    for audio_filepath, (curr_file_dur, clips, clip_start_samples, num_samples) in \
             processed_items_generator_mp(1, _fetch_clips, src_generator,
                                          audio_settings=audio_settings,
+                                         spec_settings=spec_settings,
                                          downmix_channels=downmix_channels,
                                          channels=channels):
 
-        # 'clips' container will be of shape [num channels, num clips, num samples]
-        num_channels, num_clips, num_samples = clips.shape
+        # 'clips' container will be of shape [num channels, num clips, ...]
+        num_channels, num_clips = clips.shape[:2]
 
         if num_clips == 0:
             logger.warning('{:s} yielded 0 clips'.format(repr(audio_filepath)))
@@ -427,7 +444,7 @@ def main(args):
         total_time_taken += time_taken
 
         # Determine the channel number(s) to write out in the outputs
-        channels_to_write = np.arange(1, clips.shape[0] + 1) \
+        channels_to_write = np.arange(1, num_channels + 1) \
             if args.channels is not None and len(args.channels) == 0 \
             else args.channels
 

@@ -15,7 +15,8 @@ class TrainedModel:
     @staticmethod
     def finalize_and_save(classifier, output_dir,
                           input_shape, trans_fn,
-                          classes_list, audio_settings):
+                          classes_list, audio_settings,
+                          spec_settings=None):
         """Create a new model encompassing an already-trained 'classifier'."""
 
         inputs = keras.Input(input_shape, name='inputs')
@@ -52,6 +53,13 @@ class TrainedModel:
                   open(os.path.join(output_dir, TrainedModel.assets_dirname,
                                     AssetsExtraNames.audio_settings), 'w'))
 
+        if spec_settings is not None:
+            # Write spec settings (for use during inference) as part of assets
+            json.dump(
+                spec_settings,
+                open(os.path.join(output_dir, TrainedModel.assets_dirname,
+                                  AssetsExtraNames.spec_settings), 'w'))
+
     def __init__(self, saved_model_dir):
 
         # Load model
@@ -64,6 +72,12 @@ class TrainedModel:
         self._audio_settings = json.load(
             open(os.path.join(saved_model_dir, TrainedModel.assets_dirname,
                               AssetsExtraNames.audio_settings), 'r'))
+
+        spec_sett_filepath = os.path.join(saved_model_dir,
+                                          TrainedModel.assets_dirname,
+                                          AssetsExtraNames.spec_settings)
+        self._spec_settings = None if not os.path.exists(spec_sett_filepath) \
+            else json.load(open(spec_sett_filepath, 'r'))
 
 #        self._default_class_mask = tf.constant(
 #            np.full((1, len(self._class_names)), True, np.bool),
@@ -83,6 +97,10 @@ class TrainedModel:
     @property
     def audio_settings(self):
         return self._audio_settings
+
+    @property
+    def spec_settings(self):
+        return self._spec_settings
 
     @property
     def class_names(self):

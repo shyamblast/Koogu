@@ -42,6 +42,7 @@ class AssetsExtraNames:
 
     classes_list = 'classes_list' + FilenameExtensions.json
     audio_settings = 'audio_settings' + FilenameExtensions.json
+    spec_settings = 'spec_settings' + FilenameExtensions.json
 
 
 class DatasetDigest:
