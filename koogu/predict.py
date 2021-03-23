@@ -69,7 +69,7 @@ def analyze_clips(classifier, clips, class_mask, batch_size=1, audio_filepath=No
         end_idx = min(idx + batch_size, clips.shape[0])
 
         t_start = timer()
-        det_scores[idx:end_idx, :] = classifier.infer(inputs=clips[idx:end_idx, ...], class_mask=class_mask)
+        det_scores[idx:end_idx, :] = classifier.infer(inputs=clips[idx:end_idx, ...])#, class_mask=class_mask)
         predict_time += (timer() - t_start)
 
         if pbar is not None:
