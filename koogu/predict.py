@@ -3,6 +3,7 @@ import os
 import sys
 import numpy as np
 from timeit import default_timer as timer
+import json
 import argparse
 import concurrent.futures
 import logging
@@ -23,13 +24,13 @@ output_spec = [
     ['Channel',         '{:d}'],
     ['Begin Time (s)',  '{:.6f}'],
     ['End Time (s)',    '{:.6f}'],
+    ['Low Frequency (Hz)',  '{:.2f}'],
+    ['High Frequency (Hz)', '{:.2f}'],
     ['Begin File',      '{:s}'],
     ['File Offset (s)', '{:.6f}'],
     ['Score',           '{:.2f}'],
     ['Tags',            '{}'],
-    ['Begin Path',      ' '],
-    ['Low Frequency (Hz)',  '10'],
-    ['High Frequency (Hz)',    '47']]
+    ['Begin Path',      ' ']]
 
 
 def _fetch_clips(audio_filepath, audio_settings, downmix_channels, channels, spec_settings=None):
@@ -92,10 +93,10 @@ def analyze_clips(classifier, clips, class_mask, batch_size=1, audio_filepath=No
 
 
 def _combine_and_write(outfile_h, det_scores, clip_start_samples, num_samples, fs,
+                       class_names, class_frequencies,
                        channel_IDs=None,
                        offset_info=None,
                        ignore_class=None,
-                       class_names=None,
                        threshold=0.0,
                        suppress_nonmax=False,
                        squeeze_min_dur=None):
@@ -104,9 +105,10 @@ def _combine_and_write(outfile_h, det_scores, clip_start_samples, num_samples, f
         [True],                                                     # Sel num
         [False] if channel_IDs is None else [True],                 # Channel
         [True, True],                                               # Start and end times
+        [True, True],                                               # Start and end freq
         [False, False] if offset_info is None else [True, True],    # Filename & offset
         [True, True],                                               # Score and label
-        [True, True, True]                                          # Bogus
+        [True]                                                      # Bogus
     ]).astype(np.bool)
 
     # Fields in output selection table. No need of fields describing offsets of detections
@@ -188,44 +190,52 @@ def _combine_and_write(outfile_h, det_scores, clip_start_samples, num_samples, f
     # Convert detection extents from samples to seconds
     combined_det_times = combined_det_times.astype(np.float) / float(fs)
 
-    if class_names is not None:
-        def label_output(l_idx): return class_names[combined_det_labels[l_idx]]
+    if isinstance(class_frequencies[0], list):  # is a 2D list
+        def freq_output(l_idx): return class_frequencies[l_idx]
     else:
-        def label_output(l_idx): return combined_det_labels[l_idx]
+        def freq_output(_): return class_frequencies    # same for all
 
     if offset_info is not None:     # Apply the offsets
         o_sel, o_time, o_file = offset_info
 
         if channel_IDs is None:
             def writer(file_h, d_idx):
+                l_freq = freq_output(combined_det_labels[d_idx])
                 file_h.write(output_fmt_str.format(
                     o_sel + d_idx + 1,
                     o_time + combined_det_times[d_idx, 0], o_time + combined_det_times[d_idx, 1],
+                    l_freq[0], l_freq[1],
                     o_file, combined_det_times[d_idx, 0],
-                    combined_det_scores[d_idx], label_output(d_idx)))
+                    combined_det_scores[d_idx], class_names[combined_det_labels[d_idx]]))
         else:
             def writer(file_h, d_idx):
+                l_freq = freq_output(combined_det_labels[d_idx])
                 file_h.write(output_fmt_str.format(
                     o_sel + d_idx + 1,
                     combined_det_channels[d_idx],
                     o_time + combined_det_times[d_idx, 0], o_time + combined_det_times[d_idx, 1],
+                    l_freq[0], l_freq[1],
                     o_file, combined_det_times[d_idx, 0],
-                    combined_det_scores[d_idx], label_output(d_idx)))
+                    combined_det_scores[d_idx], class_names[combined_det_labels[d_idx]]))
 
     else:       # Fields for indicating offset info are either meaningless or not needed in the output
         if channel_IDs is None:
             def writer(file_h, d_idx):
+                l_freq = freq_output(combined_det_labels[d_idx])
                 file_h.write(output_fmt_str.format(
                     d_idx + 1,
                     combined_det_times[d_idx, 0], combined_det_times[d_idx, 1],
-                    combined_det_scores[d_idx], label_output(d_idx)))
+                    l_freq[0], l_freq[1],
+                    combined_det_scores[d_idx], class_names[combined_det_labels[d_idx]]))
         else:
             def writer(file_h, d_idx):
+                l_freq = freq_output(combined_det_labels[d_idx])
                 file_h.write(output_fmt_str.format(
                     d_idx + 1,
                     combined_det_channels[d_idx],
                     combined_det_times[d_idx, 0], combined_det_times[d_idx, 1],
-                    combined_det_scores[d_idx], label_output(d_idx)))
+                    l_freq[0], l_freq[1],
+                    combined_det_scores[d_idx], class_names[combined_det_labels[d_idx]]))
 
     # Finally, write out the outputs
     with open(outfile_h[0], outfile_h[1]) as seltab_file:
@@ -274,7 +284,6 @@ def main(args):
     spec_settings = None if classifier.spec_settings is None \
         else Settings.Spectral(audio_settings['desired_fs'], **classifier.spec_settings)
 
-
     class_mask = np.full([len(class_names)], True)  # Selectively set to False to disable any particular class(es)
     if args.whitelist is not None:  # Apply whitelist
         wl_classes = restrict_classes_with_whitelist_file(class_names, args.whitelist)
@@ -306,6 +315,23 @@ def main(args):
 
     # Now limit class_names to whitelisted classes
     class_names = [class_names[c_idx] for c_idx, c_m in enumerate(class_mask) if c_m]
+
+    # Handle frequency extents in detection outputs
+    if spec_settings is not None:
+        default_freq_extents = spec_settings.bandwidth_clip
+    else:
+        default_freq_extents = [0, audio_settings['desired_fs'] / 2]
+    if not args.freq_info:  # none specified, set the same for all classes
+        class_freq_extents = default_freq_extents
+    else:
+        with open(args.freq_info, 'r') as f:
+            freq_extents_dict = json.load(f)
+
+        # Assign defaults for missing classes
+        class_freq_extents = [
+            freq_extents_dict.get(cn, default_freq_extents)
+            for cn in class_names
+            ]
 
     # Set up function to scale scores, if enabled
     if args.scale_scores:
@@ -509,11 +535,11 @@ def main(args):
             _combine_and_write,
             seltab_file_h + tuple(), det_scores.copy(), clip_start_samples.copy(),
             num_samples, audio_settings.fs,
+            class_names, class_freq_extents,
             channel_IDs=channels_to_write,
             offset_info=None if not args.combine_outputs
                         else (sel_running_info[0], sel_running_info[1], os.path.basename(audio_relpath)),
             ignore_class=reject_class_idx,
-            class_names=class_names,
             threshold=0.0 if args.threshold is None else args.threshold,
             suppress_nonmax=suppress_nonmax,
             squeeze_min_dur=squeeze_min_dur)
@@ -597,6 +623,10 @@ if __name__ == '__main__':
                                          'be ignored from the recognition results. The corresponding detections will ' +
                                          'not be written to the output selection tables. Can specify multiple (' +
                                          'separated by whitespaces).')
+    arg_group_out_ctrl.add_argument('--frequency-info', dest='freq_info', metavar='FILE',
+                                    help='Path to a json file containing a dictionary of per-class frequency bounds. ' +
+                                         'If unspecified, the "Low Frequency (Hz)" and "High Frequency (Hz)" fields ' +
+                                         'in the output table will be the same for all classes.')
     arg_group_out_ctrl.add_argument('--combine-outputs', dest='combine_outputs', action='store_true',
                                     help='Enable this to combine recognition results of processing every file within ' +
                                          'a directory and write them to a single output file. When enabled, the ' +
