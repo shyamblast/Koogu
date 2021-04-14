@@ -247,30 +247,19 @@ def _combine_and_write(outfile_h, det_scores, clip_start_samples, num_samples, f
     return combined_det_scores.shape[0]
 
 
-def write_raw_detections(file_path, det_scores, clip_start_samples, num_samples, fs, channel_IDs, class_names):
-
-    num_channels, num_clips, num_classes = det_scores.shape
+def write_raw_detections(file_path, det_scores, clip_start_samples, num_samples, channel_IDs):
 
     os.makedirs(os.path.split(file_path)[0], exist_ok=True)
 
-    det_times = np.stack([clip_start_samples, clip_start_samples + num_samples - 1]).astype(np.float).T / float(fs)
+    res = dict(
+        clip_length=num_samples,
+        clip_start_samples=clip_start_samples,
+        scores=det_scores
+    )
+    if channel_IDs is not None:
+        res['channels'] = channel_IDs.astype(np.uint8)
 
-    with open(file_path, 'w') as outfile:
-        if channel_IDs is not None:
-            outfile.write('Channel,Begin time (s),End time (s),{:s}\n'.format(','.join(class_names)))
-            format_str = '{:d},{:.6f},{:.6f},' + ','.join(['{:.2f}' for _ in range(num_classes)]) + '\n'
-
-            for ch_idx, ch in enumerate([channel_IDs[c] for c in range(num_channels)]):
-                for idx in range(num_clips):
-                    outfile.write(format_str.format(
-                        ch, det_times[idx, 0], det_times[idx, 1], *det_scores[ch_idx, idx, :]))
-        else:
-            outfile.write('Begin time (s),End time (s),{:s}\n'.format(','.join(class_names)))
-            format_str = '{:.6f},{:.6f},' + ','.join(['{:.2f}' for _ in range(num_classes)]) + '\n'
-
-            for idx in range(num_clips):
-                outfile.write(format_str.format(
-                    det_times[idx, 0], det_times[idx, 1], *det_scores[0, idx, :]))
+    np.savez_compressed(file_path, **res)
 
 
 def main(args):
@@ -490,10 +479,10 @@ def main(args):
         if raw_output_executor is not None:  # Offload writing of raw results (if enabled)
             # Fire and forget. No need to wait for or fetch results.
             raw_output_executor.submit(write_raw_detections,
-                                       os.path.join(args.raw_outputs_dir, audio_relpath + '.csv'),
+                                       os.path.join(args.raw_outputs_dir, audio_relpath + '.npz'),
                                        det_scores.copy(), clip_start_samples.copy(),
-                                       num_samples, audio_settings.fs,
-                                       channels_to_write, class_names)
+                                       num_samples,
+                                       channels_to_write)
 
         # Scale the scores, if enabled
         det_scores = scale_scores(det_scores)
