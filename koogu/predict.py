@@ -271,60 +271,65 @@ def main(args):
     spec_settings = None if classifier.spec_settings is None \
         else Settings.Spectral(audio_settings['desired_fs'], **classifier.spec_settings)
 
-    reject_class_idx = None
-    if args.reject_class is not None:
-        reject_class_idx = []
-        for rj_class in args.reject_class:
-            if rj_class in class_names:
-                reject_class_idx.append(class_names.index(rj_class))
-            else:
-                print('Reject class {:s} not found in list of classes. Will ignore setting.'.format(
-                    repr(rj_class)))
-
-    # Handle frequency extents in detection outputs
-    if spec_settings is not None:
-        default_freq_extents = spec_settings.bandwidth_clip
-    else:
-        default_freq_extents = [0, audio_settings['desired_fs'] / 2]
-    if not args.freq_info:  # none specified, set the same for all classes
-        class_freq_extents = default_freq_extents
-    else:
-        with open(args.freq_info, 'r') as f:
-            freq_extents_dict = json.load(f)
-
-        # Assign defaults for missing classes
-        class_freq_extents = [
-            freq_extents_dict.get(cn, default_freq_extents)
-            for cn in class_names
-            ]
-
-    # Set up function to scale scores, if enabled
-    if args.scale_scores:
-        frac = 1.0 / float(len(class_names))
-        def scale_scores(scores): return np.maximum(0.0, (scores - frac) / (1.0 - frac))
-    else:
-        def scale_scores(scores): return scores
-
-    # Check post-processing settings
-    squeeze_min_dur = None
-    suppress_nonmax = False
-    if args.top:
-        suppress_nonmax = True
-    elif args.squeeze is not None:
-        squeeze_min_dur = args.squeeze
-    elif args.top_squeeze is not None:
-        suppress_nonmax = True
-        squeeze_min_dur = args.top_squeeze
-
     # Override clip_advance, if specified
     if args.clip_advance is not None:
         audio_settings['clip_advance'] = args.clip_advance
 
-    # Set config parameters
-#    config = tf.ConfigProto(allow_soft_placement=True)
-#    config.gpu_options.allow_growth = True
+    raw_output_executor = None
+    if args.raw_outputs_dir:
+        os.makedirs(args.raw_outputs_dir, exist_ok=True)
+        raw_output_executor = concurrent.futures.ProcessPoolExecutor(max_workers=1)
 
-    os.makedirs(args.dst, exist_ok=True)
+    output_executor = None
+    if args.proc_outputs_dir:
+        reject_class_idx = None
+        if args.reject_class is not None:
+            reject_class_idx = []
+            for rj_class in args.reject_class:
+                if rj_class in class_names:
+                    reject_class_idx.append(class_names.index(rj_class))
+                else:
+                    print('Reject class {:s} not found in list of classes. Will ignore setting.'.format(
+                        repr(rj_class)))
+
+        # Handle frequency extents in detection outputs
+        if spec_settings is not None:
+            default_freq_extents = spec_settings.bandwidth_clip
+        else:
+            default_freq_extents = [0, audio_settings['desired_fs'] / 2]
+        if not args.freq_info:  # none specified, set the same for all classes
+            class_freq_extents = default_freq_extents
+        else:
+            with open(args.freq_info, 'r') as f:
+                freq_extents_dict = json.load(f)
+
+            # Assign defaults for missing classes
+            class_freq_extents = [
+                freq_extents_dict.get(cn, default_freq_extents)
+                for cn in class_names
+                ]
+
+        # Set up function to scale scores, if enabled
+        if args.scale_scores:
+            frac = 1.0 / float(len(class_names))
+            def scale_scores(scores): return np.maximum(0.0, (scores - frac) / (1.0 - frac))
+        else:
+            def scale_scores(scores): return scores
+
+        # Check post-processing settings
+        squeeze_min_dur = None
+        suppress_nonmax = False
+        if args.top:
+            suppress_nonmax = True
+        elif args.squeeze is not None:
+            squeeze_min_dur = args.squeeze
+        elif args.top_squeeze is not None:
+            suppress_nonmax = True
+            squeeze_min_dur = args.top_squeeze
+
+        os.makedirs(args.proc_outputs_dir, exist_ok=True)
+        output_executor = concurrent.futures.ProcessPoolExecutor(max_workers=1)
+        output_executor_future = None
 
     if not os.path.isdir(args.src):     # Single file input
         src_generator = [args.src]  # turn it into a list
@@ -348,34 +353,38 @@ def main(args):
                                  os.path.isfile(os.path.join(args.src, f))))
 
         # Create logger
-        logfile = args.log if args.log is not None else os.path.join(args.dst, _program_name + '.log')
+        logfile = args.log if args.log is not None else os.path.join((args.proc_outputs_dir or args.raw_outputs_dir),
+                                                                     _program_name + '.log')
         logging.basicConfig(filename=logfile, filemode='w', level=args.loglevel,
                             format='%(asctime)s[%(levelname).1s] %(funcName)s: %(message)s', datefmt="%Y%m%dT%H%M%S")
 
         logging.info('Model : {:s}'.format(repr(args.modeldir)))
         logging.info('Source: {:s}'.format(repr(args.src)))
-        logging.info('Output: {:s}'.format(repr(args.dst)))
         logging.info('Config: {}'.format(audio_settings))
-        if args.reject_class is not None:
-            logging.info('Reject class: {:s}'.format(
-                repr([class_names[rid] for rid in reject_class_idx]) if len(reject_class_idx) > 0 else 'None'))
-        if args.threshold is not None:
-            logging.info('Threshold: {:f}'.format(args.threshold))
-        if args.scale_scores is not None and args.scale_scores:
-            logging.info('Scale scores: True')
-        if args.top is not None and args.top:
-            logging.info('Postprocessing algorithm: Top class')
-        elif args.squeeze is not None:
-            logging.info('Postprocessing algorithm: Squeeze (MIN-DUR = {:f} s)'.format(args.squeeze))
-        elif args.top_squeeze is not None:
-            logging.info('Postprocessing algorithm: Top class, Squeeze (MIN-DUR = {:f} s)'.format(args.top_squeeze))
-        else:
-            logging.info('Postprocessing algorithm: Default')
+        if args.raw_outputs_dir:
+            logging.info('Raw Output: {:s}'.format(repr(args.raw_outputs_dir)))
+        if args.proc_outputs_dir:
+            logging.info('Processed Output: {:s}'.format(repr(args.proc_outputs_dir)))
+            if args.reject_class is not None:
+                logging.info('Reject class: {:s}'.format(
+                    repr([class_names[rid] for rid in reject_class_idx]) if len(reject_class_idx) > 0 else 'None'))
+            if args.threshold is not None:
+                logging.info('Threshold: {:f}'.format(args.threshold))
+            if args.scale_scores is not None and args.scale_scores:
+                logging.info('Scale scores: True')
+            if args.top is not None and args.top:
+                logging.info('Postprocessing algorithm: Top class')
+            elif args.squeeze is not None:
+                logging.info('Postprocessing algorithm: Squeeze (MIN-DUR = {:f} s)'.format(args.squeeze))
+            elif args.top_squeeze is not None:
+                logging.info('Postprocessing algorithm: Top class, Squeeze (MIN-DUR = {:f} s)'.format(args.top_squeeze))
+            else:
+                logging.info('Postprocessing algorithm: Default')
 
 #    tf.logging.set_verbosity(args.loglevel)
     logger = logging.getLogger(__name__)
 
-    if squeeze_min_dur is not None and squeeze_min_dur > audio_settings['clip_length']:
+    if args.proc_outputs_dir and squeeze_min_dur is not None and squeeze_min_dur > audio_settings['clip_length']:
         logger.warning('Squeeze min duration ({:f} s) is larger than model input length ({:f} s)'.format(
             squeeze_min_dur, audio_settings['clip_length']))
 
@@ -391,14 +400,6 @@ def main(args):
         downmix_channels, channels = False, (args.channels - 1)  # convert indices to be 0-based
 
     print('Starting to predict...')
-
-    output_executor = concurrent.futures.ProcessPoolExecutor(max_workers=1)
-    output_executor_future = None
-
-    raw_output_executor = None
-    if args.raw_outputs_dir is not None:
-        os.makedirs(args.raw_outputs_dir, exist_ok=True)
-        raw_output_executor = concurrent.futures.ProcessPoolExecutor(max_workers=2)
 
     selmap = None       # Will contain src rel path, seltab file relpath, analysis time
     sel_running_info = None  # Will contain running info -> last sel num, time offset for next file
@@ -457,60 +458,65 @@ def main(args):
                                        num_samples,
                                        channels_to_write)
 
-        # Scale the scores, if enabled
-        det_scores = scale_scores(det_scores)
+        if output_executor is not None:  # Offload writing of processed results (if enabled)
+            # Scale the scores, if enabled
+            det_scores = scale_scores(det_scores)
 
-        # First, wait for the previous writing to finish (if any)
-        if output_executor_future is not None:
-            try:
-                num_dets_written = output_executor_future.result()
-            except Exception as exc:
-                logger.error(('Writing out recognition results from file {:s} to file {:s} generated exception: ' +
-                              '{:s}').format(repr(last_file_relpath), repr(selmap[1]), repr(exc)))
-                num_dets_written = 0
+            # First, wait for the previous writing to finish (if any)
+            if output_executor_future is not None:
+                try:
+                    num_dets_written = output_executor_future.result()
+                except Exception as exc:
+                    logger.error(('Writing out recognition results from file {:s} to file {:s} generated exception: ' +
+                                  '{:s}').format(repr(last_file_relpath), repr(selmap[1]), repr(exc)))
+                    num_dets_written = 0
 
-            sel_running_info[0] += num_dets_written
-            sel_running_info[1] += last_file_dur
+                sel_running_info[0] += num_dets_written
+                sel_running_info[1] += last_file_dur
 
-            if selmap[1] != seltab_relpath:
-                # About to start a new seltab file. Write out logs about previous seltab file
-                logger.info('{:s} -> {:s}: {:d} detections, {:.3f}s processing time'.format(
-                    selmap[0], selmap[1], sel_running_info[0], selmap[2]))
+                if selmap[1] != seltab_relpath:
+                    # About to start a new seltab file. Write out logs about previous seltab file
+                    logger.info('{:s} -> {:s}: {:d} detections, {:.3f}s processing time'.format(
+                        selmap[0], selmap[1], sel_running_info[0], selmap[2]))
 
-        if selmap is None or selmap[1] != seltab_relpath:
-            # First time here, or output seltab file is to be changed.
-            # Open new seltab file and (re-)init counters.
+            if selmap is None or selmap[1] != seltab_relpath:
+                # First time here, or output seltab file is to be changed.
+                # Open new seltab file and (re-)init counters.
 
-            os.makedirs(os.path.join(args.dst, os.path.split(seltab_relpath)[0]), exist_ok=True)
-            seltab_file_h = (os.path.join(args.dst, seltab_relpath), 'w')
-            selmap = [os.path.split(audio_relpath)[0] if args.combine_outputs else audio_relpath,
-                      seltab_relpath, time_taken]
-            sel_running_info = [0, 0.]  # sel num offset, file time offset
+                os.makedirs(os.path.join(args.proc_outputs_dir, os.path.split(seltab_relpath)[0]), exist_ok=True)
+                seltab_file_h = (os.path.join(args.proc_outputs_dir, seltab_relpath), 'w')
+                selmap = [os.path.split(audio_relpath)[0] if args.combine_outputs else audio_relpath,
+                          seltab_relpath, time_taken]
+                sel_running_info = [0, 0.]  # sel num offset, file time offset
+
+            else:
+                seltab_file_h = (os.path.join(args.proc_outputs_dir, selmap[1]), 'a')
+                selmap[2] += time_taken
+
+            # Offload writing of recognition results to a separate thread.
+            # Send in data for only those valid classes in the mask.
+            output_executor_future = output_executor.submit(
+                _combine_and_write,
+                seltab_file_h + tuple(), det_scores.copy(), clip_start_samples.copy(),
+                num_samples, audio_settings.fs,
+                class_names, class_freq_extents,
+                channel_IDs=channels_to_write,
+                offset_info=None if not args.combine_outputs
+                            else (sel_running_info[0], sel_running_info[1], os.path.basename(audio_relpath)),
+                ignore_class=reject_class_idx,
+                threshold=0.0 if args.threshold is None else args.threshold,
+                suppress_nonmax=suppress_nonmax,
+                squeeze_min_dur=squeeze_min_dur)
+
+            last_file_relpath = audio_relpath
+            last_file_dur = curr_file_dur
 
         else:
-            seltab_file_h = (os.path.join(args.dst, selmap[1]), 'a')
-            selmap[2] += time_taken
-
-        # Offload writing of recognition results to a separate thread.
-        # Send in data for only those valid classes in the mask.
-        output_executor_future = output_executor.submit(
-            _combine_and_write,
-            seltab_file_h + tuple(), det_scores.copy(), clip_start_samples.copy(),
-            num_samples, audio_settings.fs,
-            class_names, class_freq_extents,
-            channel_IDs=channels_to_write,
-            offset_info=None if not args.combine_outputs
-                        else (sel_running_info[0], sel_running_info[1], os.path.basename(audio_relpath)),
-            ignore_class=reject_class_idx,
-            threshold=0.0 if args.threshold is None else args.threshold,
-            suppress_nonmax=suppress_nonmax,
-            squeeze_min_dur=squeeze_min_dur)
-
-        last_file_relpath = audio_relpath
-        last_file_dur = curr_file_dur
+            logger.info('{:s} -> {:s}: {:.3f}s processing time'.format(
+                audio_relpath, audio_relpath + '.npz', time_taken))
 
     # Done looping. Wait for the last 'write' thread to finish, if any
-    if output_executor_future is not None:
+    if output_executor is not None and output_executor_future is not None:
         try:
             num_dets_written = output_executor_future.result()
         except Exception as exc:
@@ -524,9 +530,11 @@ def main(args):
         logger.info('{:s} -> {:s}: {:d} detections, {:.3f}s processing time'.format(
             selmap[0], selmap[1], sel_running_info[0], selmap[2]))
 
-    output_executor.shutdown()
     if raw_output_executor is not None:
         raw_output_executor.shutdown()
+
+    if output_executor is not None:
+        output_executor.shutdown()
 
     if total_audio_dur == 0:
         print('No files processed')
@@ -549,10 +557,6 @@ if __name__ == '__main__':
                         help='Path to either a single audio file or to a directory. When a directory, all files of ' +
                              'the supported filetypes within the specified directory will be processed (use the ' +
                              '--recursive flag to process subdirectories as well).')
-    parser.add_argument('dst', metavar='<DST DIRECTORY>',
-                        help='Path to destination directory into which recognition results (Raven selection tables) ' +
-                             'will be written. If multiple audio files are to be processed, as many corresponding ' +
-                             'output files will be generated (use --combine-outputs for further control).')
     arg_group_in_ctrl = parser.add_argument_group('Input control')
     arg_group_in_ctrl.add_argument('--filetypes', metavar='EXTN', nargs='+', default=_default_audio_filetypes,
                                    help='Audio file types to restrict processing to. Option is ignored if processing ' +
@@ -572,7 +576,21 @@ if __name__ == '__main__':
                                         'of overlap between successive clips is determined by the settings that were ' +
                                         'in place during model training. Use this flag to alter that, by setting a ' +
                                         'different amount (in seconds) of gap (or advance) between successive clips.')
-    arg_group_out_ctrl = parser.add_argument_group('Output control')
+    arg_group_type_ctrl = parser.add_argument_group('Output type(s)',
+                                                    description='At least one of these must be specified. If multiple' +
+                                                                ' audio files are to be processed, as many ' +
+                                                                'corresponding output files will be generated, and ' +
+                                                                'necessary subdirectories will be created.')
+    arg_group_type_ctrl.add_argument('--raw-outputs', dest='raw_outputs_dir', metavar='DIR',
+                                     help='If set, raw outputs from the model will be written out into the specified ' +
+                                          'directory.')
+    arg_group_type_ctrl.add_argument('--processed-outputs', dest='proc_outputs_dir', metavar='DIR',
+                                     help='If set, processed recognition results (Raven selection tables) will be ' +
+                                          'written out into the specified directory. Use options under \'Output ' +
+                                          'control\' and \'Post-process control\' for further control.')
+    arg_group_out_ctrl = parser.add_argument_group('Output control',
+                                                   description='These options will have no effect if ' +
+                                                               '--processed-outputs is not specified.')
     arg_group_out_ctrl.add_argument('--reject-class', dest='reject_class', metavar='CLASS', nargs='+',
                                     help='Name (case sensitive) of the class (like \'Noise\' or \'Other\') that must ' +
                                          'be ignored from the recognition results. The corresponding detections will ' +
@@ -589,13 +607,12 @@ if __name__ == '__main__':
                                          'in the corresponding audio files.')
     arg_group_out_ctrl.add_argument('--threshold', metavar='[0-1]', type=ArgparseConverters.float_0_to_1,
                                     help='Suppress writing of detections with confidence below this value.')
-    arg_group_out_ctrl.add_argument('--raw-outputs', dest='raw_outputs_dir', metavar='DIR',
-                                    help='If set, raw outputs from the model will be written out (in addition to the ' +
-                                         'selection tables) into the specified directory.')
-    arg_group_postproc = parser.add_argument_group('Post-process raw detections',
+    arg_group_postproc = parser.add_argument_group('Post-process control',
                                                    description='By default, per-class scores from successive clips ' +
                                                                'are averaged to produce the results. You may choose ' +
-                                                               'from one of the below alternative algorithms instead.')
+                                                               'from one of the below alternative algorithms instead.' +
+                                                               ' These options will have no effect if ' +
+                                                               '--processed-outputs is not specified.')
     postproc_mutex_grp = arg_group_postproc.add_mutually_exclusive_group(required=False)
     postproc_mutex_grp.add_argument('--top', action='store_true',
                                     help='Same algorithm as default, but only considers the top-scoring class for ' +
@@ -631,6 +648,10 @@ if __name__ == '__main__':
 
     if not os.path.exists(args.src) or not os.path.exists(args.modeldir):
         print('Error: Invalid model and/or audio path specified', file=sys.stderr)
+        exit(2)
+
+    if not (args.raw_outputs_dir or args.proc_outputs_dir):
+        print('Error: At least one of --raw-outputs and --processed-outputs must be specified.')
         exit(2)
 
     if args.channels is not None:
