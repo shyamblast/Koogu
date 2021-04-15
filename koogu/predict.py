@@ -407,8 +407,9 @@ def main(args):
     total_audio_dur = 0.
     total_time_taken = 0.
     last_file_relpath = 'WTF? Blooper!'
+    num_fetch_threads = 1 if args.num_fetch_threads is None else args.num_fetch_threads
     for audio_filepath, (curr_file_dur, clips, clip_start_samples, num_samples) in \
-            processed_items_generator_mp(1, _fetch_clips, src_generator,
+            processed_items_generator_mp(num_fetch_threads, _fetch_clips, src_generator,
                                          audio_settings=audio_settings,
                                          spec_settings=spec_settings,
                                          downmix_channels=downmix_channels,
@@ -632,6 +633,9 @@ if __name__ == '__main__':
                                          'was trained with training data where each input corresponded to a single ' +
                                          'class.')
     arg_group_misc = parser.add_argument_group('Miscellaneous')
+    arg_group_misc.add_argument('--fetch-threads', dest='num_fetch_threads', type=ArgparseConverters.positive_integer,
+                                metavar='NUM', default=1,
+                                help='Number of threads that will fetch audio from files in parallel.')
     arg_group_misc.add_argument('--batch-size', dest='batch_size', type=ArgparseConverters.positive_integer,
                                 metavar='NUM', default=1,
                                 help='Size to batch audio file\'s clips into (default: %(default)d). Increasing this ' +
