@@ -13,7 +13,7 @@ from koogu.data import Audio, Settings, Convert
 from koogu.model import TrainedModel
 from koogu.utils import processed_items_generator_mp, detections
 from koogu.utils.terminal import ProgressBar, ArgparseConverters
-from koogu.utils.filesystem import recursive_listing, restrict_classes_with_whitelist_file
+from koogu.utils.filesystem import recursive_listing
 
 _program_name = 'predict'
 _default_audio_filetypes = ['.wav', '.WAV', '.flac', '.aif', '.mp3']
@@ -59,12 +59,11 @@ def _fetch_clips(audio_filepath, audio_settings, downmix_channels, channels, spe
     return librosa.get_duration(filename=audio_filepath), clips, clip_start_samples, num_samples
 
 
-def analyze_clips(classifier, clips, class_mask, batch_size=1, audio_filepath=None):
+def analyze_clips(classifier, clips, batch_size=1, audio_filepath=None):
     """
     Run predictions on clips and obtain classification results.
     :param classifier: A model.TrainedModel instance.
     :param clips: An [N x ?] numpy array of N input data.
-    :param class_mask: A binary mask containing as many (M) elements as supported by the model.
     :param batch_size: Control how many clips are processed in a single batch.
     :param audio_filepath: If not None, will display a progress bar.
     :return: A tuple consisting of -
@@ -72,24 +71,23 @@ def analyze_clips(classifier, clips, class_mask, batch_size=1, audio_filepath=No
         and the total time taken to process the clips.
     """
 
-    det_scores = np.zeros((clips.shape[0], len(class_mask)), dtype=np.float32)
-    # det_class_ids = np.zeros((clips.shape[0], ), dtype=np.uint32)  # N-length list of top-scoring detected class IDs
-
     pbar = None if audio_filepath is None else \
         ProgressBar(clips.shape[0], prefix='{:>59s}'.format(audio_filepath[-59:]), length=10, show_start=True)
 
+    batch_start_idxs = np.arange(0, clips.shape[0], batch_size)
+    batch_end_idxs = np.minimum(batch_start_idxs + batch_size, clips.shape[0])
+    det_scores = [None] * len(batch_end_idxs)
     predict_time = 0.
-    for idx in range(0, clips.shape[0], batch_size):
-        end_idx = min(idx + batch_size, clips.shape[0])
+    for idx, (s_idx, e_idx) in enumerate(zip(batch_start_idxs, batch_end_idxs)):
 
         t_start = timer()
-        det_scores[idx:end_idx, :] = classifier.infer(inputs=clips[idx:end_idx, ...])#, class_mask=class_mask)
+        det_scores[idx] = classifier.infer(inputs=clips[s_idx:e_idx, ...])
         predict_time += (timer() - t_start)
 
         if pbar is not None:
-            pbar.increment(end_idx - idx)
+            pbar.increment(e_idx - s_idx)
 
-    return det_scores, predict_time
+    return np.concatenate(det_scores, axis=0), predict_time
 
 
 def _combine_and_write(outfile_h, det_scores, clip_start_samples, num_samples, fs,
@@ -273,37 +271,15 @@ def main(args):
     spec_settings = None if classifier.spec_settings is None \
         else Settings.Spectral(audio_settings['desired_fs'], **classifier.spec_settings)
 
-    class_mask = np.full([len(class_names)], True)  # Selectively set to False to disable any particular class(es)
-    if args.whitelist is not None:  # Apply whitelist
-        wl_classes = restrict_classes_with_whitelist_file(class_names, args.whitelist)
-
-        class_mask[np.asarray([idx for idx, c in enumerate(class_names) if c not in wl_classes])] = False
-        print('Application of whitelist from {:s} results in {:d} classes.'.format(args.whitelist, len(wl_classes)))
-
-    num_valid_classes = class_mask.sum()
-    if len(class_mask) == 0 or num_valid_classes == 0:
-        print('No classes to look for.')
-        exit(0)
-
     reject_class_idx = None
     if args.reject_class is not None:
         reject_class_idx = []
         for rj_class in args.reject_class:
             if rj_class in class_names:
-                reject_class_id = class_names.index(rj_class)
-
-                if class_mask[reject_class_id]:
-                    reject_class_idx.append(
-                        sum(class_mask[:(reject_class_id + 1)]) - 1)   # Adjusted index after applying mask
-                else:
-                    print('Reject class {:s} not among whitelisted classes. Will ignore setting.'.format(
-                        repr(rj_class)))
+                reject_class_idx.append(class_names.index(rj_class))
             else:
                 print('Reject class {:s} not found in list of classes. Will ignore setting.'.format(
                     repr(rj_class)))
-
-    # Now limit class_names to whitelisted classes
-    class_names = [class_names[c_idx] for c_idx, c_m in enumerate(class_mask) if c_m]
 
     # Handle frequency extents in detection outputs
     if spec_settings is not None:
@@ -324,7 +300,7 @@ def main(args):
 
     # Set up function to scale scores, if enabled
     if args.scale_scores:
-        frac = 1.0 / float(num_valid_classes)
+        frac = 1.0 / float(len(class_names))
         def scale_scores(scores): return np.maximum(0.0, (scores - frac) / (1.0 - frac))
     else:
         def scale_scores(scores): return scores
@@ -448,12 +424,9 @@ def main(args):
         # At first, concatenate every channels' clips. Analyze together. And, then split the detections back.
         det_scores, time_taken = analyze_clips(classifier,
                                                np.concatenate(np.split(clips, num_channels, axis=0), axis=1)[0],
-                                               class_mask, args.batch_size,
+                                               args.batch_size,
                                                None if not args.show_progress else audio_filepath)
         det_scores = np.stack(np.split(det_scores, num_channels, axis=0), axis=0)
-
-        # Apply the class mask
-        det_scores = det_scores[:, :, class_mask]
 
         total_audio_dur += curr_file_dur
         total_time_taken += time_taken
@@ -600,13 +573,6 @@ if __name__ == '__main__':
                                         'in place during model training. Use this flag to alter that, by setting a ' +
                                         'different amount (in seconds) of gap (or advance) between successive clips.')
     arg_group_out_ctrl = parser.add_argument_group('Output control')
-    arg_group_out_ctrl.add_argument('--whitelist', metavar='FILE',
-                                    help='Path to text file containing names (one per line) of whitelisted classes. ' +
-                                         'This is used to set a mask in the model for avoiding looking for matches ' +
-                                         'on non-whitelisted classes. For example, if you have a model that can ' +
-                                         'recognize species from around the globe, but you want to limit this run of ' +
-                                         'the program to only look for species from North America, then list out all ' +
-                                         'of the North American species in the whitelist file.')
     arg_group_out_ctrl.add_argument('--reject-class', dest='reject_class', metavar='CLASS', nargs='+',
                                     help='Name (case sensitive) of the class (like \'Noise\' or \'Other\') that must ' +
                                          'be ignored from the recognition results. The corresponding detections will ' +
