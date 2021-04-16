@@ -33,14 +33,14 @@ output_spec = [
     ['Begin Path',      ' ']]
 
 
-def _fetch_clips(audio_filepath, audio_settings, downmix_channels, channels, spec_settings=None):
+def _fetch_clips(audio_filepath, audio_settings, channels, spec_settings=None):
     """
 
     If spec_settings is not None, the clips will be converted to time-frequency representation.
     """
 
     clips, clip_start_samples = Audio.get_file_clips(audio_settings, audio_filepath,
-                                                     downmix_channels=downmix_channels,
+                                                     downmix_channels=False,
                                                      chosen_channels=channels,
                                                      return_clip_indices=True)
 
@@ -392,12 +392,10 @@ def main(args):
     audio_settings = Settings.Audio(**audio_settings)
 
     # Prepare parameters for audio_loader
-    if args.channels is None:                       # down-mix all channels into one
-        downmix_channels, channels = True, None
-    elif len(args.channels) == 0:                   # fetch all channels' clips independently
-        downmix_channels, channels = False, None
+    if args.channels is None:                       # fetch all channels' clips independently
+        channels = None
     else:                                           # fetch selected channel's clips
-        downmix_channels, channels = False, (args.channels - 1)  # convert indices to be 0-based
+        channels = (args.channels - 1)  # convert indices to be 0-based
 
     print('Starting to predict...')
 
@@ -412,7 +410,6 @@ def main(args):
             processed_items_generator_mp(num_fetch_threads, _fetch_clips, src_generator,
                                          audio_settings=audio_settings,
                                          spec_settings=spec_settings,
-                                         downmix_channels=downmix_channels,
                                          channels=channels):
 
         # 'clips' container will be of shape [num channels, num clips, ...]
@@ -567,10 +564,9 @@ if __name__ == '__main__':
     arg_group_in_ctrl.add_argument('--recursive', action='store_true',
                                    help='Process files also in subdirectories of <AUDIO_SOURCE>.')
     arg_group_in_ctrl.add_argument('--channels', metavar='#', nargs='+', type=ArgparseConverters.all_or_posint,
-                                   help='Channels to restrict processing to. If not specified, will down-mix all the ' +
-                                        'channels (when multiple channels are available). To process all available ' +
-                                        'channels independently, set to \'all\'. Otherwise list out the desired ' +
-                                        'channel numbers, separated with whitespaces.')
+                                   help='Channels to restrict processing to. List out the desired channel numbers, ' +
+                                        'separated with whitespaces. If unspecified, all available channels will be' +
+                                        'processed.')
     arg_group_in_ctrl.add_argument('--clip-advance', metavar='SEC', dest='clip_advance',
                                    type=ArgparseConverters.positive_float,
                                    help='When audio file\'s contents are broken up into clips, by default the amount ' +
@@ -659,9 +655,6 @@ if __name__ == '__main__':
         exit(2)
 
     if args.channels is not None:
-        if 'all' in args.channels:
-            args.channels = np.asarray([], np.uint32)
-        else:
-            args.channels = np.sort(np.unique(args.channels).astype(np.uint32))
+        args.channels = np.sort(np.unique(args.channels).astype(np.uint32))
 
     main(args)
