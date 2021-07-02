@@ -51,7 +51,7 @@ class DataFeeder(metaclass=abc.ABCMeta):
         :param is_training: Boolean, indicating if operating in training mode.
         :param kwargs: Any additional parameters.
 
-        :return: A 2-tuple containing transormed sample and label.
+        :return: A 2-tuple containing transformed sample and label.
         """
 
         raise NotImplementedError(
