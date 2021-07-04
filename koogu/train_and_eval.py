@@ -39,8 +39,7 @@ def train_and_eval(data_dir, model_dir,
         model_config.get('dense_layers', [])  # default to an empty list
 
     # Check fields in training_config
-    required_fields = ['batch_size', 'epochs', 'epochs_between_evals',
-                       'learning_rate']
+    required_fields = ['batch_size', 'epochs']
     if any([field not in training_config for field in required_fields]):
         print('Required fields missing in \'training_config\'',
               file=sys.stderr)
@@ -52,6 +51,10 @@ def train_and_eval(data_dir, model_dir,
     training_cfg['weighted_loss'] = training_config.get('weighted_loss', True)
     training_cfg['l2_weight_decay'] = \
         training_config.get('l2_weight_decay', None)
+    training_cfg['epochs_between_evals'] = \
+        training_config.get('epochs_between_evals', 5)  # default of 5
+    training_cfg['learning_rate'] = \
+        training_config.get('learning_rate', 0.001)  # default of 0.001
 
     # Handle kwargs
     if 'data_format' not in kwargs:

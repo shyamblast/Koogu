@@ -39,7 +39,7 @@ class Settings:
         def __init__(self, fs, win_len, win_overlap_prc,
                      nfft_equals_win_len=True,
                      bandwidth_clip=None,
-                     tf_rep_type='spec',
+                     tf_rep_type='spec_db',
                      eps=1e-10,
                      num_mels=None):
             """
@@ -80,7 +80,7 @@ class Audio:
 
     @staticmethod
     def load(in_filepath, desired_fs,
-             downmix_channels=True, offset=0.0, duration=None, dtype=np.float32):
+             downmix_channels=False, offset=0.0, duration=None, dtype=np.float32):
 
         # Load audio from file
         data, fs = librosa.load(in_filepath, sr=desired_fs, mono=downmix_channels, offset=offset, duration=duration)
@@ -90,7 +90,7 @@ class Audio:
         return data.astype(dtype), fs
 
     @staticmethod
-    def get_file_clips(settings, filepath, downmix_channels=True, chosen_channels=None,
+    def get_file_clips(settings, filepath, downmix_channels=False, chosen_channels=None,
                        offset=0.0, duration=None,
                        return_clip_indices=False, outtype=np.float32):
         """
