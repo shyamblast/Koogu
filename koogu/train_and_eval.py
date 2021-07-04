@@ -98,9 +98,9 @@ def train_and_eval(data_dir, model_dir,
               file=sys.stderr)
         return -2
 
-    # If data_dir parameter was already an instantiated DataFeeder object,
+    # If data_dir parameter was already an instantiated BaseFeeder object,
     # pass it on. Otherwise, create a default one.
-    data_feeder = data_dir if isinstance(data_dir, feeder.DataFeeder) \
+    data_feeder = data_dir if isinstance(data_dir, feeder.BaseFeeder) \
         else feeder.TFRecordFeeder(data_dir)
 
     # Invoke the underlying main function
