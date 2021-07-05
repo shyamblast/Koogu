@@ -232,16 +232,19 @@ def build_model(inputs, arch_params, **kwargs):
 
     channel_axis = 3 if data_format == 'channels_last' else 1
 
-    # Parameters configurable as per the DenseNET paper
-    growth_rate = arch_params['growth_rate']
-    with_bottleneck = arch_params['with_bottleneck']
-    compression = arch_params['compression']
+    # Parameters configurable as per the DenseNET paper, with some reasonable defaults
+    growth_rate = arch_params.get('growth_rate', 12)
+    with_bottleneck = arch_params.get('with_bottleneck', False)
+    compression = arch_params.get('compression', 1.0)
     # Parameters that are my additions
-    semi_dense = arch_params.get('semi_dense', False)
+    quasi_dense = arch_params.get('quasi_dense', False)
     implicit_pooling = arch_params.get('implicit_pooling', False)
 
-    pooling = kl.MaxPooling2D if 'pooling_type' in arch_params and arch_params['pooling_type'] == 'max' \
+    pooling = kl.MaxPooling2D if arch_params.get('pooling_type', 'avg') == 'max' \
         else kl.AveragePooling2D
+
+    pool_sizes = arch_params.get('pool_sizes', [(3, 3)] * (3 + implicit_pooling))
+    pool_strides = arch_params.get('pool_strides', [(3, 3)] * (3 + implicit_pooling))
 
     def composite_fn(cf_inputs, num_filters, kernel_size, strides, padding, cf_idx, n_pre=''):
         name_prefix = n_pre + 'CF{}_'.format(cf_idx)
@@ -271,7 +274,7 @@ def build_model(inputs, arch_params, **kwargs):
         db_outputs = [db_inputs]
 
         for layer in range(num_layers_in_block):
-            if not semi_dense and len(db_outputs) > 1:
+            if not quasi_dense and len(db_outputs) > 1:
                 db_outputs = [kl.Concatenate(axis=channel_axis,
                                              name=name_prefix + 'Concat{:d}'.format(layer + 1))(db_outputs)]
 
@@ -294,14 +297,14 @@ def build_model(inputs, arch_params, **kwargs):
     if arch_params['first_conv_filters'] is not None or (with_bottleneck and compression < 1.0):
         outputs = kl.Conv2D(filters=((2 * growth_rate) if (with_bottleneck and compression < 1.0)
                                      else arch_params['first_conv_filters']),
-                            kernel_size=arch_params['first_conv_size'],
-                            strides=arch_params['first_conv_strides'],
+                            kernel_size=arch_params.get('first_conv_size', 3),
+                            strides=arch_params.get('first_conv_strides', 1),
                             padding='same', use_bias=False, data_format=data_format,
                             kernel_initializer=VarianceScaling(),
                             name='PreConv2D')(outputs)
 
     # Initial pooling
-    if arch_params['first_pool_size'] is not None and arch_params['first_pool_strides'] is not None:
+    if arch_params.get('first_pool_size', None) is not None and arch_params.get('first_pool_strides', None) is not None:
         outputs = kl.MaxPooling2D(pool_size=arch_params['first_pool_size'],
                                   strides=arch_params['first_pool_strides'],
                                   padding='same', data_format=data_format,
@@ -324,19 +327,19 @@ def build_model(inputs, arch_params, **kwargs):
 
             if implicit_pooling:    # Achieve pooling by strided convolutions
                 outputs = composite_fn(outputs, num_features,
-                                       arch_params['pool_sizes'][block_idx],
-                                       arch_params['pool_strides'][block_idx],
+                                       pool_sizes[block_idx],
+                                       pool_strides[block_idx],
                                        'valid', '', n_pre='T{:d}_'.format(block_idx + 1))
             else:
                 outputs = composite_fn(outputs, num_features, [1, 1], [1, 1], 'valid', '',
                                        n_pre='T{:d}_'.format(block_idx + 1))
                 # Ensure that pixels at boundaries are properly accounted for when stride > 1.
                 outputs = pad_for_valid_conv(outputs,
-                                         arch_params['pool_sizes'][block_idx],
-                                         arch_params['pool_strides'][block_idx],
-                                         data_format)
-                outputs = pooling(pool_size=arch_params['pool_sizes'][block_idx],
-                                  strides=arch_params['pool_strides'][block_idx],
+                                             pool_sizes[block_idx],
+                                             pool_strides[block_idx],
+                                             data_format)
+                outputs = pooling(pool_size=pool_sizes[block_idx],
+                                  strides=pool_strides[block_idx],
                                   padding='valid', data_format=data_format,
                                   name='T{:d}_Pool'.format(block_idx + 1))(outputs)
 
@@ -345,7 +348,7 @@ def build_model(inputs, arch_params, **kwargs):
     outputs = kl.Activation('relu', name='ReLu')(outputs)
 
     # Pooling or flattening
-    if 'flatten_leaf_nodes' in arch_params and arch_params['flatten_leaf_nodes']:  # if flattening is enabled
+    if arch_params.get('flatten_leaf_nodes', False):  # if flattening is enabled, default is False
         outputs = kl.Flatten(data_format=data_format)(outputs)
     else:
         # This is the default - take global mean
