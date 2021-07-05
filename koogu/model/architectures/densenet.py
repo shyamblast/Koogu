@@ -226,6 +226,9 @@ from tensorflow.keras.initializers import VarianceScaling
 
 
 def build_model(inputs, arch_params, **kwargs):
+    """
+    Build a DenseNet model, with requested customizations.
+    """
 
     data_format = 'channels_last' if 'data_format' not in kwargs else kwargs['data_format']
     dropout_rate = 0.0 if 'dropout_rate' not in kwargs else kwargs.pop('dropout_rate')
@@ -244,7 +247,7 @@ def build_model(inputs, arch_params, **kwargs):
         else kl.AveragePooling2D
 
     pool_sizes = arch_params.get('pool_sizes', [(3, 3)] * (3 + implicit_pooling))
-    pool_strides = arch_params.get('pool_strides', [(3, 3)] * (3 + implicit_pooling))
+    pool_strides = arch_params.get('pool_strides', pool_sizes)
 
     def composite_fn(cf_inputs, num_filters, kernel_size, strides, padding, cf_idx, n_pre=''):
         name_prefix = n_pre + 'CF{}_'.format(cf_idx)
