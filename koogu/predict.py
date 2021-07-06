@@ -260,10 +260,75 @@ def write_raw_detections(file_path, det_scores, clip_start_samples, num_samples,
     np.savez_compressed(file_path, **res)
 
 
-def main(args):
+def recognize(model_dir, audio_root,
+         output_dir=None, raw_detections_dir=None,
+         **kwargs):
+    """
+
+    :param model_dir: Path to directory where the trained model for use in
+        making inferences is available.
+    :param audio_root: Path to directory from which to load audio files for
+        inferences. Can also set this to a single audio file instead of a
+        directory. See optional parameters 'recursive' and 'combine_outputs'
+        that may be used when 'audio_root' points to a directory.
+    :param output_dir: If not None, processed recognition results (Raven
+        selection tables) will be written out into this directory. At least
+        one of 'output_dir' or 'raw_detections_dir' must be specified.
+    :param raw_detections_dir: If not None, raw outputs from the model will be
+        written out into this directory. At least one of 'output_dir' or
+        'raw_detections_dir' must be specified.
+
+    Optional parameters-
+
+    :param clip_advance: If specified, override the value that was read from
+        the model's files. The value defines the amount of clip advance when
+        preparing audio.
+    :param threshold: (float, 0-1) Suppress writing of detections with scores
+        below this value. Defaults to 0.
+    :param recursive: (bool) If set, the contents of 'audio_root' will be
+        processed recursively.
+    :param filetypes: Audio file types to restrict processing to. Option is
+        ignored if processing a single file. Can specify multiple types, as a
+        list. Defaults to ['.wav', '.WAV', '.flac', '.aif', '.mp3'].
+    :param combine_outputs: (bool) When processing audio files from entire
+        directories, enabling this option combines recognition results of
+        processing every file within a directory and writes them to a single
+        output file. When enabled, outputs will contain 2 additional fields
+        describing offsets of detections in the corresponding audio files.
+    :param channels: (int or list of ints) When audio files have multiple
+        channels, set which channels to restrict processing to. If
+        unspecified, all available channels will be processed. E.g., setting1, 2000
+        to 1 saves the first channel, setting to [1, 3] saves the first and
+        third channels.
+    :param scale_scores: (bool) Enabling this will scale the raw scores before
+        they are written out. Use of this setting is recommended only when the
+        output of a model is based on softmax (not multi-label) and the model
+        was trained with training data where each input corresponded to a
+        single class.
+    :param frequency_extents: A dictionary of per-class frequency bounds of
+        each label class. Will be used when producing the output selection
+        table files. If unspecified, the "Low Frequency (Hz)" and
+        "High Frequency (Hz)" fields in the output table will be the same for
+        all classes and will be set equal to the bandwidth used in preparing
+        model inputs.
+    :param reject_class: Name (case sensitive) of the class (like 'Noise' or
+        'Other') that must be ignored from the recognition results. The
+        corresponding detections will not be written to the output selection
+        tables. Can specify multiple classes for rejection, as a list.
+    :param batch_size: (int; default 1) Size to batch audio file's clips into.
+        Increasing this may improve speed on computers with high RAM.
+    :param num_fetch_threads: (int; default 1) Number of background threads
+        that will fetch audio from files in parallel.
+    :param show_progress: (bool) If enabled, messages indicating progress of
+        processing will be shown on console output.
+    """
+
+    assert os.path.exists(model_dir) and os.path.exists(audio_root)
+    assert output_dir is not None or raw_detections_dir is not None
+    assert 'threshold' not in kwargs or 0.0 <= kwargs['threshold'] <= 1.0
 
     # Load the classifier
-    classifier = TrainedModel(args.modeldir)
+    classifier = TrainedModel(model_dir)
 
     # Query some dataset info
     class_names = classifier.class_names
@@ -271,21 +336,23 @@ def main(args):
     spec_settings = None if classifier.spec_settings is None \
         else Settings.Spectral(audio_settings['desired_fs'], **classifier.spec_settings)
 
-    # Override clip_advance, if specified
-    if args.clip_advance is not None:
-        audio_settings['clip_advance'] = args.clip_advance
+    # Override clip_advance, if requested
+    if 'clip_advance' in kwargs:
+        audio_settings['clip_advance'] = kwargs['clip_advance']
 
     raw_output_executor = None
-    if args.raw_outputs_dir:
-        os.makedirs(args.raw_outputs_dir, exist_ok=True)
+    if raw_detections_dir:
+        os.makedirs(raw_detections_dir, exist_ok=True)
         raw_output_executor = concurrent.futures.ProcessPoolExecutor(max_workers=1)
 
     output_executor = None
-    if args.proc_outputs_dir:
+    if output_dir:
         reject_class_idx = None
-        if args.reject_class is not None:
+        if kwargs.get('reject_class', None) is not None:
+            reject_classes = kwargs['reject_class']
+            reject_classes = [reject_classes] if isinstance(reject_classes, str) else reject_classes
             reject_class_idx = []
-            for rj_class in args.reject_class:
+            for rj_class in reject_classes:
                 if rj_class in class_names:
                     reject_class_idx.append(class_names.index(rj_class))
                 else:
@@ -297,94 +364,53 @@ def main(args):
             default_freq_extents = spec_settings.bandwidth_clip
         else:
             default_freq_extents = [0, audio_settings['desired_fs'] / 2]
-        if not args.freq_info:  # none specified, set the same for all classes
+        if 'frequency_extents' not in kwargs:  # none specified, set the same for all classes
             class_freq_extents = default_freq_extents
         else:
-            with open(args.freq_info, 'r') as f:
-                freq_extents_dict = json.load(f)
-
             # Assign defaults for missing classes
             class_freq_extents = [
-                freq_extents_dict.get(cn, default_freq_extents)
+                kwargs['frequency_extents'].get(cn, default_freq_extents)
                 for cn in class_names
                 ]
 
         # Set up function to scale scores, if enabled
-        if args.scale_scores:
+        if kwargs.get('scale_scores', False):
             frac = 1.0 / float(len(class_names))
             def scale_scores(scores): return np.maximum(0.0, (scores - frac) / (1.0 - frac))
         else:
             def scale_scores(scores): return scores
 
         # Check post-processing settings
-        squeeze_min_dur = None
-        suppress_nonmax = False
-        if args.top:
-            suppress_nonmax = True
-        elif args.squeeze is not None:
-            squeeze_min_dur = args.squeeze
-        elif args.top_squeeze is not None:
-            suppress_nonmax = True
-            squeeze_min_dur = args.top_squeeze
+        squeeze_min_dur = kwargs.get('squeeze_detections', None)
+        suppress_nonmax = kwargs.get('suppress_nonmax', False)
 
-        os.makedirs(args.proc_outputs_dir, exist_ok=True)
+        os.makedirs(output_dir, exist_ok=True)
         output_executor = concurrent.futures.ProcessPoolExecutor(max_workers=1)
         output_executor_future = None
 
-    if not os.path.isdir(args.src):     # Single file input
-        src_generator = [args.src]  # turn it into a list
-
-        # Forward all logging to stdout
-        logging.basicConfig(stream=sys.stdout, filemode='a', level=args.loglevel,
-                            format='%(asctime)s[%(levelname).1s] %(funcName)s: %(message)s', datefmt="%Y%m%dT%H%M%S")
+    if not os.path.isdir(audio_root):     # Single file input
+        src_generator = [audio_root]  # turn it into a list
 
         # No need of fields describing offsets of detections
-        args.combine_outputs = False    # Disable this (if it was enabled)
+        combine_outputs = False    # Disable this (if it was enabled)
 
     else:
         # Prepare the input file generator
-        if args.recursive:
-            src_generator = (os.path.join(args.src, f)
-                             for f in recursive_listing(args.src, match_extensions=args.filetypes))
+        filetypes = kwargs.get('filetypes', _default_audio_filetypes)
+        if kwargs.get('recursive', False):
+            src_generator = (os.path.join(audio_root, f)
+                             for f in recursive_listing(audio_root, match_extensions=filetypes))
         else:
             # Only get the top-level files
-            src_generator = (os.path.join(args.src, f) for f in os.listdir(args.src)
-                             if (any((f.endswith(e) for e in args.filetypes)) and
-                                 os.path.isfile(os.path.join(args.src, f))))
+            src_generator = (os.path.join(audio_root, f) for f in os.listdir(audio_root)
+                             if (any((f.endswith(e) for e in filetypes)) and
+                                 os.path.isfile(os.path.join(audio_root, f))))
 
-        # Create logger
-        logfile = args.log if args.log is not None else os.path.join((args.proc_outputs_dir or args.raw_outputs_dir),
-                                                                     _program_name + '.log')
-        logging.basicConfig(filename=logfile, filemode='w', level=args.loglevel,
-                            format='%(asctime)s[%(levelname).1s] %(funcName)s: %(message)s', datefmt="%Y%m%dT%H%M%S")
+        combine_outputs = kwargs.get('combine_outputs', False)
 
-        logging.info('Model : {:s}'.format(repr(args.modeldir)))
-        logging.info('Source: {:s}'.format(repr(args.src)))
-        logging.info('Config: {}'.format(audio_settings))
-        if args.raw_outputs_dir:
-            logging.info('Raw Output: {:s}'.format(repr(args.raw_outputs_dir)))
-        if args.proc_outputs_dir:
-            logging.info('Processed Output: {:s}'.format(repr(args.proc_outputs_dir)))
-            if args.reject_class is not None:
-                logging.info('Reject class: {:s}'.format(
-                    repr([class_names[rid] for rid in reject_class_idx]) if len(reject_class_idx) > 0 else 'None'))
-            if args.threshold is not None:
-                logging.info('Threshold: {:f}'.format(args.threshold))
-            if args.scale_scores is not None and args.scale_scores:
-                logging.info('Scale scores: True')
-            if args.top is not None and args.top:
-                logging.info('Postprocessing algorithm: Top class')
-            elif args.squeeze is not None:
-                logging.info('Postprocessing algorithm: Squeeze (MIN-DUR = {:f} s)'.format(args.squeeze))
-            elif args.top_squeeze is not None:
-                logging.info('Postprocessing algorithm: Top class, Squeeze (MIN-DUR = {:f} s)'.format(args.top_squeeze))
-            else:
-                logging.info('Postprocessing algorithm: Default')
-
-#    tf.logging.set_verbosity(args.loglevel)
     logger = logging.getLogger(__name__)
 
-    if args.proc_outputs_dir and squeeze_min_dur is not None and squeeze_min_dur > audio_settings['clip_length']:
+    if output_dir and squeeze_min_dur is not None and squeeze_min_dur > audio_settings['clip_length']:
         logger.warning('Squeeze min duration ({:f} s) is larger than model input length ({:f} s)'.format(
             squeeze_min_dur, audio_settings['clip_length']))
 
@@ -392,12 +418,13 @@ def main(args):
     audio_settings = Settings.Audio(**audio_settings)
 
     # Prepare parameters for audio_loader
-    if args.channels is None:                       # fetch all channels' clips independently
+    if 'channels' not in kwargs:                    # fetch all channels' clips independently
         channels = None
     else:                                           # fetch selected channel's clips
-        channels = (args.channels - 1)  # convert indices to be 0-based
+        channels = (kwargs['channels'] - 1)  # convert indices to be 0-based
+        channels = np.sort(np.unique(channels).astype(np.uint32))
 
-    print('Starting to predict...')
+    #print('Starting to predict...')
 
     selmap = None       # Will contain src rel path, seltab file relpath, analysis time
     sel_running_info = None  # Will contain running info -> last sel num, time offset for next file
@@ -405,7 +432,7 @@ def main(args):
     total_audio_dur = 0.
     total_time_taken = 0.
     last_file_relpath = 'WTF? Blooper!'
-    num_fetch_threads = 1 if args.num_fetch_threads is None else args.num_fetch_threads
+    num_fetch_threads = kwargs.get('num_fetch_threads', 1)
     for audio_filepath, (curr_file_dur, clips, clip_start_samples, num_samples) in \
             processed_items_generator_mp(num_fetch_threads, _fetch_clips, src_generator,
                                          audio_settings=audio_settings,
@@ -423,35 +450,38 @@ def main(args):
         # At first, concatenate every channels' clips. Analyze together. And, then split the detections back.
         det_scores, time_taken = analyze_clips(classifier,
                                                np.concatenate(np.split(clips, num_channels, axis=0), axis=1)[0],
-                                               args.batch_size,
-                                               None if not args.show_progress else audio_filepath)
+                                               kwargs.get('batch_size', 1),
+                                               None if not kwargs.get('show_progress', False) else audio_filepath)
         det_scores = np.stack(np.split(det_scores, num_channels, axis=0), axis=0)
 
         total_audio_dur += curr_file_dur
         total_time_taken += time_taken
 
         # Determine the channel number(s) to write out in the outputs
-        channels_to_write = np.arange(1, num_channels + 1) \
-            if args.channels is not None and len(args.channels) == 0 \
-            else args.channels
+        if 'channels' not in kwargs:
+            channels_to_write = None
+        elif len(kwargs['channels']) == 0:
+            channels_to_write = np.arange(1, num_channels + 1)
+        else:
+            channels_to_write = channels + 1
 
-        if audio_filepath == args.src:  # Single file
+        if audio_filepath == audio_root:  # Single file was specified
             audio_relpath = os.path.basename(audio_filepath)
             seltab_relpath = os.path.splitext(audio_relpath)[0]
         else:
-            audio_relpath = os.path.relpath(audio_filepath, start=args.src)
+            audio_relpath = os.path.relpath(audio_filepath, start=audio_root)
             subdirs = os.path.split(audio_relpath)[0]
             # Seltab filename based on dir (if combining results) or filename
             if subdirs == '':
-                seltab_relpath = ('results' if args.combine_outputs else os.path.splitext(audio_relpath)[0])
+                seltab_relpath = ('results' if combine_outputs else os.path.splitext(audio_relpath)[0])
             else:
-                seltab_relpath = (subdirs if args.combine_outputs else os.path.splitext(audio_relpath)[0])
+                seltab_relpath = (subdirs if combine_outputs else os.path.splitext(audio_relpath)[0])
         seltab_relpath += _selection_table_file_suffix
 
         if raw_output_executor is not None:  # Offload writing of raw results (if enabled)
             # Fire and forget. No need to wait for or fetch results.
             raw_output_executor.submit(write_raw_detections,
-                                       os.path.join(args.raw_outputs_dir, audio_relpath + '.npz'),
+                                       os.path.join(raw_detections_dir, audio_relpath + '.npz'),
                                        det_scores.copy(), clip_start_samples.copy(),
                                        num_samples,
                                        channels_to_write)
@@ -459,6 +489,10 @@ def main(args):
         if output_executor is not None:  # Offload writing of processed results (if enabled)
             # Scale the scores, if enabled
             det_scores = scale_scores(det_scores)
+
+            # Apply threshold
+            if 'threshold' in kwargs:
+                det_scores[det_scores < kwargs['threshold']] = 0
 
             # First, wait for the previous writing to finish (if any)
             if output_executor_future is not None:
@@ -481,14 +515,14 @@ def main(args):
                 # First time here, or output seltab file is to be changed.
                 # Open new seltab file and (re-)init counters.
 
-                os.makedirs(os.path.join(args.proc_outputs_dir, os.path.split(seltab_relpath)[0]), exist_ok=True)
-                seltab_file_h = (os.path.join(args.proc_outputs_dir, seltab_relpath), 'w')
-                selmap = [os.path.split(audio_relpath)[0] if args.combine_outputs else audio_relpath,
+                os.makedirs(os.path.join(output_dir, os.path.split(seltab_relpath)[0]), exist_ok=True)
+                seltab_file_h = (os.path.join(output_dir, seltab_relpath), 'w')
+                selmap = [os.path.split(audio_relpath)[0] if combine_outputs else audio_relpath,
                           seltab_relpath, time_taken]
                 sel_running_info = [0, 0.]  # sel num offset, file time offset
 
             else:
-                seltab_file_h = (os.path.join(args.proc_outputs_dir, selmap[1]), 'a')
+                seltab_file_h = (os.path.join(output_dir, selmap[1]), 'a')
                 selmap[2] += time_taken
 
             # Offload writing of recognition results to a separate thread.
@@ -499,10 +533,10 @@ def main(args):
                 num_samples, audio_settings.fs,
                 class_names, class_freq_extents,
                 channel_IDs=channels_to_write,
-                offset_info=None if not args.combine_outputs
+                offset_info=None if not combine_outputs
                             else (sel_running_info[0], sel_running_info[1], os.path.basename(audio_relpath)),
                 ignore_class=reject_class_idx,
-                threshold=0.0 if args.threshold is None else args.threshold,
+                threshold=kwargs.get('threshold', 0.0),
                 suppress_nonmax=suppress_nonmax,
                 squeeze_min_dur=squeeze_min_dur)
 
@@ -542,7 +576,43 @@ def main(args):
         logger.info(msg)
         print(msg)
 
-    logging.shutdown()
+
+def _fetch_freq_info(json_file):
+    with open(json_file, 'r') as f:
+        return json.load(f)
+
+def initialize_logger(args):
+    # Create logger
+    logging.basicConfig(filename=args.log, filemode='w', level=args.loglevel,
+                        format='%(asctime)s[%(levelname).1s] %(funcName)s: %(message)s', datefmt="%Y%m%dT%H%M%S")
+
+    logging.info('Model : {:s}'.format(repr(args.modeldir)))
+    logging.info('Source: {:s}'.format(repr(args.src)))
+
+    if args.raw_outputs_dir:
+        logging.info('Raw Output: {:s}'.format(repr(args.raw_outputs_dir)))
+
+    if args.proc_outputs_dir:
+        logging.info('Processed Output: {:s}'.format(repr(args.proc_outputs_dir)))
+
+        if args.reject_class is not None:
+            logging.info('Reject class: {:s}'.format(
+                repr([rc for rc in args.reject_class])))
+
+        if args.threshold is not None:
+            logging.info('Threshold: {:f}'.format(args.threshold))
+
+        if args.scale_scores is not None and args.scale_scores:
+            logging.info('Scale scores: True')
+
+        if args.top is not None and args.top:
+            logging.info('Postprocessing algorithm: Top class')
+        elif args.squeeze is not None:
+            logging.info('Postprocessing algorithm: Squeeze (MIN-DUR = {:f} s)'.format(args.squeeze))
+        elif args.top_squeeze is not None:
+            logging.info('Postprocessing algorithm: Top class, Squeeze (MIN-DUR = {:f} s)'.format(args.top_squeeze))
+        else:
+            logging.info('Postprocessing algorithm: Default')
 
 
 if __name__ == '__main__':
@@ -652,9 +722,46 @@ if __name__ == '__main__':
 
     if not (args.raw_outputs_dir or args.proc_outputs_dir):
         print('Error: At least one of --raw-outputs and --processed-outputs must be specified.')
-        exit(2)
+        exit(3)
 
+    if args.log is not None:
+        initialize_logger(args)
+
+    optional_args = dict()
+    if args.clip_advance is not None:
+        optional_args['clip_advance'] = args.clip_advance
+    if args.threshold is not None:
+        optional_args['threshold'] = args.threshold
+    if args.recursive is not None:
+        optional_args['recursive'] = args.recursive
+    if args.combine_outputs is not None:
+        optional_args['combine_outputs'] = args.combine_outputs
     if args.channels is not None:
-        args.channels = np.sort(np.unique(args.channels).astype(np.uint32))
+        optional_args['channels'] = args.channels
+    if args.scale_scores is not None:
+        optional_args['scale_scores'] = args.scale_scores
+    if args.top:
+        optional_args['suppress_nonmax'] = True
+    elif args.squeeze is not None:
+        optional_args['squeeze_detections'] = args.squeeze
+    elif args.top_squeeze is not None:
+        optional_args['suppress_nonmax'] = True
+        optional_args['squeeze_detections'] = args.top_squeeze
+    if args.freq_info is not None:
+        optional_args['frequency_extents'] = _fetch_freq_info(args.freq_info)
+    if args.reject_class is not None:
+        optional_args['reject_class'] = args.reject_class
+    if args.batch_size is not None:
+        optional_args['batch_size'] = args.batch_size
+    if args.num_fetch_threads is not None:
+        optional_args['num_fetch_threads'] = args.num_fetch_threads
+    optional_args['filetypes'] = args.filetypes
+    if args.show_progress is not None:
+        optional_args['show_progress'] = True
 
-    main(args)
+    recognize(args.modeldir, args.src,
+         args.proc_outputs_dir, args.raw_outputs_dir,
+         **optional_args)
+
+    if args.log is not None:
+        logging.shutdown()
