@@ -302,7 +302,7 @@ def _main(data_feeder, model_dir, data_cfg, model_cfg, training_cfg,
                                    data_cfg['audio_settings'],
                                    spec_settings=data_cfg['spec_settings'])
 
-    return history
+    return history_c
 
 
 def _get_settings_from_config(args):
