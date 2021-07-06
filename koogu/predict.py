@@ -95,7 +95,6 @@ def _combine_and_write(outfile_h, det_scores, clip_start_samples, num_samples, f
                        channel_IDs=None,
                        offset_info=None,
                        ignore_class=None,
-                       threshold=0.0,
                        suppress_nonmax=False,
                        squeeze_min_dur=None):
 
@@ -168,14 +167,6 @@ def _combine_and_write(outfile_h, det_scores, clip_start_samples, num_samples, f
 
     # Remap class IDs to make good for the gaps from ignore_class
     combined_det_labels = class_idx_remapper[combined_det_labels]
-
-    # Apply threshold
-    valid_dets_mask = combined_det_scores >= threshold
-    combined_det_times = combined_det_times[valid_dets_mask, ...]
-    combined_det_scores = combined_det_scores[valid_dets_mask]
-    combined_det_labels = combined_det_labels[valid_dets_mask]
-    if channel_IDs is not None:
-        combined_det_channels = combined_det_channels[valid_dets_mask]
 
     # Sort the detections across channels (based on detection start time)
     sort_idx = np.argsort(combined_det_times[:, 0])
@@ -536,7 +527,6 @@ def recognize(model_dir, audio_root,
                 offset_info=None if not combine_outputs
                             else (sel_running_info[0], sel_running_info[1], os.path.basename(audio_relpath)),
                 ignore_class=reject_class_idx,
-                threshold=kwargs.get('threshold', 0.0),
                 suppress_nonmax=suppress_nonmax,
                 squeeze_min_dur=squeeze_min_dur)
 
