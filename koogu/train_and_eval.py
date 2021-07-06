@@ -294,9 +294,8 @@ def _main(data_feeder, model_dir, data_cfg, model_cfg, training_cfg,
                               training_cfg['epochs_between_evals'])]
         of.write(json.dumps(str(history_c)))
 
-    new_subdir = 'saved_model'
     TrainedModel.finalize_and_save(classifier,
-                                   os.path.join(model_dir, new_subdir),
+                                   model_dir,
                                    data_feeder.data_shape,
                                    data_feeder.get_shape_transformation_info(),
                                    data_feeder.class_names,
