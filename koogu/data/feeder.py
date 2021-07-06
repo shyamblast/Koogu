@@ -120,6 +120,16 @@ class BaseFeeder(metaclass=abc.ABCMeta):
     def data_shape(self):
         return self._shape
 
+    def get_shape_transformation_info(self):
+        """
+        Override in inherited class if its transform() alters the shape of the
+        read/input data before a dataset is returned. If not None, must return
+        a tuple where:
+            first value is the untransformed input shape,
+            second is the actual transformation function.
+        """
+        return None
+
     @property
     def num_classes(self):
         return len(self._class_names)
@@ -522,6 +532,9 @@ class SpectralDataFeeder(DataFeeder):
 
         return output, label
 
+    def get_shape_transformation_info(self):
+        return self._in_shape, self._transformation
+
 
 class SpectralTFRecordFeeder(TFRecordFeeder):
     """
@@ -552,3 +565,6 @@ class SpectralTFRecordFeeder(TFRecordFeeder):
         output = self._transformation(output)
 
         return output, tf.one_hot(label, self.num_classes)
+
+    def get_shape_transformation_info(self):
+        return self._in_shape, self._transformation
