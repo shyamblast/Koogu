@@ -298,7 +298,7 @@ def _main(data_feeder, model_dir, data_cfg, model_cfg, training_cfg,
     TrainedModel.finalize_and_save(classifier,
                                    os.path.join(model_dir, new_subdir),
                                    data_feeder.data_shape,
-                                   None,
+                                   data_feeder.get_shape_transformation_info(),
                                    data_feeder.class_names,
                                    data_cfg['audio_settings'],
                                    spec_settings=data_cfg['spec_settings'])
