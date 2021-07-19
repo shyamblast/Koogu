@@ -226,7 +226,7 @@ def get_model(model_cfg,
             'relu', name='ReLu-D{:d}'.format(dense_layer_idx + 1))(outputs)
 
     # Classification layer
-    activation_type = 'sigmoid' if model_cfg.get('multilabel', False) else 'softmax'
+    activation_type = 'sigmoid' if model_cfg['multilabel'] else 'softmax'
     outputs = K.layers.Dense(units=num_classes,
                              activation=activation_type,
                              name='Logits'

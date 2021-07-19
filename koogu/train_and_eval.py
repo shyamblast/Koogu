@@ -37,6 +37,8 @@ def train_and_eval(data_dir, model_dir,
         model_config.get('preproc', [])       # default to an empty list
     model_cfg['dense_layers'] = \
         model_config.get('dense_layers', [])  # default to an empty list
+    model_cfg['multilabel'] = \
+        model_config.get('multilabel', False)  # default to False
 
     # Check fields in training_config
     required_fields = ['batch_size', 'epochs']
@@ -223,13 +225,15 @@ def _main(data_feeder, model_dir, data_cfg, model_cfg, training_cfg,
             if hasattr(layer, 'kernel_regularizer'):
                 setattr(layer, 'kernel_regularizer', regularizer)
 
-    loss_fn = tf.keras.losses.BinaryCrossentropy() if model_cfg.get('multilabel', False) \
+    loss_fn = tf.keras.losses.BinaryCrossentropy() if model_cfg['multilabel'] \
         else tf.keras.losses.CategoricalCrossentropy()
+    acc_metric = tf.keras.metrics.BinaryAccuracy() if model_cfg['multilabel'] \
+        else tf.keras.metrics.CategoricalAccuracy()
 
     classifier.compile(
         optimizer=training_cfg['optimizer'],
         loss=loss_fn,
-        metrics=[tf.keras.metrics.CategoricalAccuracy()])
+        metrics=[acc_metric])
 
     if verbose > 0:
         print('Data: {:d} classes, {:d} training & {:d} eval samples'.format(
