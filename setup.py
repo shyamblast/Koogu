@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 import koogu
 
 
-with open('README.md', 'r') as fd:
+with open('HOWTO.md', 'r') as fd:
     long_description = fd.read()
 
 setup(

@@ -288,7 +288,7 @@ def recognize(model_dir, audio_root,
         describing offsets of detections in the corresponding audio files.
     :param channels: (int or list of ints) When audio files have multiple
         channels, set which channels to restrict processing to. If
-        unspecified, all available channels will be processed. E.g., setting1, 2000
+        unspecified, all available channels will be processed. E.g., setting
         to 1 saves the first channel, setting to [1, 3] saves the first and
         third channels.
     :param scale_scores: (bool) Enabling this will scale the raw scores before
