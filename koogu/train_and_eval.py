@@ -1,4 +1,3 @@
-
 import os
 import sys
 import tensorflow as tf
@@ -6,10 +5,10 @@ import logging
 from tensorflow.python.client import device_lib
 import argparse
 import json
+import warnings
 
-from koogu.model import get_model, TrainedModel
+from koogu.model import Architectures, TrainedModel, BaseArchitecture
 from koogu.data import feeder
-from koogu.data.tf_transformations import LoG
 from koogu.utils import instantiate_logging
 from koogu.utils.terminal import ArgparseConverters
 from koogu.utils.config import Config, ConfigError, datasection2dict, log_config
@@ -20,25 +19,39 @@ _program_name = 'train_and_eval'
 
 def train_and_eval(data_dir, model_dir,
                    data_config,
-                   model_config,
+                   arch_or_model_config,
                    training_config,
                    verbose=2,
                    **kwargs):
 
-    # Check fields in model_config
-    required_fields = ['arch', 'arch_params']
-    if any([field not in model_config for field in required_fields]):
-        print('Required fields missing in \'model_config\'', file=sys.stderr)
-        return -1
-    # Copy needed vals
-    model_cfg = {key: model_config[key] for key in required_fields}
-    # Copy/set default vals for non-mandatory fields
-    model_cfg['preproc'] = \
-        model_config.get('preproc', [])       # default to an empty list
-    model_cfg['dense_layers'] = \
-        model_config.get('dense_layers', [])  # default to an empty list
-    model_cfg['multilabel'] = \
-        model_config.get('multilabel', False)  # default to False
+    if isinstance(arch_or_model_config, BaseArchitecture):
+        model_arch = arch_or_model_config
+    else:
+        warnings.showwarning(
+            'Use of model config (dict) to set up a model will be ' +
+            'deprecated in the future. Please use koogu.model.Architectures' +
+            ' to choose and configure models instead.',
+            DeprecationWarning, 'train_and_eval.py', 0)
+
+        # Check fields in model_config
+        required_fields = ['arch', 'arch_params']
+        if any([field not in arch_or_model_config
+                for field in required_fields]):
+            print('Required fields missing in \'arch_or_model_config\'',
+                  file=sys.stderr)
+            return -1
+        model_config = {k: v for k, v in arch_or_model_config.items()}  # copy
+        # Pop out req field vals
+        arch = model_config['arch']
+        arch_params = model_config['arch_params']
+
+        try:
+            arch_submodule = getattr(Architectures, arch)
+        except KeyError as _:
+            raise ValueError('Architecture {:s} is not available.'.format(
+                arch))
+
+        model_arch = arch_submodule(**arch_params, **model_config)
 
     # Check fields in training_config
     required_fields = ['batch_size', 'epochs']
@@ -68,16 +81,6 @@ def train_and_eval(data_dir, model_dir,
         kwargs['dropout_rate'] = training_config['dropout_rate']
 
     # Instantiate settings that need instantiation
-    try:
-        model_cfg['preproc'] = [
-            _get_preproc_instance(preproc_op,
-                                  data_format=kwargs['data_format'],
-                                  **preproc_params)
-            for (preproc_op, preproc_params) in model_cfg['preproc']]
-    except Exception as exc:
-        print('Error setting-up model pre-processing: {:s}'.format(repr(exc)),
-              file=sys.stderr)
-        return -2
     try:
         training_cfg['learning_rate_fn'] = _get_learning_rate_fn(
             training_cfg['learning_rate'],
@@ -110,7 +113,7 @@ def train_and_eval(data_dir, model_dir,
 
     # Invoke the underlying main function
     return _main(data_feeder, model_dir,
-                 data_config, model_cfg, training_cfg,
+                 data_config, model_arch, training_cfg,
                  verbose, **kwargs)
 
 
@@ -147,16 +150,6 @@ def _get_learning_rate_fn(lr, lr_change_at_epochs=None,
     return get_learning_rate
 
 
-def _get_preproc_instance(name, **kwargs):
-
-    if name == 'LoG':
-        return LoG(**kwargs)
-    # Add others here in an if-elif ladder
-
-    # Raise exception if unknown option requested
-    raise ValueError('Unknown preproc option requested: {:s}'.format(name))
-
-
 # def _validate_fcn_splitting(raw_data_shape, data_cfg, patch_size, patch_overlap):
 #
 #     patch_size = np.asarray(patch_size).astype(np.int)
@@ -181,7 +174,7 @@ def _get_preproc_instance(name, **kwargs):
 #     return patch_size, patch_overlap
 
 
-def _main(data_feeder, model_dir, data_cfg, model_cfg, training_cfg,
+def _main(data_feeder, model_dir, data_cfg, model_arch, training_cfg,
           verbose=2,
           **kwargs):
 
@@ -213,10 +206,10 @@ def _main(data_feeder, model_dir, data_cfg, model_cfg, training_cfg,
     #print(data_feeder.data_shape)
 
     # Create a Classifier instance
-    classifier = get_model(model_cfg,
-                           input_shape=data_feeder.data_shape,
-                           num_classes=data_feeder.num_classes,
-                           **kwargs)
+    classifier = model_arch(input_shape=data_feeder.data_shape,
+                            num_classes=data_feeder.num_classes,
+                            is_training=True,
+                            **kwargs)
 
     # Add L2 regularization, if enabled
     if training_cfg['l2_weight_decay'] is not None and training_cfg['l2_weight_decay'] > 0.0:
@@ -225,9 +218,9 @@ def _main(data_feeder, model_dir, data_cfg, model_cfg, training_cfg,
             if hasattr(layer, 'kernel_regularizer'):
                 setattr(layer, 'kernel_regularizer', regularizer)
 
-    loss_fn = tf.keras.losses.BinaryCrossentropy() if model_cfg['multilabel'] \
+    loss_fn = tf.keras.losses.BinaryCrossentropy() if model_arch.multilabel \
         else tf.keras.losses.CategoricalCrossentropy()
-    acc_metric = tf.keras.metrics.BinaryAccuracy() if model_cfg['multilabel'] \
+    acc_metric = tf.keras.metrics.BinaryAccuracy() if model_arch.multilabel \
         else tf.keras.metrics.CategoricalAccuracy()
 
     classifier.compile(
