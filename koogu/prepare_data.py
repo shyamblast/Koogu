@@ -67,10 +67,17 @@ def from_selection_table_map(audio_settings, audio_seltab_list,
     for class_name in sorted(classes_n_counts.keys()):
         logger.info('  {:<55s} - {:>5d}'.format(class_name, classes_n_counts[class_name]))
 
+    ig_kwargs = {}      # Undocumented settings
+    if negative_class_label is not None:
+        if 'ignore_zero_annot_files' in kwargs:
+            ig_kwargs['ignore_zero_annot_files'] = kwargs.pop('ignore_zero_annot_files')
+        if 'filetypes' in kwargs:
+            ig_kwargs['filetypes'] = kwargs.pop('filetypes')
     input_generator = AudioFileList.from_annotations(
         [e for e, e_mask in zip(audio_seltab_list, valid_entries_mask) if e_mask],
         audio_root, seltab_root,
-        show_progress=kwargs.pop('show_progress') if 'show_progress' in kwargs else False)
+        show_progress=kwargs.pop('show_progress') if 'show_progress' in kwargs else False,
+        **ig_kwargs)
 
     # Re-map parameter names and add defaults for any missing ones
     if 'positive_overlap_threshold' in kwargs:
