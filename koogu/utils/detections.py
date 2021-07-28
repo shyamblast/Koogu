@@ -203,6 +203,134 @@ class SelectionTableReader(Generator):
         self._seltab_file_h.close()
 
 
+def assess_clips_and_labels_match(
+        clip_offsets, clip_len,
+        num_classes, annots_times_int, annots_class_idxs,
+        negative_class_idx=None,
+        min_annot_overlap_fraction=1.0,
+        keep_only_centralized_annots=False,
+        max_nonmatch_overlap_fraction=0.0):
+    """
+    Match clips to annotations and return info about 'clips matching
+    annotations' and about 'matched annotations'.
+
+    :param clip_offsets: Start samples of clips.
+    :param clip_len: Number of samples in each clip.
+    :param num_classes: Number of classes in the given application.
+    :param annots_times_int: A numpy array (shape Nx2) of start-end pairs
+        defining annotations' temporal extents, in terms of sample indices.
+    :param annots_class_idxs: An N-length list of zero-based indices to the
+        class corresponding to each annotation.
+    :param negative_class_idx: If not None, clips that do not have enough
+        overlap with any annotation will be marked as clips of the non-target
+        class whose index this parameter specifies.
+    :param min_annot_overlap_fraction: Lower threshold on how much overlap
+        a clip must have with an annotation.
+    :param keep_only_centralized_annots: For very short annotations, consider
+        only those overlapping clips that have the annotation occurring within
+        the central 50% extents of the clip.
+    :param max_nonmatch_overlap_fraction: A clip without enough overlap with
+        any annotations will be marked as non-target class only if it's
+        overlap with any annotation is less than this amount.
+
+    :return: A 2-tuple.
+        - PxN matrix mask (but as unsigned int instead of bool) corresponding
+          to P clips and N annotations. The values in the matrix will be:
+            0   if there was a partial overlap (within the limits)
+            1   if there was full (or as much requested) coverage
+            2   if there was no (or less than requested) overlap
+          Typically, only cells with values 0 or 1 will be used for preparing
+          training data. Cells with value 2 are most useful during testing,
+          for assessing 'TP+FP' counts.
+        - Mask (bool) of annotations that were matched with at least one clip.
+    """
+
+    ret_mask = np.full((len(clip_offsets), num_classes), 0, dtype=np.uint8)
+    matched_annots_mask = np.full(
+        (annots_times_int.shape[0], ), False, dtype=np.bool)
+
+    annots_num_samps = (annots_times_int[:, 1] - annots_times_int[:, 0]) + 1
+    pos_overlap_thld = np.maximum(
+        np.round(annots_num_samps *
+                 min_annot_overlap_fraction).astype(clip_offsets.dtype),
+        1)
+    neg_overlap_thld = np.ceil(
+        annots_num_samps *
+        max_nonmatch_overlap_fraction).astype(clip_offsets.dtype)
+
+    half_len = clip_len // 2
+    quarter_len = clip_len // 4
+
+    for c_idx in np.arange(num_classes):
+        class_annots_mask = (annots_class_idxs == c_idx)  # curr class annots
+
+        # Mx# grid of num common samples between each of the M clips and the #
+        # annotations from the current class
+        overlaps_samps = np.stack([
+            (np.minimum(annots_times_int[class_annots_mask, 1], clip_e) -
+             np.maximum(annots_times_int[class_annots_mask, 0], clip_s)) + 1
+            for clip_s, clip_e in zip(clip_offsets,
+                                      clip_offsets + clip_len - 1)])
+
+        # Initialize a Mx# matrix with:
+        #   2  if no (or small, if requested) overlap, or
+        #   0  if there is any (or above the requested thld) overlap.
+        clip_class_annots_mask = np.where(
+            overlaps_samps < np.expand_dims(
+                neg_overlap_thld[class_annots_mask], axis=0),
+            np.uint8(2), np.uint8(0))
+
+        # Mask of 'sufficiently' matching pairs in the above Mx# matrix
+        pos_matches_mask = np.logical_or(
+            # occurs when annot is longer than clip
+            overlaps_samps == clip_len,
+            # if min fraction of annot is covered
+            overlaps_samps >= np.expand_dims(
+                pos_overlap_thld[class_annots_mask], axis=0)
+        )
+
+        # If requested, for very short annotations, turn off 'match' mask if
+        # they don't occur within the central 50% of a clip.
+        if keep_only_centralized_annots:
+            temp = np.logical_and(
+                np.any(pos_matches_mask, axis=0),
+                annots_num_samps[class_annots_mask] < half_len)
+
+            for l_annot_idx, g_annot_idx in zip(
+                    np.where(temp)[0], np.where(class_annots_mask)[0][temp]):
+                ov_clip_idxs = np.where(pos_matches_mask[:, l_annot_idx])[0]
+                temp2 = np.logical_not(np.logical_and(
+                    clip_offsets[ov_clip_idxs] + quarter_len <=
+                    annots_times_int[g_annot_idx, 0],
+                    clip_offsets[ov_clip_idxs] + clip_len - 1 - quarter_len >=
+                    annots_times_int[g_annot_idx, 1]))
+
+                pos_matches_mask[ov_clip_idxs[temp2], l_annot_idx] = False
+
+        # Update "matched" conditions in the Mx# matrix
+        clip_class_annots_mask[pos_matches_mask] = np.uint8(1)
+
+        # Update mask for curr annots that have at least one True in the
+        # respective column
+        matched_annots_mask[class_annots_mask] = \
+            np.any(pos_matches_mask, axis=0)
+
+        ret_mask[np.all(clip_class_annots_mask == 2, axis=1), c_idx] = 2
+        ret_mask[np.any(clip_class_annots_mask == 1, axis=1), c_idx] = 1
+
+    if negative_class_idx is not None:
+        non_neg_mask = np.full((num_classes,), True, dtype=np.bool)
+        non_neg_mask[negative_class_idx] = False
+
+        ret_mask[
+            np.logical_not(np.any(ret_mask[:, non_neg_mask] == 0, axis=1)),
+            negative_class_idx] = 2
+        ret_mask[np.all(ret_mask[:, non_neg_mask] == 2, axis=1),
+                 negative_class_idx] = 1
+
+    return ret_mask, matched_annots_mask
+
+
 def match_detections_to_groundtruth(gt_times, det_times, overlap_thld=0.6,
                                     gt_labels=None, det_labels=None,
                                     det_scores=None, score_thlds=None,

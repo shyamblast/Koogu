@@ -4,6 +4,7 @@ from scipy.signal import butter, sosfiltfilt, spectrogram, lfilter
 from scipy.signal.windows import hann
 import librosa
 import logging
+from koogu.utils.detections import assess_clips_and_labels_match
 
 
 class Settings:
@@ -493,8 +494,6 @@ class Process:
         else:
             assert (not hasattr(annots_class_idxs, '__len__'))
 
-#        clip_dur = float(audio_settings.clip_length) / float(audio_settings.fs)
-
         # Fetch data from disk and apply filter
         data, _ = Audio.load(src_file, audio_settings.fs)
         if audio_settings.filter_sos is not None:
@@ -513,77 +512,14 @@ class Process:
 
             annots_times_int = np.round(annots_times * audio_settings.fs).astype(clip_offsets.dtype)
             annots_num_samps = (annots_times_int[:, 1] - annots_times_int[:, 0]) + 1
-            pos_overlap_thld = np.maximum(
-                np.round(annots_num_samps * min_selection_overlap_fraction).astype(clip_offsets.dtype),
-                1)
-            neg_overlap_thld = np.ceil(annots_num_samps * max_nonmatch_overlap_fraction).astype(clip_offsets.dtype)
 
-            # MxN grid of num common samples between each of the M clips and the N annotations
-            overlaps_samps = np.stack([
-                (np.minimum(annots_times_int[:, 1], clip_e) - np.maximum(annots_times_int[:, 0], clip_s)) + 1
-                for clip_s, clip_e in zip(clip_offsets, clip_offsets + num_samps - 1)])
-
-            # Mask of 'sufficiently' matching pairs in the above MxN grid
-            pos_matches_mask = np.logical_or(
-                overlaps_samps == num_samps,    # occurs when annot is longer than clip
-                overlaps_samps >= np.expand_dims(pos_overlap_thld, axis=0)  # if min fraction of annot is covered
-            )
-
-            matched_clips_mask = np.any(pos_matches_mask, axis=1)   # mask of clips that matched at least one annot
-            matched_annots_mask = np.any(pos_matches_mask, axis=0)  # mask of annots with at least True in each column
-
-            if keep_only_centralized_selections:
-                # For very short annotations, turn off 'match' mask if they don't occur within the central 50% of a clip
-                temp = np.where(matched_annots_mask)[0]
-                quarter_len = num_samps // 4
-                for annot_idx in temp[annots_num_samps[temp] < num_samps // 2]:
-                    ov_clip_idxs = np.where(pos_matches_mask[:, annot_idx])[0]
-                    temp2 = np.logical_and(
-                        clip_offsets[ov_clip_idxs] + quarter_len <= annots_times_int[annot_idx, 0],
-                        clip_offsets[ov_clip_idxs] + num_samps - 1 - quarter_len >= annots_times_int[annot_idx, 1])
-
-                    pos_matches_mask[ov_clip_idxs[np.logical_not(temp2)], annot_idx] = False
-                    matched_annots_mask[annot_idx] = np.any(pos_matches_mask[ov_clip_idxs[temp2], annot_idx])
-
-                keep_clips_idxs = np.where(np.any(pos_matches_mask, axis=1))[0]  # re determine
-            else:
-                keep_clips_idxs = np.where(matched_clips_mask)[0]
-
-            # Mark non-target clips that have no (or some, if requested) overlap for retention
-            if negative_class_idx is not None:
-                neg_clip_idxs = np.where(np.logical_not(matched_clips_mask))[0]  # idxs of clips that didn't match any
-                # Retain only those satisfying the necessary constraints
-                neg_clip_idxs = neg_clip_idxs[
-                    np.all(overlaps_samps[neg_clip_idxs, :] < np.expand_dims(neg_overlap_thld, axis=0), axis=1)]
-            else:
-                neg_clip_idxs = np.zeros((0,), dtype=np.int)
-
-            del overlaps_samps
-
-            ground_truth = np.zeros((len(keep_clips_idxs) + len(neg_clip_idxs), num_classes), dtype=np.float16)
-
-            if len(neg_clip_idxs):
-                gt_pos_rows_mask = np.full((ground_truth.shape[0],), False, dtype=np.bool)
-                gt_pos_rows_mask[:len(keep_clips_idxs)] = True
-                keep_clips_idxs = np.concatenate([keep_clips_idxs, neg_clip_idxs])
-                sort_idxs = np.argsort(keep_clips_idxs)
-                gt_pos_rows_mask = gt_pos_rows_mask[sort_idxs]
-                keep_clips_idxs = keep_clips_idxs[sort_idxs]
-
-                # Assign positive labels at appropriate rows
-                for temp2 in np.where(gt_pos_rows_mask)[0]:
-                    ground_truth[temp2,
-                                 np.unique(
-                                     annots_class_idxs[np.where(pos_matches_mask[keep_clips_idxs[temp2], :])[0]]
-                                 )] = 1.0
-
-                # Assign negative labels at appropriate rows
-                ground_truth[np.where(np.logical_not(gt_pos_rows_mask))[0], negative_class_idx] = 1.0
-
-            else:
-                # Assign positive labels
-                for temp2, row_idx in enumerate(keep_clips_idxs):
-                    ground_truth[temp2, np.unique(annots_class_idxs[np.where(pos_matches_mask[row_idx, :])[0]])] = 1.0
+            clip_class_mask, matched_annots_mask = \
+                assess_clips_and_labels_match(clip_offsets, num_samps,
+                                              num_classes, annots_times_int, annots_class_idxs,
+                                              negative_class_idx,
+                                              min_selection_overlap_fraction,
+                                              keep_only_centralized_selections,
+                                              max_nonmatch_overlap_fraction)
 
             # If requested, attempt to salvage any unmatched annotations
             unmatched_annots_mask = np.logical_not(matched_annots_mask)
@@ -609,12 +545,17 @@ class Process:
                                for annot_idx in np.where(unmatched_annots_mask)[0]])))
 
             # Put everything together
-            clips = clips[keep_clips_idxs, :] if salvaged_clips is None else \
-                np.concatenate([clips[keep_clips_idxs, :], salvaged_clips], axis=0)
-            clip_offsets = clip_offsets[keep_clips_idxs] if salvaged_clips is None else \
-                np.concatenate([clip_offsets[keep_clips_idxs], salvaged_clip_offsets], axis=0)
-            if salvaged_clips is not None:
-                ground_truth = np.concatenate([ground_truth, salvaged_clips_ground_truth], axis=0)
+            keep_clips_mask = np.any(clip_class_mask == 1, axis=1)
+            clips = clips[keep_clips_mask, :] if salvaged_clips is None else \
+                np.concatenate([clips[keep_clips_mask, :], salvaged_clips], axis=0)
+            clip_offsets = clip_offsets[keep_clips_mask] if salvaged_clips is None else \
+                np.concatenate([clip_offsets[keep_clips_mask], salvaged_clip_offsets], axis=0)
+            if salvaged_clips is None:
+                ground_truth = np.where(clip_class_mask[keep_clips_mask, :] == 1, 1.0, 0.0).astype(np.float16)
+            else:
+                ground_truth = np.concatenate([
+                    np.where(clip_class_mask[keep_clips_mask, :] == 1, 1.0, 0.0).astype(np.float16),
+                    salvaged_clips_ground_truth], axis=0)
 
         else:
             ground_truth = np.zeros((num_clips, num_classes), dtype=np.float16)
