@@ -9,7 +9,8 @@ import concurrent.futures
 import logging
 import librosa
 
-from koogu.data import Audio, Settings, Convert
+from koogu.data import Audio, Settings, Convert, FilenameExtensions, \
+    AssetsExtraNames
 from koogu.model import TrainedModel
 from koogu.utils import processed_items_generator_mp, detections
 from koogu.utils.terminal import ProgressBar, ArgparseConverters
@@ -235,13 +236,14 @@ def _combine_and_write(outfile_h, det_scores, clip_start_samples, num_samples, f
     return combined_det_scores.shape[0]
 
 
-def write_raw_detections(file_path, det_scores, clip_start_samples, num_samples, channel_IDs):
+def write_raw_detections(file_path, fs, det_scores, clip_start_samples, num_samples, channel_IDs):
 
     os.makedirs(os.path.split(file_path)[0], exist_ok=True)
 
     res = dict(
+        fs=fs,
         clip_length=num_samples,
-        clip_start_samples=clip_start_samples,
+        clip_offsets=clip_start_samples,
         scores=det_scores
     )
     if channel_IDs is not None:
@@ -333,6 +335,9 @@ def recognize(model_dir, audio_root,
     raw_output_executor = None
     if raw_detections_dir:
         os.makedirs(raw_detections_dir, exist_ok=True)
+        # Write out the list of class names
+        json.dump(class_names,
+                  open(os.path.join(raw_detections_dir, AssetsExtraNames.classes_list), 'w'))
         raw_output_executor = concurrent.futures.ProcessPoolExecutor(max_workers=1)
 
     output_executor = None
@@ -471,7 +476,8 @@ def recognize(model_dir, audio_root,
         if raw_output_executor is not None:  # Offload writing of raw results (if enabled)
             # Fire and forget. No need to wait for or fetch results.
             raw_output_executor.submit(write_raw_detections,
-                                       os.path.join(raw_detections_dir, audio_relpath + '.npz'),
+                                       os.path.join(raw_detections_dir, audio_relpath + FilenameExtensions.numpy),
+                                       audio_settings.fs,
                                        det_scores.copy(), clip_start_samples.copy(),
                                        num_samples,
                                        channels_to_write)
