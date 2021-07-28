@@ -13,10 +13,9 @@ from koogu.data import Audio, Settings, Convert
 from koogu.model import TrainedModel
 from koogu.utils import processed_items_generator_mp, detections
 from koogu.utils.terminal import ProgressBar, ArgparseConverters
-from koogu.utils.filesystem import recursive_listing
+from koogu.utils.filesystem import recursive_listing, AudioFileList
 
 _program_name = 'predict'
-_default_audio_filetypes = ['.wav', '.WAV', '.flac', '.aif', '.mp3']
 _selection_table_file_suffix = '.selections.txt'
 
 output_spec = [
@@ -387,7 +386,7 @@ def recognize(model_dir, audio_root,
 
     else:
         # Prepare the input file generator
-        filetypes = kwargs.get('filetypes', _default_audio_filetypes)
+        filetypes = kwargs.get('filetypes', AudioFileList.default_audio_filetypes)
         if kwargs.get('recursive', False):
             src_generator = (os.path.join(audio_root, f)
                              for f in recursive_listing(audio_root, match_extensions=filetypes))
@@ -616,11 +615,12 @@ if __name__ == '__main__':
                              'the supported filetypes within the specified directory will be processed (use the ' +
                              '--recursive flag to process subdirectories as well).')
     arg_group_in_ctrl = parser.add_argument_group('Input control')
-    arg_group_in_ctrl.add_argument('--filetypes', metavar='EXTN', nargs='+', default=_default_audio_filetypes,
+    arg_group_in_ctrl.add_argument('--filetypes', metavar='EXTN', nargs='+',
+                                   default=AudioFileList.default_audio_filetypes,
                                    help='Audio file types to restrict processing to. Option is ignored if processing ' +
                                         'a single file. Can specify multiple types separated by whitespaces. By ' +
                                         'default, will include for processing all discovered files with ' +
-                                        'the following extensions: ' + ', '.join(_default_audio_filetypes))
+                                        'the following extensions: ' + ', '.join(AudioFileList.default_audio_filetypes))
     arg_group_in_ctrl.add_argument('--recursive', action='store_true',
                                    help='Process files also in subdirectories of <AUDIO_SOURCE>.')
     arg_group_in_ctrl.add_argument('--channels', metavar='#', nargs='+', type=ArgparseConverters.all_or_posint,

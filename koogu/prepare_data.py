@@ -20,7 +20,6 @@ from koogu.utils.config import Config, ConfigError, datasection2dict, log_config
 from koogu.utils.filesystem import restrict_classes_with_whitelist_file, AudioFileList, recursive_listing
 
 _program_name = 'prepare_data'
-_default_audio_filetypes = ['.wav', '.WAV', '.flac', '.aif', '.mp3']
 
 
 def from_selection_table_map(audio_settings, audio_seltab_list,
@@ -103,6 +102,8 @@ def from_top_level_dirs(audio_settings, class_dirs,
     :param audio_root: The full paths of the class-specific directories listed in 'class_dirs' are resolved using this
         as the base directory.
     :param output_root: "Prepared" data will be written to this directory.
+    :param filetypes: (optional) Restrict listing to files matching extensions specified in this parameter. Has defaults
+        if unspecified.
 
     :return: A dictionary whose keys are annotation tags (discovered from the set of annotations) and the values are the
         number of clips produced for the corresponding class.
@@ -110,7 +111,7 @@ def from_top_level_dirs(audio_settings, class_dirs,
 
     logger = logging.getLogger(__name__)
 
-    file_types = kwargs.pop('filetypes') if 'filetypes' in kwargs else _default_audio_filetypes
+    file_types = kwargs.pop('filetypes') if 'filetypes' in kwargs else AudioFileList.default_audio_filetypes
 
     logger.info('  {:<55s} - {:>5s}'.format('Class', 'Files'))
     logger.info('  {:<55s}   {:>5s}'.format('-----', '-----'))
@@ -424,11 +425,11 @@ if __name__ == '__main__':
                                    default='INFO',
                                    help='Logging level.')
     arg_group_misc = parser.add_argument_group('Miscellaneous')
-    arg_group_misc.add_argument('--filetypes', metavar='EXTN', nargs='+', default=_default_audio_filetypes,
+    arg_group_misc.add_argument('--filetypes', metavar='EXTN', nargs='+', default=AudioFileList.default_audio_filetypes,
                                 help='Audio file types to restrict processing to. Option is ignored if processing ' +
                                      'selection tables or a single file. Can specify multiple types separated by ' +
                                      'whitespaces. By default, will include for processing all discovered files with ' +
-                                     'the following extensions: ' + ', '.join(_default_audio_filetypes))
+                                     'the following extensions: ' + ', '.join(AudioFileList.default_audio_filetypes))
     arg_group_misc.add_argument('--maxdur', metavar='SECONDS', dest='max_file_duration', type=float,
                                 help='Maximum duration of an audio file to consider it for processing. Larger files ' +
                                      'will be ignored. Default: no limit.')

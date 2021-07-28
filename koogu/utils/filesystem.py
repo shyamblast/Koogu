@@ -50,8 +50,12 @@ def restrict_classes_with_whitelist_file(classes, wl_file, ):
 
 class AudioFileList:
 
+    default_audio_filetypes = ['.wav', '.WAV', '.flac', '.aif', '.mp3']
+
     @staticmethod
-    def from_directories(audio_root, class_dirs, match_extensions, show_progress=False):
+    def from_directories(audio_root, class_dirs, filetypes=None, show_progress=False):
+
+        match_extensions = filetypes if filetypes else AudioFileList.default_audio_filetypes
 
         pbar = ProgressBar(len(class_dirs), prefix='Processing', length=60, show_start=True) if show_progress else None
 
