@@ -22,7 +22,7 @@ Imports needed:
 from koogu import prepare
 ```
 
-Describe what kind of processing is needed for you application.
+Describe what kind of processing is needed for your application.
 
 The below example
 instructs the ___prepare___ module to break up audio data read from disk into _2 s_
@@ -55,7 +55,7 @@ be invoked.
   audio_root = '/mnt/projects/dolphins/training_data/audio'
   annots_root = '/mnt/project/dolphins/training_data/annotations'
   
-  # Map audio files to crresponding annotation files
+  # Map audio files to corresponding annotation files
   audio_annot_list = [
     ['day1/rec_01.wav', 'day1/rec_01.selections.txt'],
     ['day1/rec_02.wav', 'day1/rec_02.selections.txt'],
@@ -150,7 +150,7 @@ spec_settings = {
   #'num_mels': 60                   # Uncomment to enable mel-scale conversion
 }
 
-# Setup a feeder that
+# Set up a feeder that
 #   i)   loads the prepared audio clips,
 #   ii)  transforms the waveform clips into spectrogrms, and
 #   iii) feeds them into the training pipeline.
