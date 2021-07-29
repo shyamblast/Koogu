@@ -456,9 +456,9 @@ def recognize(model_dir, audio_root,
         if 'channels' not in kwargs:
             channels_to_write = None
         elif len(kwargs['channels']) == 0:
-            channels_to_write = np.arange(1, num_channels + 1)
+            channels_to_write = np.arange(num_channels)
         else:
-            channels_to_write = channels + 1
+            channels_to_write = channels
 
         if audio_filepath == audio_root:  # Single file was specified
             audio_relpath = os.path.basename(audio_filepath)

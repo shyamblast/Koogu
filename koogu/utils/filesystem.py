@@ -61,7 +61,7 @@ class AudioFileList:
 
         for class_dir in class_dirs:
             for file in recursive_listing(os.path.join(audio_root, class_dir), match_extensions):
-                yield os.path.join(class_dir, file), None, class_dir
+                yield os.path.join(class_dir, file), None, class_dir, None
 
             if pbar is not None:
                 pbar.increment()
@@ -101,13 +101,15 @@ class AudioFileList:
 
         single_file_filespec = [('Begin Time (s)', float),
                                 ('End Time (s)', float),
-                                ('Tags', str)]
+                                ('Tags', str),
+                                ('Channel', int, 1)]
         multi_file_filespec = [('Begin Time (s)', float),
                                ('End Time (s)', float),
                                ('Begin File', str),
                                ('File Offset (s)', float),
                                ('Relative Path', str),
-                               ('Tags', str)]
+                               ('Tags', str),
+                               ('Channel', int, 1)]
 
         logger = logging.getLogger(__name__)
 
@@ -135,7 +137,8 @@ class AudioFileList:
                 # individually.
                 files_times_tags = [[entry[2] if entry[4] is None else os.path.join(entry[4], entry[2]),
                                      (entry[3], entry[3] + (entry[1] - entry[0])),
-                                     entry[5]]
+                                     entry[5],
+                                     1 if entry[6] is None else entry[6]]
                                     for entry in SelectionTableReader(full_path(seltab_path), multi_file_filespec)
                                     if any([e is not None for e in entry])]
 
@@ -148,7 +151,7 @@ class AudioFileList:
                             ret_path = os.path.join(audio_path, file)
                             if added_ext is not None:
                                 ret_path = ret_path[:-len(added_ext)]
-                            yield ret_path, np.zeros((0, 2)), []
+                            yield ret_path, np.zeros((0, 2)), [], np.zeros((0, ), dtype=np.uint8)
 
                 else:
 
@@ -170,9 +173,12 @@ class AudioFileList:
 
                                 yield os.path.join(audio_path, uniq_file), \
                                       np.asarray([files_times_tags[idx][1] for idx in curr_file_items_idxs]), \
-                                      [files_times_tags[idx][2] for idx in curr_file_items_idxs]
+                                      [files_times_tags[idx][2] for idx in curr_file_items_idxs], \
+                                      np.asarray([(files_times_tags[idx][3] - 1)
+                                                  for idx in curr_file_items_idxs], dtype=np.uint8)
                             else:
-                                yield os.path.join(audio_path, uniq_file), np.zeros((0, 2)), []
+                                yield os.path.join(audio_path, uniq_file), np.zeros((0, 2)), [], \
+                                      np.zeros((0, ), dtype=np.uint8)
 
                     # Process all (remaining) entries
                     for uniq_file in list(set([ftt[0] for ftt, v in zip(files_times_tags, remaining_entries_mask)
@@ -186,19 +192,24 @@ class AudioFileList:
 
                         yield os.path.join(audio_path, uniq_file), \
                               np.asarray([files_times_tags[idx][1] for idx in curr_file_items_idxs]), \
-                              [files_times_tags[idx][2] for idx in curr_file_items_idxs]
+                              [files_times_tags[idx][2] for idx in curr_file_items_idxs], \
+                              np.asarray([(files_times_tags[idx][3] - 1)
+                                          for idx in curr_file_items_idxs], dtype=np.uint8)
 
             else:
                 # Individual audio file
 
-                times_tags = [entry
+                times_tags = [(entry[0], entry[1], entry[2], 1 if entry[3] is None else entry[3])
                               for entry in SelectionTableReader(full_path(seltab_path), single_file_filespec)
                               if any([e is not None for e in entry])]
 
                 if len(times_tags) > 0:
-                    yield audio_path, np.asarray([[tt[0], tt[1]] for tt in times_tags]), [tt[2] for tt in times_tags]
+                    yield audio_path, \
+                          np.asarray([[tt[0], tt[1]] for tt in times_tags]), \
+                          [tt[2] for tt in times_tags], \
+                          np.asarray([(tt[3] - 1) for tt in times_tags], dtype=np.uint8)
                 elif not ignore_zero_annot_files:
-                    yield audio_path, np.zeros((0, 2)), []
+                    yield audio_path, np.zeros((0, 2)), [], np.zeros((0, ), dtype=np.uint8)
                 else:
                     logger.warning(
                         f'No valid annotations found in {seltab_path:s}')

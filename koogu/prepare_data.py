@@ -220,7 +220,7 @@ def _batch_process(audio_settings, class_list, input_generator,
     # of futures_dict (and in turn the queuing mechanism in concurrent.futures) doesn't end up hindering memory use.
     # Continue adding more items as and when processing of previous items complete.
     with concurrent.futures.ProcessPoolExecutor(max_workers=num_workers) as executor:
-        for audio_file, annots_times, annots_labels in input_generator:
+        for audio_file, annots_times, annots_labels, annot_channels in input_generator:
 
             audio_file_fullpath = os.path.join(audio_root, audio_file)
 
@@ -241,9 +241,11 @@ def _batch_process(audio_settings, class_list, input_generator,
             if annots_times is None:        # invoked by from_top_level_dirs()
                 a2c_kwargs['annots_times'] = None
                 a2c_kwargs['annots_class_idxs'] = class_label_to_idx[annots_labels]
+                a2c_kwargs['annots_channels'] = None
             else:                           # invoked by from_selection_table_map()
                 a2c_kwargs['annots_times'] = annots_times
                 a2c_kwargs['annots_class_idxs'] = np.asarray([class_label_to_idx[c] for c in annots_labels])
+                a2c_kwargs['annots_channels'] = annot_channels
                 if negative_class_idx is not None:
                     a2c_kwargs['negative_class_idx'] = negative_class_idx
 
