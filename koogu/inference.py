@@ -431,7 +431,6 @@ def recognize(model_dir, audio_root,
     for audio_filepath, (curr_file_dur, clips, clip_start_samples, num_samples) in \
             processed_items_generator_mp(num_fetch_threads, _fetch_clips, src_generator,
                                          audio_settings=audio_settings,
-                                         spec_settings=spec_settings,
                                          channels=channels):
 
         # 'clips' container will be of shape [num channels, num clips, ...]

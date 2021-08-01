@@ -87,16 +87,12 @@ class TrainedModel:
         self._loaded_model = tf.saved_model.load(full_input_dir)
 
         self._infer_fns = dict()
-        dont_load_spec_settings = False
         for signature in list(self._loaded_model.signatures.keys()):
             infer_fn = self._loaded_model.signatures[signature]
             infer_fn_input_shape = infer_fn.inputs[0].shape.as_list()[1:]
 
             self._infer_fns[TrainedModel._list2str(infer_fn_input_shape)] = \
                 infer_fn
-
-            if signature == 'with_transformation':
-                dont_load_spec_settings = True
 
         # Load assets
         self._class_names = json.load(
@@ -109,7 +105,7 @@ class TrainedModel:
         spec_sett_filepath = os.path.join(full_input_dir,
                                           TrainedModel.assets_dirname,
                                           AssetsExtraNames.spec_settings)
-        self._spec_settings = None if (dont_load_spec_settings or not os.path.exists(spec_sett_filepath)) \
+        self._spec_settings = None if (not os.path.exists(spec_sett_filepath)) \
             else json.load(open(spec_sett_filepath, 'r'))
 
     def infer(self, inputs):
