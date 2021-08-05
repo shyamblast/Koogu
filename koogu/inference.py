@@ -126,7 +126,7 @@ def _combine_and_write(outfile_h, det_scores, clip_start_samples, num_samples, f
         nonmax_mask = np.full(det_scores.shape, True, dtype=np.bool)
         for ch in range(num_channels):
             nonmax_mask[ch, np.arange(num_clips), det_scores[ch].argmax(axis=1)] = False
-        det_scores[nonmax_mask] = 0.0
+        det_scores[nonmax_mask] = np.nan
 
     # Mask out the ignore_class(es), so that we don't waste time post-processing those results
     write_class_mask = np.full((num_classes, ), True)
@@ -487,7 +487,7 @@ def recognize(model_dir, audio_root,
 
             # Apply threshold
             if 'threshold' in kwargs:
-                det_scores[det_scores < kwargs['threshold']] = 0
+                det_scores[det_scores < kwargs['threshold']] = np.nan
 
             # First, wait for the previous writing to finish (if any)
             if output_executor_future is not None:

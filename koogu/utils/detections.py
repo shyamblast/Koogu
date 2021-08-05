@@ -88,7 +88,7 @@ def combine_streaks(det_scores, clip_start_samples, num_samples, squeeze_min_len
 
     assert squeeze_min_len is None or squeeze_min_len <= num_samples
 
-    good_dets_mask = det_scores > 0.0   # Only take non-zero score clips
+    good_dets_mask = np.logical_not(np.isnan(det_scores))   # Only take valid score clips
 
     # Find the extents of every streak
     streak_class_idxs, streak_onset_idxs = np.where(
