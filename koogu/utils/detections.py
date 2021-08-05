@@ -4,27 +4,6 @@ from collections import Generator
 import csv
 
 
-def write_csv(rawlabels_filepath, det_times, det_scores, labels=None):
-    """
-    Write out detections [defined by det_times (an Nx2 array of start and end times) and det_scores (N-length array)] in
-    raw CSV format to rawlabels_filepath. The output file will have 3 or 4 columns depending on whether labels is None.
-    """
-
-    with open(rawlabels_filepath, 'w') as outfile:
-        if labels is not None:
-            outfile.write('Begin time (s),End time (s),Score,Label\n')
-
-            for idx in range(det_times.shape[0]):
-                outfile.write('{:.3f},{:.3f},{:.2f},{:s}\n'.format(
-                    det_times[idx, 0], det_times[idx, 1], det_scores[idx], labels[idx]))
-        else:
-            outfile.write('Begin time (s),End time (s),Score\n')
-
-            for idx in range(det_times.shape[0]):
-                outfile.write('{:.3f},{:.3f},{:.2f}\n'.format(
-                    det_times[idx, 0], det_times[idx, 1], det_scores[idx]))
-
-
 def _squeeze_streak(starts, scores, num_samples, group_size):
     """Internal helper function for combine_streaks().
     Adjusts the start-end times of successive detections of the same label to contain the maximal overlapping duration
@@ -41,13 +20,13 @@ def _squeeze_streak(starts, scores, num_samples, group_size):
 
     # Now combine successive maximal overlapping groups if they are contiguous (or also further overlapping)
     contiguous_groups_mask = (group_extents[:-1, 1] + 1) >= group_extents[1:, 0]
-    contiguous_groups_onsets = np.asarray(np.where(
+    contiguous_groups_onsets = np.where(
         np.concatenate([contiguous_groups_mask[0:1],
                         np.logical_and(np.logical_not(contiguous_groups_mask[:-1]), contiguous_groups_mask[1:])])
-        )).ravel()
-    contiguous_groups_ends = np.asarray(np.where(
+        )[0]
+    contiguous_groups_ends = np.where(
         np.concatenate([np.logical_and(contiguous_groups_mask[:-1], np.logical_not(contiguous_groups_mask[1:])),
-                        contiguous_groups_mask[-1:]]))).ravel() + 1
+                        contiguous_groups_mask[-1:]]))[0] + 1
 
     # Find non-contiguous groups, if any
     noncontiguous_groups_mask = np.full((group_extents.shape[0], ), True)
