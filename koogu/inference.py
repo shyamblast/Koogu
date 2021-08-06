@@ -12,7 +12,8 @@ import librosa
 from koogu.data import Audio, Settings, Convert, FilenameExtensions, \
     AssetsExtraNames
 from koogu.model import TrainedModel
-from koogu.utils import processed_items_generator_mp, detections
+from koogu.utils import processed_items_generator_mp
+from koogu.utils.detections import postprocess_detections
 from koogu.utils.terminal import ProgressBar, ArgparseConverters
 from koogu.utils.filesystem import recursive_listing, AudioFileList
 
@@ -92,6 +93,7 @@ def analyze_clips(classifier, clips, batch_size=1, audio_filepath=None):
 
 def _combine_and_write(outfile_h, det_scores, clip_start_samples, num_samples, fs,
                        class_names, class_frequencies,
+                       threshold=None,
                        channel_IDs=None,
                        offset_info=None,
                        ignore_class=None,
@@ -121,13 +123,6 @@ def _combine_and_write(outfile_h, det_scores, clip_start_samples, num_samples, f
                 seltab_file.write(output_header)
         return 0
 
-    # Suppress non-max classes, if enabled
-    if suppress_nonmax:
-        nonmax_mask = np.full(det_scores.shape, True, dtype=np.bool)
-        for ch in range(num_channels):
-            nonmax_mask[ch, np.arange(num_clips), det_scores[ch].argmax(axis=1)] = False
-        det_scores[nonmax_mask] = np.nan
-
     # Mask out the ignore_class(es), so that we don't waste time post-processing those results
     write_class_mask = np.full((num_classes, ), True)
     if ignore_class is not None:
@@ -142,11 +137,14 @@ def _combine_and_write(outfile_h, det_scores, clip_start_samples, num_samples, f
     channel_combined_det_scores = [None] * num_channels
     channel_combined_det_labels = [None] * num_channels
     num_combined_dets_per_channel = np.zeros((num_channels,), np.uint32)
-    min_det_dur = None if squeeze_min_dur is None else int(squeeze_min_dur * fs)
+    min_det_len = None if squeeze_min_dur is None else int(squeeze_min_dur * fs)
     for ch in range(num_channels):
         channel_combined_det_times[ch], channel_combined_det_scores[ch], channel_combined_det_labels[ch] = \
-            detections.combine_streaks(det_scores[ch:ch+1, :, write_class_mask][0],
-                                       clip_start_samples, num_samples, min_det_dur)
+            postprocess_detections(det_scores[ch, ...][:, write_class_mask],
+                                   clip_start_samples, num_samples,
+                                   threshold=threshold,
+                                   suppress_nonmax=suppress_nonmax,
+                                   squeeze_min_samps=min_det_len)
 
         num_combined_dets_per_channel[ch] = channel_combined_det_scores[ch].shape[0]
 
@@ -486,10 +484,6 @@ def recognize(model_dir, audio_root,
 
         if output_executor is not None:  # Offload writing of processed results (if enabled)
 
-            # Apply threshold
-            if 'threshold' in kwargs:
-                det_scores[det_scores < kwargs['threshold']] = np.nan
-
             # First, wait for the previous writing to finish (if any)
             if output_executor_future is not None:
                 try:
@@ -528,6 +522,7 @@ def recognize(model_dir, audio_root,
                 seltab_file_h + tuple(), det_scores.copy(), clip_start_samples.copy(),
                 num_samples, audio_settings.fs,
                 class_names, class_freq_extents,
+                threshold=kwargs.get('threshold', None),
                 channel_IDs=channels_to_write,
                 offset_info=None if not combine_outputs
                             else (sel_running_info[0], sel_running_info[1], os.path.basename(audio_relpath)),

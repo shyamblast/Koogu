@@ -310,207 +310,141 @@ def assess_clips_and_labels_match(
     return ret_mask, matched_annots_mask
 
 
-def match_detections_to_groundtruth(gt_times, det_times, overlap_thld=0.6,
-                                    gt_labels=None, det_labels=None,
-                                    det_scores=None, score_thlds=None,
-                                    return_gt_matches=False):
+def assess_annotations_and_detections_match(
+        num_classes,
+        gt_times, gt_labels,
+        det_times, det_labels,
+        min_gt_coverage=0.75,
+        min_det_usage=0.75):
+    """
+    Match elements describing time-spans from two collections. Typically, one
+    collection corresponds to ground-truth (gt) temporal extents and the other
+    collection corresponds to detection (det) temporal extents.
+
+    :param num_classes: Number of classes of the various time-events.
+    :param gt_times: Mx2 numpy array representing the start-end times of M
+        ground-truth events.
+    :param gt_labels: M-length integer array indicating the class of each of
+        the M ground-truth events.
+    :param det_times: Nx2 numpy array representing the start-end times of N
+        detection events.
+    :param det_labels: N-length integer array indicating the class of each of
+        the N detection events.
+    :param min_gt_coverage: A floating point value (in the range 0-1)
+        indicating the minimum fraction of a ground-truth event that must be
+        covered by one or more detections for it to be considered "recalled".
+    :param min_det_usage: A floating point value (in the range 0-1)
+        indicating the minimum fraction of a detection event that must have
+        covered parts of one or more ground-truth events for it to be
+        considered a "true positive".
+
+    :return: A 5-tuple.
+        - per-class counts of true positives
+        - per-class counts of detections (true + false positives)
+        - numerator for computing recall (not that given our definition of
+          'true positive' and 'recall', this value may not the same as the
+          per-class counts of true positives).
+        - mask of ground-truth events that were "recalled"
+        - mask of detections that were true positives
     """
 
-    :param gt_times: An Nx2 numpy array containing start (col 1) and end (col 2) times of ground truth annotations.
-    :param det_times: An Mx2 numpy array containing start (col 1) and end (col 2) times of detections.
-    :param overlap_thld: A detection is considered a True Positive (TP) if the amount of overlap (fraction) with a
-        matching annotation's temporal extents is at least this value.
-    :param gt_labels: If not None, must be a list of N ground truth labels. If None, label comparisons will be disabled
-        and instead all ground truth annotations and detections will be considered to bear the same label.
-    :param det_labels: If not None, must be a list of M detection labels that will be compared to ground truth labels.
-    :param det_scores: If not None, must be a list of M detection scores.
-    :param score_thlds: If not None, can be a single value or a list of values that are applied to det_scores matching.
-    :param return_gt_matches: If True, the returned tuple will also include a list of N arrays, each containing indices
-        to matched (if any) detections in det_times.
-    :return:
-        A 2- or 3-tuple containing
-            TP mask - an M-length boolean array indicating which of the detections matched ground truth annotations,
-            stats - a Px3 table. If det_scores and score_thlds are not None, P will equal the number of elements in
-                score_thlds, otherwise P will be 1. Each row includes [num GTs detected, num detections, num TPs]
-                determined at the respective thresholds (or overall values if score comparisons were not enabled).
-            GT matches - When enabled, a nested list of matching indices. See description for return_gt_matches.
+    tps = np.zeros((num_classes, ), dtype=np.uint)
+    tp_plus_fp = np.zeros((num_classes, ), dtype=np.uint)
+    reca_numerator = np.zeros((num_classes, ), dtype=np.uint)
+    tp_mask = np.full((len(det_labels), ), False, dtype=np.bool)
+    recall_mask = np.full((len(gt_labels), ), False, dtype=np.bool)
+
+    for c_idx in np.arange(num_classes):
+        # Current class GTs and dets
+        class_gts_mask = (gt_labels == c_idx)
+        class_dets_mask = (det_labels == c_idx)
+
+        tp_plus_fp[c_idx] = class_dets_mask.astype(np.uint).sum()
+
+        recall_mask[class_gts_mask] = [
+            _coverage(gt_ext, det_times[class_dets_mask, :]) >= (
+                    (gt_ext[1] - gt_ext[0]) * min_gt_coverage)
+            for gt_ext in gt_times[class_gts_mask, :]]
+
+        reca_numerator[c_idx] = \
+            recall_mask[class_gts_mask].astype(np.uint).sum()
+
+        tp_mask[class_dets_mask] = [
+            _coverage(det_ext, gt_times[class_gts_mask, :]) >= (
+                    (det_ext[1] - det_ext[0]) * min_det_usage)
+            for det_ext in det_times[class_dets_mask, :]]
+
+        tps[c_idx] = tp_mask[class_dets_mask].astype(np.uint).sum()
+
+    return tps, tp_plus_fp, reca_numerator, recall_mask, tp_mask
+
+
+def _coverage(base_ext, items):
+    """
+    Ascertain how much of base_ext (a 2-element array-like specifying temporal
+    extents) is covered by entries in items (a Nx2 numpy array specifying
+    start and end times of N items).
+    Internal helper function.
     """
 
-    assert len(gt_times.shape) == 2 and gt_times.shape[1] == 2, '\'gt_times\' must be an Nx2 array'
-    assert len(det_times.shape) == 2 and det_times.shape[1] == 2, '\'gt_times\' must be an Mx2 array'
-    assert gt_labels is None or len(gt_labels) == gt_times.shape[0]
-    assert det_labels is None or len(det_labels) == det_times.shape[0]
-    assert gt_labels is None or det_labels is not None, 'If valid gt_labels is given, det_labels must also be valid'
-    assert det_scores is None or len(det_scores) == det_times.shape[0]
+    if items.shape[0] == 0:
+        return 0.0
 
-    gt_matches = [None] * gt_times.shape[0]
+    s_mask = items[:, 0] <= base_ext[0]
+    e_mask = items[:, 1] >= base_ext[1]
+    if not (np.any(s_mask) or np.any(e_mask)):
+        # All items are contained within the base extents. So, parts of the
+        # base outside the extremities of the outermost items cannot be
+        # "covered". Only work with what's inside of those extremities.
+        return _coverage([items[:, 0].min(), items[:, 1].max()], items)
 
-    if gt_labels is not None:
-        # Convert labels to integers for quicker comparisons (works even if they were already integers)
-        temp = {uniq_label: label_idx
-                for label_idx, uniq_label in enumerate(list(set(gt_labels).union(set(det_labels))))}
-        # the above variable contains a mapping of unique labels (from both sets gt_ & det_ combined) to an index
-        gt_int_labels = np.asarray([temp[label] for label in gt_labels])
-        det_int_labels = np.asarray([temp[label] for label in det_labels])
-        del temp
+    # One or more items either start before or end after the base.
 
-        label_compare = lambda a, a_idx, b: np.asarray([a[a_idx] == b_val for b_val in b])
+    # Determine new base start & end. Could remain same if no item cuts across
+    # the base's extents, or move inward if any item(s) do cut across. If
+    # there is some change, that will be counted towards "coverage".
+    nb_start = max(items[s_mask, 1].max(initial=base_ext[0]), base_ext[0])
+    nb_end = min(items[e_mask, 0].min(initial=base_ext[1]), base_ext[1])
+
+    if nb_start >= nb_end:  # everything was "covered"
+        return base_ext[1] - base_ext[0]
+
+    return (nb_start - base_ext[0]) + (base_ext[1] - nb_end) + \
+        _coverage(
+            [nb_start, nb_end],
+            items[np.logical_and(items[:, 1] > nb_start,
+                                 items[:, 0] < nb_end), :])
+
+
+def postprocess_detections(clip_scores, clip_offsets, clip_length,
+                           threshold=None,
+                           suppress_nonmax=False,
+                           squeeze_min_samps=None):
+    """
+    Post-process detections to group together successive detections from each
+    class.
+    """
+
+    # Apply non-max suppression, if enabled, and the threshold.
+    # Only build a mask for now.
+    if threshold is not None and suppress_nonmax:
+        nan_mask = np.logical_or(clip_scores < threshold,
+                                 _nonmax_suppress_mask(clip_scores))
+    elif threshold is not None:
+        nan_mask = (clip_scores < threshold)
+    elif suppress_nonmax:
+        nan_mask = _nonmax_suppress_mask(clip_scores)
     else:
-        # Not comparing labels
-        gt_int_labels = None
-        det_int_labels = None
-        label_compare = lambda a, a_idx, b: np.full((det_times.shape[0], ), True, dtype=np.bool)
+        nan_mask = np.full_like(clip_scores, False, dtype=np.bool)
 
-    gt_durations = gt_times[:, 1] - gt_times[:, 0]
-    det_durations = det_times[:, 1] - det_times[:, 0]
-
-    assert all(gt_durations >= 0) and all(det_durations >= 0), 'Durations can\'t be negative'
-
-    for gt_idx in range(gt_times.shape[0]):
-
-        # Temporal overlap with each detection (will be negative for detections without any overlap)
-        overlap_durations = np.minimum(det_times[:, 1], gt_times[gt_idx, 1]) - \
-                            np.maximum(det_times[:, 0], gt_times[gt_idx, 0])
-        overlap_fractions = (
-                overlap_durations /
-                np.where(np.logical_and(det_times[:, 0] >= gt_times[gt_idx, 0], det_times[:, 1] <= gt_times[gt_idx, 1]),
-                         det_durations, gt_durations[gt_idx]))  # if annot fully contains det, divide by det duration
-                #np.minimum(det_durations, gt_durations[gt_idx]))
-
-        # Mask of detections that have enough overlap and have matching labels
-        matches_mask = np.logical_and(overlap_fractions >= overlap_thld,
-                                      label_compare(gt_int_labels, gt_idx, det_int_labels))
-
-        # Store the indices to matched detections
-        gt_matches[gt_idx] = np.asarray(np.where(matches_mask)).ravel()
-
-    all_matching_dets = np.unique(np.concatenate(gt_matches)) if gt_times.shape[0] > 0 \
-        else np.zeros((0,), dtype=np.int)
-
-    # True Positives (TP) mask. Will be set to True where a detection matches at least one ground truth annotation.
-    tp_mask = np.full((det_times.shape[0], ), False, dtype=np.bool)
-    tp_mask[all_matching_dets] = True
-
-    if det_scores is None or score_thlds is None:
-        # If detection scores weren't given or no thresholds available for comparisons, provide overall stats
-        stats = np.zeros((1, 3), dtype=np.uint64)
-        stats[0, :] = [
-            sum([len(gt_m) > 0 for gt_m in gt_matches]),                # num GTs detected (not always == TP)
-            det_times.shape[0],                                         # num detections (TP + FP)
-            sum(tp_mask)]                                               # num TPs
-
-    else:
-        if not hasattr(score_thlds, '__len__'):
-            score_thlds = [score_thlds]     # Force to be a list if not already a list-like container
-
-        det_scores = np.asarray(det_scores)     # Change to be a numpy array if not already
-
-        stats = np.zeros((len(score_thlds), 3), dtype=np.uint64)
-        for thld_idx, score_thld in enumerate(score_thlds):
-            score_mask = (det_scores >= score_thld)
-
-            stats[thld_idx, :] = [
-                sum([any(score_mask[gt_m]) for gt_m in gt_matches]),    # num GTs detected @ threshold (not always = TP)
-                score_mask.sum(),                                       # num detections @ threshold (TP + FP)
-                (score_mask[tp_mask]).sum()]                            # num TPs @ threshold
-
-    return (tp_mask, stats, gt_matches) if return_gt_matches else (tp_mask, stats)
+    return combine_streaks(np.where(nan_mask, np.nan, clip_scores),
+                           clip_offsets, clip_length,
+                           squeeze_min_len=squeeze_min_samps)
 
 
-def match_clip_detections_to_groundtruth(clip_starts, clip_dur,
-                                         gt_extents, gt_class_ids,
-                                         clip_det_scores,
-                                         score_thlds,
-                                         fn_lenient_frac_thld=0.50,
-                                         centralize_match=None):
-    """
+def _nonmax_suppress_mask(scores):
 
-    :param clip_starts: An M-length list containing start times of clips.
-    :param clip_dur: Duration (in seconds) of each clip.
-    :param gt_extents: An Nx2 numpy array containing start (col 1) and end (col 2) times of ground truth annotations.
-    :param gt_class_ids: Must be a list of N ground truth class IDs (as integer indices in the range [0, P-1]
-        corresponding to P classes).
-    :param clip_det_scores: Must be an MxP numpy array containing per-clip per-class detection scores.
-    :param score_thlds: A S-length list of monotonically increasing threshold values that are applied to
-        clip_det_scores for matching.
-    :param fn_lenient_frac_thld: A clip having lesser overlap (than this threshold) with an annotation will not be
-        considered as FN when it doesn't have a matching detection. Expressed as a fraction of the clip duration and
-        must be in the range [0.0, 1.0).
-    :param centralize_match: When an annotation is shorter in duration than a concurrent clip which doesn't have a
-        corresponding matching detection, the clip will not be considered as FN if the annotation didn't occur
-        "centralized" within the clip. The parameter value, in the range (0.0, 1.0], defines the fractional duration
-        around it's center of the clip within which an annotation must be fully contained. An annotation is considered
-        "centralized" if it satisfies the above condition or if it spans across the temporal mid-point of the clip.
-        Setting the parameter to None disables this feature.
+    nonmax_mask = np.full(scores.shape, True, dtype=np.bool)
+    nonmax_mask[np.arange(scores.shape[0]), scores.argmax(axis=1)] = False
 
-    :return:
-        SxP-sized counts of TP, FP and FN
-    """
-
-    assert len(gt_extents.shape) == 2 and gt_extents.shape[1] == 2
-    assert gt_extents.shape[0] == len(gt_class_ids)
-    assert len(clip_det_scores.shape) == 2
-    assert len(clip_starts) == clip_det_scores.shape[0]
-    assert max(gt_class_ids) <= clip_det_scores.shape[1]
-    assert 0.0 <= fn_lenient_frac_thld < 1.0
-    assert centralize_match is None or 0.0 < centralize_match <= 1.0
-
-    num_clips, num_classes = clip_det_scores.shape
-
-    clip_starts = np.asarray(clip_starts)
-    clip_ends = clip_starts + clip_dur
-    gt_class_ids = np.asarray(gt_class_ids)
-
-    # MxN array of temporal overlap amounts expressed as a fraction.
-    # The denominators will either be -
-    #   annot duration if annotation is fully contained within a clip, or
-    #   clip duration otherwise.
-    # Resulting values will be <= clip_dur and, where clips have no overlap with a gt, will be non-positive.
-    overlaps = np.stack([
-        (np.minimum(gt_extents[:, 1], clip_e) - np.maximum(gt_extents[:, 0], clip_s))
-        for clip_s, clip_e in zip(clip_starts, clip_ends)])
-
-    # MxP mask array indicating clips having any overlap with one or more gt annotations per class
-    clip_class_mask = np.stack([
-        (overlaps[:, gt_class_ids == cl_idx] > 0.0).any(axis=1)
-        for cl_idx in range(num_classes)
-    ], axis=1)
-
-    # MxN mask array indicating whether a gt is fully contained within a clip
-    containment_mask = np.stack([
-        np.logical_and(clip_s <= gt_extents[:, 0], clip_e >= gt_extents[:, 1])
-        for clip_s, clip_e in zip(clip_starts, clip_ends)])
-
-    if centralize_match is not None:
-        diff = clip_dur * ((1.0 - centralize_match) / 2.0)
-        # Update mask array to further indicate whether a gt is either
-        #   fully contained within reduced bounds inside of a clip, or
-        #   spans across the midpoint of the clip.
-        containment_mask = \
-            np.logical_and(containment_mask,
-                           np.stack([
-                               np.logical_or(
-                                   np.logical_and(clip_s <= gt_extents[:, 0], clip_e >= gt_extents[:, 1]),
-                                   np.logical_and(clip_m >= gt_extents[:, 0], clip_m <= gt_extents[:, 1])
-                                   ) for clip_s, clip_e, clip_m in zip(clip_starts + diff,
-                                                                       clip_ends - diff,
-                                                                       clip_starts + (clip_dur / 2.0))])
-                           )
-
-    clip_gt_lenient_mask = np.logical_or(
-        overlaps > (fn_lenient_frac_thld * clip_dur), containment_mask)
-
-    # MxP mask array indicating clips having necessary minimum overlap with one or more gt annotations per class
-    clip_class_lenient_mask = np.stack([
-        clip_gt_lenient_mask[:, gt_class_ids == cl_idx].any(axis=1)
-        for cl_idx in range(num_classes)
-    ], axis=1)
-
-    # This will be an SxMxP mask
-    score_dets_mask = np.stack([(clip_det_scores >= score_thld) for score_thld in score_thlds])
-
-    # Return SxP-sized counts of TP, FP and FN
-    return \
-        np.logical_and(score_dets_mask, np.expand_dims(clip_class_mask, axis=0)).sum(axis=1), \
-        np.logical_and(score_dets_mask, np.expand_dims(np.logical_not(clip_class_mask), axis=0)).sum(axis=1), \
-        np.logical_and(np.logical_not(score_dets_mask), np.expand_dims(clip_class_lenient_mask, axis=0)).sum(axis=1)
+    return nonmax_mask
