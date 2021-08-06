@@ -340,6 +340,13 @@ def recognize(model_dir, audio_root,
                   open(os.path.join(raw_detections_dir, AssetsExtraNames.classes_list), 'w'))
         raw_output_executor = concurrent.futures.ProcessPoolExecutor(max_workers=1)
 
+    # Set up function to scale scores, if enabled
+    if kwargs.get('scale_scores', False):
+        frac = 1.0 / float(len(class_names))
+        def scale_scores(scores): return np.maximum(0.0, (scores - frac) / (1.0 - frac))
+    else:
+        def scale_scores(scores): return scores
+
     output_executor = None
     if output_dir:
         reject_class_idx = None
@@ -367,13 +374,6 @@ def recognize(model_dir, audio_root,
                 kwargs['frequency_extents'].get(cn, default_freq_extents)
                 for cn in class_names
                 ]
-
-        # Set up function to scale scores, if enabled
-        if kwargs.get('scale_scores', False):
-            frac = 1.0 / float(len(class_names))
-            def scale_scores(scores): return np.maximum(0.0, (scores - frac) / (1.0 - frac))
-        else:
-            def scale_scores(scores): return scores
 
         # Check post-processing settings
         squeeze_min_dur = kwargs.get('squeeze_detections', None)
@@ -472,6 +472,9 @@ def recognize(model_dir, audio_root,
                 seltab_relpath = (subdirs if combine_outputs else os.path.splitext(audio_relpath)[0])
         seltab_relpath += _selection_table_file_suffix
 
+        # Scale the scores, if enabled
+        det_scores = scale_scores(det_scores)
+
         if raw_output_executor is not None:  # Offload writing of raw results (if enabled)
             # Fire and forget. No need to wait for or fetch results.
             raw_output_executor.submit(write_raw_detections,
@@ -482,8 +485,6 @@ def recognize(model_dir, audio_root,
                                        channels_to_write)
 
         if output_executor is not None:  # Offload writing of processed results (if enabled)
-            # Scale the scores, if enabled
-            det_scores = scale_scores(det_scores)
 
             # Apply threshold
             if 'threshold' in kwargs:
