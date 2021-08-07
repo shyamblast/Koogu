@@ -5,15 +5,18 @@ Animal Bioacoustics.
 
 The package offers tools for -
 * preparing and processing audio for training ML models,
-* training ML models, and
+* training ML models and assessing their performance, and
 * using trained ML models for automatic recognition.
 
 How to use
 ----------
 Koogu offers tools for ML development from the simplest of bioacoustics
 applications to more complex scenarios. All stages of the workflow 
-(preparation, training, inference) can be performed independently and
+(preparation, training, inference, performance assessment) can be performed independently and
 are described below.
+
+For those interested in a hands-on demo (on Google Colab) with real data, [here is a video
+providing an instructional walk-through](https://youtu.be/3ANAbT90sfo?t=2665) on using the package.
 
 ## 1. Data preparation
 
@@ -223,6 +226,7 @@ recognize(
   test_audio_root,
   raw_detections_dir=raw_detections_root,
   batch_size=64,    # Increasing this may improve speed on computers having higher resources
+  recursive=True,   # Process subdirectories also
   show_progress=True
 )
 ```
@@ -243,7 +247,8 @@ performance assessments also requires annotations corresponding to the test audi
 files processed above.
 
 ```python
-# Root directories under which test audio & corresponding annotation files are available
+# Root directory under which annotation files (corresponding to the test
+# audio files used above) are available.
 test_annots_root = '/mnt/project/dolphins/test_data/annotations'
 
 # Map audio files to corresponding annotation files
@@ -315,6 +320,7 @@ recognize(
   threshold=0.75,
   #combine_outputs=True,  # combine detections from sub-directory into single annotation files
   batch_size=64,
+  recursive=True,   # Process subdirectories also
   show_progress=True
 )
 ```
