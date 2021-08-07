@@ -314,8 +314,8 @@ def assess_annotations_and_detections_match(
         num_classes,
         gt_times, gt_labels,
         det_times, det_labels,
-        min_gt_coverage=0.75,
-        min_det_usage=0.75):
+        min_gt_coverage=0.5,
+        min_det_usage=0.5):
     """
     Match elements describing time-spans from two collections. Typically, one
     collection corresponds to ground-truth (gt) temporal extents and the other
@@ -429,11 +429,11 @@ def postprocess_detections(clip_scores, clip_offsets, clip_length,
     # Only build a mask for now.
     if threshold is not None and suppress_nonmax:
         nan_mask = np.logical_or(clip_scores < threshold,
-                                 _nonmax_suppress_mask(clip_scores))
+                                 nonmax_suppress_mask(clip_scores))
     elif threshold is not None:
         nan_mask = (clip_scores < threshold)
     elif suppress_nonmax:
-        nan_mask = _nonmax_suppress_mask(clip_scores)
+        nan_mask = nonmax_suppress_mask(clip_scores)
     else:
         nan_mask = np.full_like(clip_scores, False, dtype=np.bool)
 
@@ -442,7 +442,11 @@ def postprocess_detections(clip_scores, clip_offsets, clip_length,
                            squeeze_min_len=squeeze_min_samps)
 
 
-def _nonmax_suppress_mask(scores):
+def nonmax_suppress_mask(scores):
+    """
+    Returned mask will have True where the corresponding class doesn't have the
+    top score, and False elsewhere.
+    """
 
     nonmax_mask = np.full(scores.shape, True, dtype=np.bool)
     nonmax_mask[np.arange(scores.shape[0]), scores.argmax(axis=1)] = False
