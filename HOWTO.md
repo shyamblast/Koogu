@@ -201,36 +201,121 @@ history = train(
   
 ___
 
-## 3. Using a trained model
+## 3. Using a trained model on test data
 
 Imports needed:
 ```python
 from koogu import recognize
 ```
 
+During testing, it is useful to save raw per-clip detections which can be subsequently analyzed
+for assessing the model's recognition performance (Step 4).
+
+```python
+# Path to a single audio file or to a directory (can contain subdirectories)
+test_audio_root = '/mnt/projects/dolphins/test_data/audio'
+
+# Output directory
+raw_detections_root = '/mnt/projects/dolphins/test_audio_raw_detections'
+
+recognize(
+  model_dir,
+  test_audio_root,
+  raw_detections_dir=raw_detections_root,
+  batch_size=64,    # Increasing this may improve speed on computers having higher resources
+  show_progress=True
+)
+```
+
+The recognize() function supports many customizations. See function documentation for more details.
+  
+___
+
+## 4. Assessing performance
+
+Imports needed:
+```python
+from koogu import assessments
+```
+
+Similar to how training annotation data were presented in Step 1,
+performance assessments also requires annotations corresponding to the test audio
+files processed above.
+
+```python
+# Root directories under which test audio & corresponding annotation files are available
+test_annots_root = '/mnt/project/dolphins/test_data/annotations'
+
+# Map audio files to corresponding annotation files
+test_audio_annot_list = [
+  ['day7/clean_recording.wav', 'day7/clean_recording.selections.txt'],
+  ['day7/rec_01.wav', 'day7/rec_01.selections.txt'],
+  ['day8/rec_02.wav', 'day8/rec_02.selections.txt'],
+  ['day9/rec_10_w_ship_noise.wav', 'day9/rec_10_w_ship_noise.selections.txt'],
+  ['day9/rec_01.wav', 'day9/rec_01.selections.txt'],
+]
+
+# Initialize a metric object with the above info
+metric = assessments.PrecisionRecall(
+  test_audio_annot_list,
+  raw_detections_root, test_annots_root)
+# The metric supports several options (including setting explicit thresholds).
+# Refer to class documentation for more details.
+
+# Run the assessments and gather results
+per_class_pr, overall_pr = metric.assess()
+
+# Plot PR curves.
+# (Note: the below example code requires the matplotlib package and assumes that
+# pyplot was already imported from it as:
+#   from matplotlib import pyplot as plt
+# )
+for class_name, pr in per_class_pr.items():
+  print(class_name)
+  plt.plot(pr['recall'], pr['precision'], 'rd-')
+  plt.xlabel('Recall')
+  plt.ylabel('Precision')
+  plt.grid()
+  plt.show()
+
+# The thresholds at which the different precision-recall values were determined
+# can be queried as-
+print(metric.thresholds)
+```
+  
+___
+
+## 5. Using the trained model on new recordings
+
+Imports needed:
+```python
+from koogu import recognize
+```
+
+Once you are settled on a choice of detection threshold that yields a suitable
+precision-recall trade-off, you can apply the trained model on new recordings.
 Automatic recognition results are written out in
 [Raven Lite](https://ravensoundsoftware.com/software/raven-lite/) /
 [RavenPro](https://ravensoundsoftware.com/software/raven-pro/) selection table
 format after applying an algorithm to group together similar successive detections.
-Raw per-clip detections can also be saved for later assessments.
 The function supports many customizations. See function documentation for details.
 
 ```python
 # Path to a single audio file or to a directory (can contain subdirectories)
-test_audio = '/mnt/projects/dolphins/test_audio/'
+new_audio_root = '/mnt/projects/dolphins/new_audio/'
 
 # Output directory
-detections_dir = '/mnt/projects/dolphins/test_audio_detections'
+detections_output_dir = '/mnt/projects/dolphins/new_audio_detections'
 
 recognize(
   model_dir,
-  test_audio,
-  detections_dir,
+  new_audio_root,
+  output_dir=detections_output_dir,
   reject_class='Noise',   # suppress saving of detections of specific classes
   threshold=0.75,
-  #combine_outputs=True,  # combine detections from a directory into single output file
+  #combine_outputs=True,  # combine detections from sub-directory into single annotation files
   batch_size=64,
   show_progress=True
 )
-```  
+```
 
