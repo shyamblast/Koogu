@@ -3,10 +3,8 @@ import tensorflow as tf
 import numpy as np
 from scipy import signal
 from scipy.interpolate import interp1d
-import sys
 import logging
 import functools
-from pkg_resources import parse_version
 
 from koogu.data.raw import Filters, Settings
 
