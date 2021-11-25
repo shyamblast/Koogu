@@ -9,8 +9,8 @@ import concurrent.futures
 import logging
 import librosa
 
-from koogu.data import Audio, Settings, Convert, FilenameExtensions, \
-    AssetsExtraNames
+from koogu.data import FilenameExtensions, AssetsExtraNames
+from koogu.data.raw import Audio, Settings, Convert
 from koogu.model import TrainedModel
 from koogu.utils import processed_items_generator_mp
 from koogu.utils.detections import postprocess_detections

@@ -12,7 +12,8 @@ import warnings
 import numpy as np
 import librosa
 
-from koogu.data import FilenameExtensions, AssetsExtraNames, Process, Settings
+from koogu.data import FilenameExtensions, AssetsExtraNames
+from koogu.data.raw import Process, Settings
 from koogu.utils import instantiate_logging
 from koogu.utils.detections import SelectionTableReader
 from koogu.utils.terminal import ArgparseConverters

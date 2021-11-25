@@ -5,7 +5,8 @@ import numpy as np
 import tensorflow as tf
 
 from koogu.data import DatasetDigest, DirectoryNames, \
-    AssetsExtraNames, FilenameExtensions, tfrecord_helper, Convert
+    AssetsExtraNames, FilenameExtensions, tfrecord_helper
+from koogu.data.raw import Convert
 from koogu.data.tf_transformations import Audio2Spectral
 from koogu.utils.filesystem import recursive_listing
 
