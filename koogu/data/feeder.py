@@ -93,7 +93,8 @@ class BaseFeeder(metaclass=abc.ABCMeta):
             dataset = dataset.cache()
 
         num_prefetch_batches = kwargs.get('num_prefetch_batches', 1)
-        num_threads = kwargs.get('num_threads', 1)
+        num_threads = kwargs.get('num_threads',  # default to num CPUs
+                                 len(os.sched_getaffinity(0)))
 
         if is_training:  # Shuffle and repeat
             if 'queue_capacity' in kwargs:
