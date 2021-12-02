@@ -335,7 +335,7 @@ class DataFeeder(BaseFeeder):
                 output_signature=(
                     tf.TensorSpec(shape=(self._in_shape[0],),
                                   dtype=tf.float32),
-                    tf.TensorSpec(shape=(self.num_classes,),
+                    tf.TensorSpec(shape=(sum(self._valid_class_mask),),
                                   dtype=tf.float32))
             ),
             cycle_length=interleave_cycle_length,
