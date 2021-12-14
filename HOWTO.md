@@ -165,7 +165,7 @@ data_feeder = SpectralDataFeeder(
 )
 
 
-# Archecture choice and model customizations
+# Architecture choice and model customizations
 model = Architectures.densenet(
   layers_per_block=[4, 8, 8, 4],
   growth_rate=12
