@@ -194,92 +194,16 @@ class DataFeeder(BaseFeeder):
             class_names = json.load(f)
         num_classes = len(class_names)
 
-        file_label_counts = [
-            np.sum(DataFeeder._get_file_labels_mask(
-                os.path.join(data_dir, file)), axis=0)
-            for file in recursive_listing(
-                data_dir,
-                match_extensions=FilenameExtensions.numpy)]
-        assert num_classes == file_label_counts[0].shape[0]
+        # Gather info for building dataset pipeline later
+        self._valid_class_mask, self._in_shape, \
+            num_per_class_samples_train, self._files_clips_idxs_train, \
+            num_per_class_samples_eval, self._files_clips_idxs_eval = \
+            DataFeeder.build_dataset_info(
+                data_dir, num_classes,
+                validation_split, random_state,
+                min_clips_per_class, max_clips_per_class)
 
         self._data_dir = data_dir
-        self._valid_class_mask = np.full((num_classes, ), True, dtype=np.bool)
-
-        class_files_train, class_files_eval = [], []
-        class_files_items_train, class_files_items_eval = [], []
-        for class_idx in range(num_classes):
-
-            # Cumulative counts of class-specific clips across all files
-            cumul_counts = np.cumsum(
-                [flc[class_idx] for flc in file_label_counts])
-
-            if cumul_counts[-1] >= (min_clips_per_class or 0):
-                (cf_tr, cfi_tr), (cf_ev, cfi_ev) = \
-                    DataFeeder._helper1(cumul_counts, max_clips_per_class,
-                                        validation_split, random_state)
-
-                class_files_train.append(cf_tr)
-                class_files_items_train.append(cfi_tr)
-                class_files_eval.append(cf_ev)
-                class_files_items_eval.append(cfi_ev)
-
-            else:
-                # If insufficient clips, mark class for rejection
-                self._valid_class_mask[class_idx] = False
-
-        valid_class_idxs = np.where(self._valid_class_mask)[0]
-        out_num_classes = len(valid_class_idxs)
-
-        self._files_clips_idxs_train = []
-        self._files_clips_idxs_eval = []
-        num_per_class_samples_train = np.zeros((len(valid_class_idxs), ),
-                                               dtype=np.int)
-        num_per_class_samples_eval = np.zeros((len(valid_class_idxs), ),
-                                              dtype=np.int)
-        file = None
-        for f_idx, file in enumerate(
-                recursive_listing(data_dir,
-                                  match_extensions=FilenameExtensions.numpy)):
-
-            label_mask = DataFeeder._get_file_labels_mask(
-                os.path.join(data_dir, file))[:, self._valid_class_mask]
-
-            file_train_clips_idxs = [np.zeros((0, ), dtype=np.int)]
-            file_eval_clips_idxs = [np.zeros((0, ), dtype=np.int)]
-            for class_idx in range(out_num_classes):
-                file_class_idxs = np.where(label_mask[:, class_idx])[0]
-
-                e_idx = np.where(class_files_train[class_idx] == f_idx)[0]
-                if e_idx.shape[0] > 0:
-                    file_train_clips_idxs.append(
-                        file_class_idxs[
-                            class_files_items_train[class_idx][e_idx[0]]])
-                    # Clear out after use, no longer needed
-                    class_files_items_train[class_idx][e_idx[0]] = None
-
-                e_idx = np.where(class_files_eval[class_idx] == f_idx)[0]
-                if e_idx.shape[0] > 0:
-                    file_eval_clips_idxs.append(
-                        file_class_idxs[
-                            class_files_items_eval[class_idx][e_idx[0]]])
-                    # Clear out after use, no longer needed
-                    class_files_items_eval[class_idx][e_idx[0]] = None
-
-            file_clips_idxs = np.unique(np.concatenate(file_train_clips_idxs))
-            self._files_clips_idxs_train.append(file_clips_idxs)
-            num_per_class_samples_train += \
-                np.sum(label_mask[file_clips_idxs, :], axis=0)
-
-            file_clips_idxs = np.unique(np.concatenate(file_eval_clips_idxs))
-            self._files_clips_idxs_eval.append(file_clips_idxs)
-            num_per_class_samples_eval += \
-                np.sum(label_mask[file_clips_idxs, :], axis=0)
-
-        # Read clip length from the first clip in the last file read above
-        self._in_shape = [(
-            DataFeeder._get_file_clips_and_labels(
-                os.path.join(data_dir, file), [0], self._valid_class_mask)[0]
-        ).shape[1]]
 
         super(DataFeeder, self).__init__(
             self._in_shape,
@@ -344,6 +268,101 @@ class DataFeeder(BaseFeeder):
 
         return self._queue_and_batch(dataset, is_training, batch_size,
                                      **kwargs)
+
+    @staticmethod
+    def build_dataset_info(data_dir, num_classes,
+                           validation_split, random_state,
+                           min_clips_per_class=None, max_clips_per_class=None):
+
+        per_file_class_counts = [
+            np.sum(DataFeeder._get_file_labels_mask(
+                os.path.join(data_dir, file)), axis=0)
+            for file in recursive_listing(
+                data_dir, match_extensions=FilenameExtensions.numpy)]
+        assert num_classes == per_file_class_counts[0].shape[0]
+
+        class_files_tr, class_files_ev = [], []
+        class_files_items_tr, class_files_items_ev = [], []
+        useable_class_mask = np.full((num_classes, ), True, dtype=np.bool)
+        for class_idx in range(num_classes):
+
+            # Cumulative counts of class-specific clips across all files
+            cumul_counts = np.cumsum(
+                [flc[class_idx] for flc in per_file_class_counts])
+
+            if cumul_counts[-1] >= (min_clips_per_class or 0):
+                (cf_tr, cfi_tr), (cf_ev, cfi_ev) = \
+                    DataFeeder._helper1(cumul_counts, max_clips_per_class,
+                                        validation_split, random_state)
+
+                class_files_tr.append(cf_tr)
+                class_files_items_tr.append(cfi_tr)
+                class_files_ev.append(cf_ev)
+                class_files_items_ev.append(cfi_ev)
+
+            else:
+                # If insufficient clips, mark class for non-consideration
+                useable_class_mask[class_idx] = False
+
+        del per_file_class_counts
+
+        valid_class_idxs = np.where(useable_class_mask)[0]
+        out_num_classes = len(valid_class_idxs)
+
+        files_clips_idxs_tr = []
+        files_clips_idxs_ev = []
+        per_class_samples_count_tr = np.zeros((len(valid_class_idxs), ),
+                                              dtype=np.int)
+        per_class_samples_count_ev = np.zeros((len(valid_class_idxs), ),
+                                              dtype=np.int)
+        file = None
+        for f_idx, file in enumerate(
+                recursive_listing(data_dir,
+                                  match_extensions=FilenameExtensions.numpy)):
+
+            label_mask = DataFeeder._get_file_labels_mask(
+                os.path.join(data_dir, file))[:, useable_class_mask]
+
+            file_train_clips_idxs = [np.zeros((0, ), dtype=np.int)]
+            file_eval_clips_idxs = [np.zeros((0, ), dtype=np.int)]
+            for class_idx in range(out_num_classes):
+                file_class_idxs = np.where(label_mask[:, class_idx])[0]
+
+                e_idx = np.where(class_files_tr[class_idx] == f_idx)[0]
+                if e_idx.shape[0] > 0:
+                    file_train_clips_idxs.append(
+                        file_class_idxs[
+                            class_files_items_tr[class_idx][e_idx[0]]])
+                    # Clear out after use, no longer needed
+                    class_files_items_tr[class_idx][e_idx[0]] = None
+
+                e_idx = np.where(class_files_ev[class_idx] == f_idx)[0]
+                if e_idx.shape[0] > 0:
+                    file_eval_clips_idxs.append(
+                        file_class_idxs[
+                            class_files_items_ev[class_idx][e_idx[0]]])
+                    # Clear out after use, no longer needed
+                    class_files_items_ev[class_idx][e_idx[0]] = None
+
+            file_clips_idxs = np.unique(np.concatenate(file_train_clips_idxs))
+            files_clips_idxs_tr.append(file_clips_idxs)
+            per_class_samples_count_tr += \
+                np.sum(label_mask[file_clips_idxs, :], axis=0)
+
+            file_clips_idxs = np.unique(np.concatenate(file_eval_clips_idxs))
+            files_clips_idxs_ev.append(file_clips_idxs)
+            per_class_samples_count_ev += \
+                np.sum(label_mask[file_clips_idxs, :], axis=0)
+
+        # Read clip length from the first clip in the last file read above
+        clip_shape = [(
+            DataFeeder._get_file_clips_and_labels(
+                os.path.join(data_dir, file), [0], useable_class_mask)[0]
+        ).shape[1]]
+
+        return useable_class_mask, clip_shape, \
+            per_class_samples_count_tr, files_clips_idxs_tr, \
+            per_class_samples_count_ev, files_clips_idxs_ev
 
     @staticmethod
     def file_data_generator(npz_filepath, file_clips_idxs, valid_class_mask):
