@@ -19,6 +19,7 @@ class _Metric(metaclass=abc.ABCMeta):
     def __init__(self, audio_annot_list,
                  raw_results_root, annots_root,
                  reject_classes=None,
+                 negative_class_label=None,
                  **kwargs):
         """
         :param audio_annot_list: A list containing pairs (tuples or sub-lists)
@@ -29,9 +30,13 @@ class _Metric(metaclass=abc.ABCMeta):
             'audio_annot_list' will be resolved using this as base directory.
         :param annots_root: The full paths of annotations files listed in
             'audio_annot_list' will be resolved using this as base directory.
-        :param reject_class: Name (case sensitive) of the class (like 'Noise' or
-            'Other') for which performance assessments are not to be computed.
-            Can specify multiple classes for rejection, as a list.
+        :param reject_classes: Name (case sensitive) of the class (like 'Noise'
+            or 'Other') for which performance assessments are not to be
+            computed. Can specify multiple classes for rejection, as a list.
+        :param negative_class_label: A string (e.g. 'Other', 'Noise') which will
+            be used as a label to identify the negative class clips (those that
+            did not match any annotations), if an inherited class deals with
+            those.
         """
 
         if os.path.exists(
@@ -79,6 +84,9 @@ class _Metric(metaclass=abc.ABCMeta):
 
         self._class_label_to_idx = {c: ci
                                     for ci, c in enumerate(self._class_names)}
+
+        self._negative_class_idx = None if negative_class_label is None else \
+            self._class_label_to_idx[negative_class_label]
 
         self._valid_class_mask = np.full((num_classes,), True, dtype=np.bool)
         if reject_classes is not None:
@@ -141,6 +149,10 @@ class _Metric(metaclass=abc.ABCMeta):
     @property
     def num_classes(self):
         return len(self._class_names)
+
+    @property
+    def negative_class_idx(self):
+        return self._negative_class_idx
 
     @abc.abstractmethod
     def _init_containers(self, **kwargs):
@@ -208,7 +220,6 @@ class PrecisionRecall(_Metric):
 
     def __init__(self, audio_annot_list,
                  raw_results_root, annots_root,
-                 reject_classes=None,
                  thresholds=None,
                  post_process_detections=False,
                  **kwargs):
@@ -222,10 +233,7 @@ class PrecisionRecall(_Metric):
             'audio_annot_list' will be resolved using this as base directory.
         :param annots_root: The full paths of annotations files listed in
             'audio_annot_list' will be resolved using this as base directory.
-        :param reject_class: Name (case sensitive) of the class (like 'Noise' or
-            'Other') for which performance assessments are not to be computed.
-            Can specify multiple classes for rejection, as a list.
-        :param threshold: If not None, must be either a scalar quantity or a
+        :param thresholds: If not None, must be either a scalar quantity or a
             list of non-decreasing values (float values in the range 0-1) at
             which precision and recall value(s) will be assessed. If None, will
             default to the range 0-1 with an interval of 0.05.
@@ -235,25 +243,29 @@ class PrecisionRecall(_Metric):
 
         Other optional parameters:
         :param suppress_nonmax: If True (default is False), only the top-scoring
-            class per clip will be considered.
-        :param negative_class: A string label (e.g. 'Other', 'Noise'; defaults
-            to None) identifying the negative class. If set, clips corresponding
-            to the negative class will not be considered in. This parameter
-            applies only when 'post_process_detections' is False.
+            class per clip will be considered. When post-processing is enabled,
+            the parameter is handled directly in
+            koogu.utils.detections.postprocess_detections().
         :param squeeze_min_dur: (default None). If set (duration in seconds), an
             algorithm 'to squeeze together' temporally overlapping regions from
             successive raw clips will be applied. The 'squeezing' will be
             restricted to produce detections that are at least as long as the
             specified value. The value must be smaller than the duration of the
-            model inputs.
+            model inputs. Parameter used only when post-processing is enabled,
+            and converts the duration to number of samples before passing it to
+            koogu.utils.detections.postprocess_detections().
 
         Other parameters specific to
-            - koogu.data.Process.audio2clips() (when post-processing isn't
-              enabled) or
-            - koogu.utils.detections.postprocess_detections() (when
-              post-processing is enabled)
+            - (when post-processing isn't enabled)
+                koogu.utils.detections.assess_clips_and_labels_match()
+            - (when post-processing is enabled)
+                koogu.utils.detections.postprocess_detections(), and
+                koogu.utils.detections.assess_annotations_and_detections_match()
         can also be specified, and will be passed as-is to the respective
         functions.
+
+        All other optional parameters (if any) will be passed as-is to the base
+        class.
         """
 
         if thresholds is None:  # Apply defaults
@@ -264,7 +276,6 @@ class PrecisionRecall(_Metric):
             self._thresholds = thresholds   # Assume it is already a list-like
 
         self._pp = False
-        self._negative_class_idx = None
         if post_process_detections:
             self._pp = True
 
@@ -282,6 +293,10 @@ class PrecisionRecall(_Metric):
                     'min_gt_coverage')
             if 'min_det_usage' in kwargs:
                 match_fn_kwargs['min_det_usage'] = kwargs.pop('min_det_usage')
+
+            # If 'negative class' was inadvertently specified, remove it
+            if 'negative_class_label' in kwargs:
+                kwargs.pop('negative_class_label')
 
             def assessment_fn(a_times, a_classes, a_chs, audio_file, **akwargs):
                 return self.assess_from_processed_scores(
@@ -301,10 +316,6 @@ class PrecisionRecall(_Metric):
             if 'negative_overlap_threshold' in kwargs:
                 match_fn_kwargs['max_nonmatch_overlap_fraction'] = \
                     kwargs.pop('negative_overlap_threshold')
-
-            if 'negative_class' in kwargs:
-                self._negative_class_idx = \
-                    self._class_label_to_idx[kwargs.pop('negative_class')]
 
             # The post-processing counterpart handles nonmax-suppression within
             # lower-level functions. For this option, we do need to handle it
@@ -326,7 +337,7 @@ class PrecisionRecall(_Metric):
         self._reca_denom = None
 
         super(PrecisionRecall, self).__init__(
-            audio_annot_list, raw_results_root, annots_root, reject_classes,
+            audio_annot_list, raw_results_root, annots_root,
             **kwargs)
 
     @property
@@ -467,7 +478,7 @@ class PrecisionRecall(_Metric):
                     self.num_classes,
                     annots_times_int[curr_ch_annots_mask, :],
                     annots_class_idxs[curr_ch_annots_mask],
-                    negative_class_idx=self._negative_class_idx,
+                    negative_class_idx=self.negative_class_idx,
                     **match_fn_kwargs_dict)
 
             # Update "missed" annots mask
@@ -562,4 +573,3 @@ class PrecisionRecall(_Metric):
 
 
 __all__ = ['PrecisionRecall']
-
