@@ -15,7 +15,7 @@ import librosa
 from koogu.data import FilenameExtensions, AssetsExtraNames
 from koogu.data.raw import Process, Settings
 from koogu.utils import instantiate_logging
-from koogu.utils.detections import SelectionTableReader
+from koogu.utils.detections import SelectionTableReader, LabelHelper
 from koogu.utils.terminal import ArgparseConverters
 from koogu.utils.config import Config, ConfigError, datasection2dict, log_config
 from koogu.utils.filesystem import restrict_classes_with_whitelist_file, AudioFileList, recursive_listing
@@ -25,25 +25,45 @@ _program_name = 'prepare_data'
 
 def from_selection_table_map(audio_settings, audio_seltab_list,
                              audio_root, seltab_root, output_root,
+                             desired_labels=None,
+                             remap_labels_dict=None,
                              negative_class_label=None,
                              **kwargs):
     """
     Prepare training data using info contained in 'audio_seltab_list'.
 
-    :param audio_settings: A dictionary specifying the parameters for processing audio from files.
-    :param audio_seltab_list: A list containing pairs (tuples or sub-lists) of relative paths to audio files and the
-        corresponding annotation (selection table) files.
-    :param audio_root: The full paths of audio files listed in 'audio_seltab_list' are resolved using this as the base
-        directory.
-    :param seltab_root: The full paths of annotations files listed in 'audio_seltab_list' are resolved using this as the
-        base directory.
+    :param audio_settings: A dictionary specifying the parameters for processing
+        audio from files.
+    :param audio_seltab_list: A list containing pairs (tuples or sub-lists) of
+        relative paths to audio files and the corresponding annotation
+        (selection table) files.
+    :param audio_root: The full paths of audio files listed in
+        'audio_seltab_list' are resolved using this as the base directory.
+    :param seltab_root: The full paths of annotations files listed in
+        'audio_seltab_list' are resolved using this as the base directory.
     :param output_root: "Prepared" data will be written to this directory.
-    :param negative_class_label: A string (e.g. 'Other', 'Noise') which will be used as a label to identify the negative
-        class clips (those that did not match any annotations). If None (default), saving of negative class clips will
-        be disabled.
+    :param desired_labels: The target set of class labels. If not None, must be
+        a list of class labels. Any selections (read from the selection tables)
+        having labels that are not in this list will be discarded. This list
+        will be used to populate classes_list.json that will define the classes
+        for the project. If None, then the list of classes will be populated
+        with the annotation labels read from all selection tables.
+    :param remap_labels_dict: If not None, must be a dictionary describing
+        mapping of class labels. Use this to update existing class' labels (e.g.
+        {'c1': 'new_c1'}), to merge together existing classes (e.g.
+        {'c4': 'c1'}), and/or to combine existing classes into new ones (e.g.
+        {'c4': 'new_c2', 'c23', 'new_c2'}). Avoid chaining of mappings (e.g.
+        {'c1': 'c2', 'c2': 'c3'}).
+        Note: If desired_labels is not None, mappings for which targets are not
+        listed in desired_labels will be ignored.
+    :param negative_class_label: A string (e.g. 'Other', 'Noise') which will be
+        used as a label to identify the negative class clips (those that did not
+        match any annotations). If None (default), saving of negative class
+        clips will be disabled.
 
-    :return: A dictionary whose keys are annotation tags (discovered from the set of annotations) and the values are the
-        number of clips produced for the corresponding class.
+    :return: A dictionary whose keys are annotation tags (either discovered from
+        the set of annotations, or same as desired_labels if not None) and the
+        values are the number of clips produced for the corresponding class.
     """
 
     logger = logging.getLogger(__name__)
@@ -91,15 +111,18 @@ def from_selection_table_map(audio_settings, audio_seltab_list,
 
     return _batch_process(
         audio_settings,
-        sorted(classes_n_counts.keys()) + ([negative_class_label] if negative_class_label else []),
+        [lbl for lbl in classes_n_counts.keys()],
         input_generator,
         audio_root, output_root,
+        desired_labels=desired_labels,
+        remap_labels_dict=remap_labels_dict,
         negative_class_label=negative_class_label,
         **kwargs)
 
 
 def from_top_level_dirs(audio_settings, class_dirs,
                         audio_root, output_root,
+                        remap_labels_dict=None,
                         **kwargs):
     """
     Prepare training data using audio files in 'class_dirs'.
@@ -110,6 +133,12 @@ def from_top_level_dirs(audio_settings, class_dirs,
     :param audio_root: The full paths of the class-specific directories listed in 'class_dirs' are resolved using this
         as the base directory.
     :param output_root: "Prepared" data will be written to this directory.
+    :param remap_labels_dict: If not None, must be a dictionary describing
+        mapping of class labels. Use this to update existing class' labels (e.g.
+        {'c1': 'new_c1'}), to merge together existing classes (e.g.
+        {'c4': 'c1'}), and/or to combine existing classes into new ones (e.g.
+        {'c4': 'new_c2', 'c23', 'new_c2'}). Avoid chaining of mappings (e.g.
+        {'c1': 'c2', 'c2': 'c3'}).
     :param filetypes: (optional) Restrict listing to files matching extensions specified in this parameter. Has defaults
         if unspecified.
 
@@ -136,6 +165,7 @@ def from_top_level_dirs(audio_settings, class_dirs,
     return _batch_process(
         audio_settings, class_dirs, input_generator,
         audio_root, output_root,
+        remap_labels_dict=remap_labels_dict,
         **kwargs)
 
 
@@ -149,7 +179,7 @@ def _batch_process_wrapper(func):
         t_start = datetime.now()
         logger.info('Started at: {}'.format(t_start))
 
-        retval = func(*args, **kwargs)
+        final_classes, per_class_clip_counts = func(*args, **kwargs)
 
         t_end = datetime.now()
         logger.info('Finished at: {}'.format(t_end))
@@ -158,14 +188,15 @@ def _batch_process_wrapper(func):
         logger.info('Results:')
         logger.info('  {:<55s} - {:>5s}'.format('Class', 'Clips'))
         logger.info('  {:<55s}   {:>5s}'.format('-----', '-----'))
-        for class_name, clip_count in retval.items():
+        for class_name, clip_count in per_class_clip_counts.items():
             logger.info('  {:<55s} - {:>5d}'.format(class_name, clip_count))
 
         # Write out the list of class names
-        json.dump(args[1],
-                  open(os.path.join(args[4], AssetsExtraNames.classes_list), 'w'))
+        json.dump(
+            final_classes,
+            open(os.path.join(args[4], AssetsExtraNames.classes_list), 'w'))
 
-        return retval
+        return per_class_clip_counts
 
     return wrapper_timer
 
@@ -173,6 +204,8 @@ def _batch_process_wrapper(func):
 @_batch_process_wrapper
 def _batch_process(audio_settings, class_list, input_generator,
                    audio_root, dest_root,
+                   desired_labels=None,
+                   remap_labels_dict=None,
                    negative_class_label=None,  # If not None, will mean that we'll be saving seltab negatives
                    **kwargs):
 
@@ -188,10 +221,17 @@ def _batch_process(audio_settings, class_list, input_generator,
 
     audio_settings = Settings.Audio(**audio_settings)
 
-    num_classes = len(class_list)
-    class_label_to_idx = {c: ci for ci, c in enumerate(class_list)}
-    per_class_clip_counts = {c: 0 for c in class_list}
-    negative_class_idx = None if negative_class_label is None else class_label_to_idx[negative_class_label]
+    label_helper = LabelHelper(desired_labels if desired_labels else class_list,
+                               remap_labels_dict=remap_labels_dict,
+                               negative_class_label=negative_class_label,
+                               fixed_labels=(desired_labels is not None),
+                               assessment_mode=False)
+
+    num_classes = len(label_helper.classes_list)
+    per_class_clip_counts = {c: 0 for c in label_helper.classes_list}
+
+    # List of desired and 'to be mapped' labels
+    valid_classes = [lbl for lbl in label_helper.labels_to_indices.keys()]
 
     def handle_outcome(future_h, a_file, num_annots):   # internal use utility function
         try:
@@ -200,16 +240,18 @@ def _batch_process(audio_settings, class_list, input_generator,
             logger.error('Processing file {:s} generated an exception: {:s}'.format(repr(audio_file), repr(ho_exc)))
         else:
             if num_annots is not None:   # Seltabs were available
-                if negative_class_idx is not None:   # Negative clips were written too
+                if label_helper.negative_class_index is not None:
+                    # Negative clips were written too
                     logger.info('{:s}: {:d} annotations. Wrote {:d} clips including {:d} non-target'.format(
-                        a_file, num_annots, file_num_clips, file_per_class_clip_counts[negative_class_idx]))
+                        a_file, num_annots, file_num_clips, file_per_class_clip_counts[label_helper.negative_class_index]))
                 else:
                     logger.info('{:s}: {:d} annotations. Wrote {:d} clips'.format(
                         a_file, num_annots, file_num_clips))
             else:   # Top-level directories were processed
                 logger.info('{:s}: Wrote {:d} clips'.format(a_file, file_num_clips))
 
-            for c, ci in zip(class_list, file_per_class_clip_counts):
+            for c, ci in zip(label_helper.classes_list,
+                             file_per_class_clip_counts):
                 per_class_clip_counts[c] += ci
 
     file_min_dur = float(audio_settings.clip_length) / float(audio_settings.fs)     # Set to clip duration
@@ -237,18 +279,37 @@ def _batch_process(audio_settings, class_list, input_generator,
             target_dir = os.path.join(dest_root, rel_path)
             os.makedirs(target_dir, exist_ok=True)
 
+            # Based on remap_labels_dict or desired_labels, some labels may
+            # become invalid. Write out only the valid ones.
+            if annots_times is None:     # invoked by from_top_level_dirs()
+                if annots_labels not in valid_classes:
+                    continue    # Not in desired classes. Skip.
+
+            else:                        # invoked by from_selection_table_map()
+                valid_annots_idxs = [
+                    idx for idx, lbl in enumerate(annots_labels)
+                    if lbl in valid_classes]
+
+                annots_times = annots_times[valid_annots_idxs, :]
+                annot_channels = annot_channels[valid_annots_idxs]
+                annots_labels = [
+                    annots_labels[idx] for idx in valid_annots_idxs]
+
             # Build dictionary of args for Process.audio2clips()
             a2c_kwargs = {**kwargs}     # copy remaining unpopped kwargs
             if annots_times is None:        # invoked by from_top_level_dirs()
                 a2c_kwargs['annots_times'] = None
-                a2c_kwargs['annots_class_idxs'] = class_label_to_idx[annots_labels]
+                a2c_kwargs['annots_class_idxs'] = \
+                    label_helper.labels_to_indices[annots_labels]
                 a2c_kwargs['annots_channels'] = None
             else:                           # invoked by from_selection_table_map()
                 a2c_kwargs['annots_times'] = annots_times
-                a2c_kwargs['annots_class_idxs'] = np.asarray([class_label_to_idx[c] for c in annots_labels])
+                a2c_kwargs['annots_class_idxs'] = np.asarray([
+                    label_helper.labels_to_indices[c] for c in annots_labels])
                 a2c_kwargs['annots_channels'] = annot_channels
-                if negative_class_idx is not None:
-                    a2c_kwargs['negative_class_idx'] = negative_class_idx
+                if label_helper.negative_class_index is not None:
+                    a2c_kwargs['negative_class_idx'] = \
+                        label_helper.negative_class_index
 
             # If many items are already currently being processed, wait for and handle one finished result before adding
             # a new one to processing queue.
@@ -279,7 +340,7 @@ def _batch_process(audio_settings, class_list, input_generator,
         for future in concurrent.futures.as_completed(futures_dict):
             handle_outcome(future, *futures_dict[future])
 
-    return per_class_clip_counts
+    return label_helper.classes_list, per_class_clip_counts
 
 
 def annot_classes_and_counts(seltab_root, annot_files, **kwargs):

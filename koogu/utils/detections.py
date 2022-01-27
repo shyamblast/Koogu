@@ -2,6 +2,7 @@
 import numpy as np
 from collections import Generator
 import csv
+from warnings import showwarning
 
 
 def _squeeze_streak(starts, scores, num_samples, group_size):
@@ -165,7 +166,7 @@ class SelectionTableReader(Generator):
 
     @staticmethod
     def _convert(entry, out_type, default_val):
-        return out_type(entry) if entry is not '' else default_val
+        return out_type(entry) if entry != '' else default_val
 
     # internal function
     def send(self, ignored_arg):
@@ -452,3 +453,208 @@ def nonmax_suppress_mask(scores):
     nonmax_mask[np.arange(scores.shape[0]), scores.argmax(axis=1)] = False
 
     return nonmax_mask
+
+
+class LabelHelper:
+    """
+    Used by koogu.prepare_data and koogu.utils.assessments.
+    Provides functionality for manipulating and managing class labels in a
+    modeling project.
+    """
+
+    def __init__(self,
+                 classes_list,
+                 remap_labels_dict=None,
+                 negative_class_label=None,
+                 fixed_labels=True,
+                 assessment_mode=False):
+        """
+
+        :param classes_list: List of class labels. When used during data
+            preparation, the list may be generated from available classes or
+            be provided as a pre-defined list. When used during performance
+            assessments, it is typically populated from the classes_list.json
+            file that is saved alongside raw detections.
+        :param remap_labels_dict: If not None, must be a dictionary describing
+            mapping of class labels. Use this to update existing class' labels
+            (e.g. {'c1': 'new_c1'}), to merge together existing classes (e.g.
+            {'c4': 'c1'}), and/or to combine existing classes into new ones
+            (e.g. {'c4': 'new_c2', 'c23', 'new_c2'}). Avoid chaining of mappings
+            (e.g. {'c1': 'c2', 'c2': 'c3'}).
+        :param negative_class_label: A string (e.g. 'Other', 'Noise') which will
+            be used as a label to identify the negative class clips (those that
+            did not match any annotations). If specified, will be used in
+            conjunction with remap_labels_dict.
+        :param fixed_labels: If True, classes_list will remain unchanged - any
+            new mapping targets specified in remap_labels_dict will not be added
+            and any mapped-out class labels will not be omitted. Typically, it
+            should be set to True when classes_list is a pre-defined list during
+            data preparation, and always during performance assessments.
+        :param assessment_mode: Set to True when invoked during performance
+            assessments.
+        """
+
+        # fixed_labels cannot be False when in assessment mode
+        assert ((not assessment_mode) or (assessment_mode and fixed_labels)), \
+            '\'fixed_labels\' cannot be False when \'assessment_mode\' is True'
+
+        adjusted_neg_label = negative_class_label
+        if assessment_mode and (negative_class_label is not None) and \
+                negative_class_label not in classes_list:
+            # In assessment mode, but neg class results were not saved in raw
+            # detections. So, invalidate given neg label.
+            adjusted_neg_label = None
+
+        valid_mappings = {}
+        if remap_labels_dict is not None:
+            self._classes_list, valid_mappings = \
+                LabelHelper._handle_mappings(
+                    classes_list, remap_labels_dict,
+                    adjusted_neg_label,
+                    fixed_labels)
+        else:
+            self._classes_list = [c for c in classes_list]  # make a copy
+
+        self._neg_class_idx = None
+        if adjusted_neg_label is not None:
+            # Add neg label if not already existing
+            if adjusted_neg_label not in self._classes_list:
+                self._classes_list.append(adjusted_neg_label)
+
+            self._neg_class_idx = self._classes_list.index(adjusted_neg_label)
+
+        # - Generate string-to-int mappings -
+        # First add existing ones ...
+        self._class_label_to_idx = {c: ci for ci, c in
+                                    enumerate(self._classes_list)}
+        # then add for identified valid label mappings (if any)
+        for lhs, rhs in valid_mappings.items():
+            self._class_label_to_idx[lhs] = self._class_label_to_idx[rhs]
+
+    @property
+    def classes_list(self):
+        return self._classes_list
+
+    @property
+    def negative_class_index(self):
+        return self._neg_class_idx
+
+    @property
+    def labels_to_indices(self):
+        return self._class_label_to_idx
+
+    @staticmethod
+    def _handle_mappings(classes_list,
+                         remap_labels_dict,
+                         neg_class_label,
+                         fixed_labels):
+        """
+        Internal function to figure out label mappings.
+        """
+
+        # First check for stupid mappings
+        all_lhs = [lhs for lhs in remap_labels_dict.keys()]
+        if any([(rhs in all_lhs)
+                for _, rhs in remap_labels_dict.items()]):
+            raise ValueError(
+                'Self-, chained- and/or circular mappings not allowed. ' +
+                'Please fix conflicting entries in \'remap_labels_dict\'.')
+
+        if neg_class_label is not None:
+            def is_neg_label(lbl):
+                return lbl == neg_class_label
+        else:
+            def is_neg_label(_):
+                return False
+
+        ignore_lhs = []
+        ignore_rhs = []
+        valid_mappings = {}
+        ghost_mappings = {}
+        mapped_out_lhs = []     # labels to be deleted from classes_list
+        new_labels = []         # labels to be added to classes_list
+        for lhs, rhs in remap_labels_dict.items():
+            if is_neg_label(lhs):
+                # Following this rule so that neg class label doesn't get
+                # inadvertently mapped to one of the positive classes.
+                showwarning(
+                    f'"{lhs}" is \'negative class\' label, which is a special' +
+                    ' case and cannot be mapped. Will ignore the mapping ' +
+                    f'"{lhs}" -> "{rhs}".',
+                    Warning, __file__, '')
+                continue
+
+            existing_lhs = (lhs in classes_list)
+            existing_rhs = (rhs in classes_list)
+
+            if fixed_labels:    # classes_list is not amenable
+                # Only allowed to map a label that doesn't already exist in
+                # classes_list to a label that does exist in classes_list
+                # (or is a neg class label).
+
+                if existing_lhs:
+                    ignore_lhs.append(lhs)  # complain once for all later
+                else:
+                    if existing_rhs or is_neg_label(rhs):
+                        # Mappable target
+                        valid_mappings[lhs] = rhs
+                    else:
+                        # An attempt at creating a new label
+                        ignore_rhs.append(rhs)   # Complain later
+
+            else:               # classes_list is amenable
+                # Following mappings are possible:
+                #   existing -> existing    [action: del lhs]
+                #   existing -> new         [action: del lhs, add rhs]
+                #   new      -> existing
+                # Can't map if both are new.
+                if existing_lhs or existing_rhs:    # At least one is valid
+                    if existing_lhs:
+                        mapped_out_lhs.append(lhs)  # Mark for deletion
+
+                    if not existing_rhs:
+                        new_labels.append(rhs)
+
+                    valid_mappings[lhs] = rhs
+                else:
+                    # Both lhs & rhs are new labels
+                    ghost_mappings[lhs] = rhs   # Complain later
+
+        if len(ignore_lhs) > 0:        # only possible if fixed_labels=True
+            showwarning(
+                'Mappings in \'remap_labels_dict\' with the following ' +
+                'left-hand side values cannot be mapped: {}. '.format(
+                    ignore_lhs) +
+                'Will ignore, since \'fixed_labels\' is set to True.',
+                Warning, __file__, '')
+
+        if len(ignore_rhs) > 0:        # only possible if fixed_labels=True
+            showwarning(
+                'Mappings in \'remap_labels_dict\' with the following ' +
+                'right-hand side values cannot be mapped: {}. '.format(
+                    ignore_rhs) +
+                'Will ignore, since \'fixed_labels\' is set to True.',
+                Warning, __file__, '')
+
+        if len(ghost_mappings) > 0:    # only possible if fixed_labels=False
+            showwarning(
+                'Both sides of the following mapping(s) are not in ' +
+                '\'classes_list\': [{}]. '.format(
+                    ', '.join([f'"{lhs}" -> "{rhs}"'
+                               for lhs, rhs in ghost_mappings])) +
+                'Will ignore, since there isn\'t anything to map.',
+                Warning, __file__, '')
+
+        if fixed_labels:
+            # Return a copy
+            return \
+                [c for c in classes_list], \
+                valid_mappings
+        else:
+            # Del "mapped out", add "new", then sort
+            return \
+                sorted(
+                    [c for c in classes_list if c not in mapped_out_lhs] +
+                    new_labels), \
+                valid_mappings
+

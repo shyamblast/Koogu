@@ -7,7 +7,7 @@ import logging
 from koogu.data import FilenameExtensions, AssetsExtraNames
 from koogu.utils.detections import assess_clips_and_labels_match, \
     assess_annotations_and_detections_match, postprocess_detections, \
-    nonmax_suppress_mask
+    nonmax_suppress_mask, LabelHelper
 from koogu.utils.filesystem import AudioFileList
 
 
@@ -19,6 +19,7 @@ class _Metric(metaclass=abc.ABCMeta):
     def __init__(self, audio_annot_list,
                  raw_results_root, annots_root,
                  reject_classes=None,
+                 remap_labels_dict=None,
                  negative_class_label=None,
                  **kwargs):
         """
@@ -33,22 +34,36 @@ class _Metric(metaclass=abc.ABCMeta):
         :param reject_classes: Name (case sensitive) of the class (like 'Noise'
             or 'Other') for which performance assessments are not to be
             computed. Can specify multiple classes for rejection, as a list.
+        :param remap_labels_dict: If not None, must be a dictionary describing
+            mapping of class labels. Use this to update existing class' labels
+            (e.g. {'c1': 'new_c1'}), to merge together existing classes (e.g.
+            {'c4': 'c1'}), and/or to combine existing classes into new ones
+            (e.g. {'c4': 'new_c2', 'c23', 'new_c2'}). Avoid chaining of mappings
+            (e.g. {'c1': 'c2', 'c2': 'c3'}).
         :param negative_class_label: A string (e.g. 'Other', 'Noise') which will
             be used as a label to identify the negative class clips (those that
             did not match any annotations), if an inherited class deals with
-            those.
+            those. If specified, will be used in conjunction with
+            remap_labels_dict.
         """
 
         if os.path.exists(
                 os.path.join(raw_results_root, AssetsExtraNames.classes_list)):
             with open(os.path.join(raw_results_root,
                                    AssetsExtraNames.classes_list), 'r') as f:
-                self._class_names = json.load(f)
+                desired_labels = json.load(f)
         else:
             raise ValueError(f'{AssetsExtraNames.classes_list} not found in ' +
                              f'{raw_results_root}. Check if path is correct.')
 
         logger = logging.getLogger(__name__)
+
+        self._label_helper = LabelHelper(
+            desired_labels,
+            remap_labels_dict=remap_labels_dict,
+            negative_class_label=negative_class_label,
+            fixed_labels=True,
+            assessment_mode=True)
 
         self._raw_results_root = raw_results_root
         self._annots_root = annots_root
@@ -80,21 +95,14 @@ class _Metric(metaclass=abc.ABCMeta):
             # Need to look for files with added extension. Hidden setting.
             self._ig_kwargs['added_ext'] = FilenameExtensions.numpy
 
-        num_classes = len(self._class_names)
-
-        self._class_label_to_idx = {c: ci
-                                    for ci, c in enumerate(self._class_names)}
-
-        self._negative_class_idx = None if negative_class_label is None else \
-            self._class_label_to_idx[negative_class_label]
-
-        self._valid_class_mask = np.full((num_classes,), True, dtype=np.bool)
+        self._valid_class_mask = np.full(
+            (len(self._label_helper.classes_list),), True, dtype=np.bool)
         if reject_classes is not None:
             for rj_class in ([reject_classes] if isinstance(reject_classes, str)
                              else reject_classes):
-                if rj_class in self._class_names:
+                if rj_class in self._label_helper.classes_list:
                     self._valid_class_mask[
-                        self._class_label_to_idx[rj_class]] = False
+                        self._label_helper.labels_to_indices[rj_class]] = False
                 else:
                     logger.warning(
                         f'Reject class {rj_class:s} not found in list of ' +
@@ -120,12 +128,27 @@ class _Metric(metaclass=abc.ABCMeta):
 
         self._init_containers(**kwargs)
 
+        # List of desired and 'to be mapped' labels
+        valid_classes = [lbl
+                         for lbl in self._label_helper.labels_to_indices.keys()]
+
         for audio_file, annots_times, annots_labels, annots_channels in \
-            input_generator:
+                input_generator:
+
+            # Based on remap_labels_dict or desired_labels, some labels may
+            # become invalid. Consider only the valid ones.
+            mappable_annots_idxs = [
+                idx for idx, lbl in enumerate(annots_labels)
+                if lbl in valid_classes]
+
+            annots_times = annots_times[mappable_annots_idxs, :]
+            annots_channels = annots_channels[mappable_annots_idxs]
+            annots_labels = [
+                annots_labels[idx] for idx in mappable_annots_idxs]
 
             # Convert textual annotation labels to integers
             annots_class_idxs = np.asarray(
-                [self._class_label_to_idx[c] for c in annots_labels],
+                [self.class_label_to_idx[c] for c in annots_labels],
                 dtype=np.uint16)
 
             # Keep only valid classes' entries
@@ -147,12 +170,20 @@ class _Metric(metaclass=abc.ABCMeta):
         return result
 
     @property
+    def class_names(self):
+        return self._label_helper.classes_list
+
+    @property
     def num_classes(self):
-        return len(self._class_names)
+        return len(self._label_helper.classes_list)
 
     @property
     def negative_class_idx(self):
-        return self._negative_class_idx
+        return self._label_helper.negative_class_index
+
+    @property
+    def class_label_to_idx(self):
+        return self._label_helper.labels_to_indices
 
     @abc.abstractmethod
     def _init_containers(self, **kwargs):
@@ -383,13 +414,13 @@ class PrecisionRecall(_Metric):
                                 np.expand_dims(self._reca_denom[temp], axis=0))
             per_class_perf = {
                 class_name: dict(
-                    precision=th_prec[:, self._class_label_to_idx[class_name]],
-                    recall=th_reca[:, self._class_label_to_idx[class_name]]
+                    precision=th_prec[:, self.class_label_to_idx[class_name]],
+                    recall=th_reca[:, self.class_label_to_idx[class_name]]
                 )
-                for class_name, v in zip(self._class_names,
+                for class_name, v in zip(self.class_names,
                                          self._valid_class_mask)
                 if (v and
-                    self._reca_denom[self._class_label_to_idx[class_name]] > 0)
+                    self._reca_denom[self.class_label_to_idx[class_name]] > 0)
             }
 
             overall_perf = dict(
@@ -414,15 +445,15 @@ class PrecisionRecall(_Metric):
             per_class_counts = {
                 class_name: dict(
                     tp=self._prec_numers[
-                       :, self._class_label_to_idx[class_name]],
+                       :, self.class_label_to_idx[class_name]],
                     tp_plus_fp=self._prec_denoms[
-                               :, self._class_label_to_idx[class_name]],
+                               :, self.class_label_to_idx[class_name]],
                     recall_numerator=reca_numers[
-                                     :, self._class_label_to_idx[class_name]],
+                                     :, self.class_label_to_idx[class_name]],
                     tp_plus_fn=self._reca_denom[
-                        self._class_label_to_idx[class_name]]
+                        self.class_label_to_idx[class_name]]
                 )
-                for class_name, v in zip(self._class_names,
+                for class_name, v in zip(self.class_names,
                                          self._valid_class_mask)
                 if v
             }
