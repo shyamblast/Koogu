@@ -5,7 +5,7 @@ import json
 import logging
 
 from koogu.data import FilenameExtensions, AssetsExtraNames
-from koogu.utils.detections import assess_clips_and_labels_match, \
+from koogu.utils.detections import assess_annotations_and_clips_match, \
     assess_annotations_and_detections_match, postprocess_detections, \
     nonmax_suppress_mask, LabelHelper
 from koogu.utils.filesystem import AudioFileList
@@ -288,7 +288,7 @@ class PrecisionRecall(_Metric):
 
         Other parameters specific to
             - (when post-processing isn't enabled)
-                koogu.utils.detections.assess_clips_and_labels_match()
+                koogu.utils.detections.assess_annotations_and_clips_match()
             - (when post-processing is enabled)
                 koogu.utils.detections.postprocess_detections(), and
                 koogu.utils.detections.assess_annotations_and_detections_match()
@@ -335,18 +335,17 @@ class PrecisionRecall(_Metric):
                     pp_fn_kwargs, match_fn_kwargs, **akwargs)
 
         else:
-            # Match-making function kwargs. Any unspecified parameters will have
-            # same defaults as Process.audio2clips().
-            match_fn_kwargs = {}
-            if 'positive_overlap_threshold' in kwargs:
-                match_fn_kwargs['min_annot_overlap_fraction'] = \
-                    kwargs.pop('positive_overlap_threshold')
-            if 'keep_only_centralized_annots' in kwargs:
-                match_fn_kwargs['keep_only_centralized_annots'] = \
-                    kwargs.pop('keep_only_centralized_annots')
-            if 'negative_overlap_threshold' in kwargs:
-                match_fn_kwargs['max_nonmatch_overlap_fraction'] = \
-                    kwargs.pop('negative_overlap_threshold')
+            # Match-making function kwargs. Any unspecified parameters should
+            # default to (developer to ensure this) those of
+            # koogu.utils.detections.assess_annotations_and_clips_match().
+            match_fn_kwargs = dict(
+                min_annot_overlap_fraction=np.float16(
+                    kwargs.pop('min_annot_overlap_fraction', 1.0)),
+                keep_only_centralized_annots=kwargs.pop(
+                    'keep_only_centralized_annots', False),
+                max_nonmatch_overlap_fraction=np.float16(
+                    kwargs.pop('max_nonmatch_overlap_fraction', 0.0))
+            )
 
             # The post-processing counterpart handles nonmax-suppression within
             # lower-level functions. For this option, we do need to handle it
@@ -494,7 +493,7 @@ class PrecisionRecall(_Metric):
         if suppress_nonmax:     # Set non-max classes' scores to NaN
             scores = np.where(nonmax_suppress_mask(scores), np.nan, scores)
 
-        annots_times_int = np.round(
+        annots_offsets = np.round(
             annots_times * fs).astype(clip_offsets.dtype)
 
         unmatched_annots_mask = \
@@ -503,11 +502,11 @@ class PrecisionRecall(_Metric):
         for ch in channels:
             curr_ch_annots_mask = (annots_channels == ch)
 
-            clip_class_mask, matched_annots_mask = \
-                assess_clips_and_labels_match(
+            clip_class_coverage, matched_annots_mask = \
+                assess_annotations_and_clips_match(
                     clip_offsets, clip_length,
                     self.num_classes,
-                    annots_times_int[curr_ch_annots_mask, :],
+                    annots_offsets[curr_ch_annots_mask, :],
                     annots_class_idxs[curr_ch_annots_mask],
                     negative_class_idx=self.negative_class_idx,
                     **match_fn_kwargs_dict)
@@ -517,9 +516,11 @@ class PrecisionRecall(_Metric):
                 np.where(curr_ch_annots_mask)[0][
                     np.logical_not(matched_annots_mask)]] = True
 
-            clip_class_mask = clip_class_mask[:, self._valid_class_mask]
+            clip_class_coverage = clip_class_coverage[:, self._valid_class_mask]
 
-            gt_mask = (clip_class_mask == 1)
+            gt_mask = (
+                    clip_class_coverage >=
+                    match_fn_kwargs_dict.get('min_annot_overlap_fraction'))
             above_thld_mask = np.stack([
                 (scores[ch, ...][:, self._valid_class_mask] >= th)
                 for th in self._thresholds])
@@ -529,7 +530,12 @@ class PrecisionRecall(_Metric):
             ).sum(axis=1).astype(np.uint)
 
             self._prec_denoms += np.logical_and(
-                above_thld_mask, np.expand_dims(clip_class_mask > 0, axis=0)
+                above_thld_mask, np.expand_dims(
+                    np.logical_or(
+                        gt_mask,    # <- Ts in TPs;    Fs in FPs (below)
+                        clip_class_coverage <= match_fn_kwargs_dict.get(
+                            'max_nonmatch_overlap_fraction')
+                    ), axis=0)
             ).sum(axis=1).astype(np.uint)
 
             self._reca_denom += gt_mask.sum(axis=0).astype(np.uint)

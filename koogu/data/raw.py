@@ -4,7 +4,7 @@ from scipy.signal import butter, sosfiltfilt, spectrogram, lfilter
 from scipy.signal.windows import hann
 import librosa
 import logging
-from koogu.utils.detections import assess_clips_and_labels_match
+from koogu.utils.detections import assess_annotations_and_clips_match
 
 
 class Settings:
@@ -455,10 +455,10 @@ class Process:
     @staticmethod
     def audio2clips(audio_settings, src_file, dst_file,
                     num_classes, annots_times, annots_class_idxs, annots_channels,
-                    negative_class_idx=None,
-                    min_selection_overlap_fraction=1.0,
-                    keep_only_centralized_selections=False, attempt_salvage=False,
-                    max_nonmatch_overlap_fraction=0.0):
+                    min_annot_overlap_fraction=1.0,
+                    negative_class_idx=None, max_nonmatch_overlap_fraction=0.0,
+                    keep_only_centralized_selections=False,
+                    attempt_salvage=False):
         """
         Apply pre-processing (resampling and filtering, as defined) to contents of an audio file, break up the resulting
         time-domain data into fixed-length clips and write the clips to disk.
@@ -474,16 +474,19 @@ class Process:
             to the class corresponding to each annotation. When 'annot_times' is None, this must be a single idx value.
         :param annots_channels: When 'annots_times' is not None, this must be an N-length list of zero-based indices
             to the channels corresponding to each annotation. When 'annot_times' is None, this parameter is ignored.
+        :param min_annot_overlap_fraction: Lower threshold on how much overlap a
+            clip must have with an annotation.
         :param negative_class_idx: If not None, clips that do not have enough overlap with any annotation will be saved
             as clips of the non-target class whose index this parameter specifies.
-        :param min_selection_overlap_fraction: Lower threshold on how much overlap a clip must have with an annotation.
+        :param max_nonmatch_overlap_fraction: A clip without enough overlap with
+            any annotations will be saved (as a negative class clip) only if its
+            overlap with all annotations is less than this amount. This
+            parameter is only used if negative_class_idx is not None.
         :param keep_only_centralized_selections: (Optional) For very short annotations, consider only those overlapping
             clips that have the annotation occurring within the central 50% extents of the clip.
         :param attempt_salvage: (Optional) When enabled, if an annotation didn't have any matching clip due to the
             automatic way of producing clips, attempt will be made to salvage a match by "forming" clips by expanding
             outwards from the mid-epoch of the annotation.
-        :param max_nonmatch_overlap_fraction: A clip without enough overlap will be saved only if it's overlap with any
-            annotation is less than this amount.
 
         :return: A 2-tuple. First value is the number of clips written. Second value is a list of the number of clips
             written per class.
@@ -492,8 +495,10 @@ class Process:
         if annots_times is not None:
             assert annots_times.shape[0] == len(annots_class_idxs)
             assert annots_times.shape[0] == len(annots_channels)
-            assert (0.0 < min_selection_overlap_fraction <= 1.0)
-            assert negative_class_idx is None or (0.0 <= max_nonmatch_overlap_fraction < min_selection_overlap_fraction)
+            assert (0.0 < min_annot_overlap_fraction <= 1.0)
+            assert negative_class_idx is None or \
+                   (0.0 <= max_nonmatch_overlap_fraction <
+                    min_annot_overlap_fraction)
         else:
             assert (not hasattr(annots_class_idxs, '__len__'))
 
@@ -530,50 +535,72 @@ class Process:
                 curr_ch_annots_mask = (annots_channels == ch_idx)
                 curr_ch_annots_class_idxs = annots_class_idxs[curr_ch_annots_mask]
 
-                curr_ch_annots_times_int = np.round(
-                    annots_times[curr_ch_annots_mask, :] * audio_settings.fs).astype(clip_offsets.dtype)
-                annots_num_samps = (curr_ch_annots_times_int[:, 1] - curr_ch_annots_times_int[:, 0]) + 1
+                curr_ch_annots_offsets = np.round(
+                    annots_times[curr_ch_annots_mask, :] * audio_settings.fs
+                ).astype(clip_offsets.dtype)
 
-                ch_clip_class_mask, ch_matched_annots_mask = \
-                    assess_clips_and_labels_match(clip_offsets, num_samps,
-                                                  num_classes, curr_ch_annots_times_int, curr_ch_annots_class_idxs,
-                                                  negative_class_idx,
-                                                  min_selection_overlap_fraction,
-                                                  keep_only_centralized_selections,
-                                                  max_nonmatch_overlap_fraction)
+                ch_clip_class_coverage, ch_matched_annots_mask = \
+                    assess_annotations_and_clips_match(
+                        clip_offsets, num_samps, num_classes,
+                        curr_ch_annots_offsets, curr_ch_annots_class_idxs,
+                        min_annot_overlap_fraction,
+                        keep_only_centralized_selections,
+                        negative_class_idx, max_nonmatch_overlap_fraction)
 
+                # Clips having satisfactory coverage with at least one annot
+                keep_clips_mask = np.any(
+                    ch_clip_class_coverage >= min_annot_overlap_fraction,
+                    axis=1)
                 # Add clips and info to collection
-                keep_clips_mask = np.any(ch_clip_class_mask == 1, axis=1)
-                all_clips.append(clips[keep_clips_mask, :])
-                all_clips_offsets.append(clip_offsets[keep_clips_mask])
-                all_ground_truth.append(
-                    np.where(ch_clip_class_mask[keep_clips_mask, :] == 1, 1.0, 0.0).astype(np.float16))
-                all_clips_channels.append(np.full((keep_clips_mask.sum(), ), ch_idx, dtype=np.uint8))
+                if np.any(keep_clips_mask):
+                    all_clips.append(clips[keep_clips_mask, :])
+                    all_clips_offsets.append(clip_offsets[keep_clips_mask])
+                    all_ground_truth.append(
+                        ch_clip_class_coverage[keep_clips_mask, :].astype(
+                            np.float16))
+                    all_clips_channels.append(
+                        np.full((keep_clips_mask.sum(), ), ch_idx,
+                                dtype=np.uint8))
 
                 # If requested, attempt to salvage any unmatched annotations
-                ch_unmatched_annots_mask = np.logical_not(ch_matched_annots_mask)
+                for_salvage_annot_idxs = np.where(
+                    np.logical_not(ch_matched_annots_mask))[0]
 
-                if attempt_salvage and np.any(ch_unmatched_annots_mask):
-                    salvaged_clips, salvaged_clip_offsets, salvaged_clip_labels, unsalvaged_annots_mask = \
-                        Process._salvage_clips(ch_data, audio_settings, num_samps,
-                                               curr_ch_annots_times_int[ch_unmatched_annots_mask, :],
-                                               annots_num_samps[ch_unmatched_annots_mask],
-                                               curr_ch_annots_class_idxs[ch_unmatched_annots_mask])
+                if attempt_salvage and len(for_salvage_annot_idxs) > 0:
+
+                    salvaged_clips, salvaged_clip_offsets, \
+                        salvaged_clip_class_coverage, salvaged_annots_mask = \
+                        Process._salvage_clips(
+                            ch_data, audio_settings, num_samps, num_classes,
+                            curr_ch_annots_offsets, curr_ch_annots_class_idxs,
+                            min_annot_overlap_fraction,
+                            for_salvage_annot_idxs)
 
                     if salvaged_clips.shape[0] > 0:
-                        salvaged_clips_ground_truth = np.zeros((salvaged_clips.shape[0], num_classes), dtype=np.float16)
-                        # Assign positive labels
-                        for row_idx, col_idx in enumerate(salvaged_clip_labels):
-                            salvaged_clips_ground_truth[row_idx, col_idx] = 1.0
+                        # Clips having satisfactory coverage with >= 1 annot
+                        keep_clips_mask = np.any(
+                            salvaged_clip_class_coverage >=
+                            min_annot_overlap_fraction, axis=1)
+                        # Add clips and info to collection
+                        if np.any(keep_clips_mask):
+                            all_clips.append(salvaged_clips[keep_clips_mask, :])
+                            all_clips_offsets.append(
+                                salvaged_clip_offsets[keep_clips_mask])
+                            all_ground_truth.append(
+                                salvaged_clip_class_coverage[
+                                    keep_clips_mask, :].astype(np.float16))
+                            all_clips_channels.append(
+                                np.full((keep_clips_mask.sum(), ), ch_idx,
+                                        dtype=np.uint8))
 
-                        all_clips.append(salvaged_clips)
-                        all_clips_offsets.append(salvaged_clip_offsets)
-                        all_ground_truth.append(salvaged_clips_ground_truth)
-                        all_clips_channels.append(np.full((salvaged_clips.shape[0], ), ch_idx, dtype=np.uint8))
+                    # Update curr channel annots mask
+                    ch_matched_annots_mask[for_salvage_annot_idxs] = \
+                        salvaged_annots_mask
 
-                        ch_unmatched_annots_mask[ch_unmatched_annots_mask] = unsalvaged_annots_mask   # Update mask
-
-                unmatched_annots_mask[np.where(curr_ch_annots_mask)[0][ch_unmatched_annots_mask]] = True
+                # Update overall mask
+                unmatched_annots_mask[
+                    np.where(curr_ch_annots_mask)[0][
+                        np.logical_not(ch_matched_annots_mask)]] = True
 
             else:
                 curr_ground_truth = np.zeros((num_clips, num_classes), dtype=np.float16)
@@ -595,45 +622,60 @@ class Process:
                     for annot_idx in np.where(unmatched_annots_mask)[0]
                 ])))
 
-        # Save the positive case clips
-        all_ground_truth = np.concatenate(all_ground_truth)
         if len(all_clips) > 0:
-            np.savez_compressed(dst_file, **{
-                'fs': audio_settings.fs,
-                'labels': all_ground_truth,
-                'channels': np.concatenate(all_clips_channels),
-                'clip_offsets': np.concatenate(all_clips_offsets),
-                'clips': Convert.float2pcm(np.concatenate(all_clips), dtype=np.int16),  # Convert to 16-bit PCM
-            })
+            all_ground_truth = Process._adjust_clip_annot_coverage(
+                np.concatenate(all_ground_truth),
+                min_annot_overlap_fraction)
 
-        return all_ground_truth.shape[0], np.sum(all_ground_truth == 1.0, axis=0)
+            # Save the clips & infos
+            np.savez_compressed(
+                dst_file,
+                fs=audio_settings.fs,
+                labels=all_ground_truth,
+                channels=np.concatenate(all_clips_channels),
+                clip_offsets=np.concatenate(all_clips_offsets),
+                clips=Convert.float2pcm(    # Convert to 16-bit PCM
+                    np.concatenate(all_clips), dtype=np.int16))
+
+            return \
+                all_ground_truth.shape[0], \
+                np.sum(all_ground_truth == 1.0, axis=0)
+        else:
+            return 0, np.zeros((num_classes, ), dtype=np.int)
 
     @staticmethod
     def clips2tfrecords():
         pass    # TODO: yet to implement
 
     @staticmethod
-    def _salvage_clips(data, audio_settings, num_samps, annots_times, annots_num_samps, annots_labels):
+    def _salvage_clips(data, audio_settings, clip_len, num_classes,
+                       annots_offsets, annots_class_idxs,
+                       min_annot_overlap_fraction,
+                       unmatched_annots_idxs):
         """Internal function used by Process.audio2clips()"""
 
         salvaged_clips = []
         salvaged_clip_offsets = []
-        salvaged_clip_labels = []
-        unsalvaged_mask = np.full((annots_times.shape[0],), True)
-        half_len = num_samps // 2
+        half_len = clip_len // 2
 
-        for annot_idx, (annot_times, annot_num_samps) in enumerate(zip(annots_times, annots_num_samps)):
+        # Gather clips corresponding to all yet-unmatched annots
+        for l_idx, annot_idx in enumerate(unmatched_annots_idxs):
+            annot_num_samps = (annots_offsets[annot_idx, 1] -
+                               annots_offsets[annot_idx, 0]) + 1
 
-            if annot_num_samps < num_samps:
-                # If annotation is shorter than clip size, then we need to center the annotation within a clip
-                annot_start_samp = annot_times[0] + (annot_num_samps // 2) - half_len
-                annot_end_samp = annot_start_samp + num_samps - 1
+            if annot_num_samps < clip_len:
+                # If annotation is shorter than clip size, then we need to
+                # center the annotation within a clip
+                annot_start_samp = annots_offsets[annot_idx, 0] + \
+                                   (annot_num_samps // 2) - half_len
+                annot_end_samp = annot_start_samp + clip_len - 1
             else:
                 # otherwise, take full annotation extents
-                annot_start_samp, annot_end_samp = annot_times
+                annot_start_samp, annot_end_samp = annots_offsets[annot_idx, :]
 
             short_clips, short_clip_offsets = Audio.buffer_to_clips(
-                data[max(0, annot_start_samp):min(annot_end_samp + 1, len(data))],
+                data[max(0, annot_start_samp):min(annot_end_samp + 1,
+                                                  len(data))],
                 audio_settings.clip_length, audio_settings.clip_advance,
                 normalize_clips=audio_settings.normalize_clips,
                 consider_trailing_clip=audio_settings.consider_trailing_clip,
@@ -641,18 +683,40 @@ class Process:
 
             if short_clips.shape[0] > 0:
                 salvaged_clips.append(short_clips)
-                salvaged_clip_offsets.append(short_clip_offsets + annot_start_samp)
-                salvaged_clip_labels = salvaged_clip_labels + ([annots_labels[annot_idx]] * short_clips.shape[0])
-                unsalvaged_mask[annot_idx] = False  # mark as "salvaged"
+                salvaged_clip_offsets.append(short_clip_offsets +
+                                             annot_start_samp)
 
         if len(salvaged_clips) > 0:
+            salvaged_clip_offsets = np.concatenate(salvaged_clip_offsets,
+                                                   axis=0)
+            clip_class_coverage, matched_annots_mask = \
+                assess_annotations_and_clips_match(
+                    salvaged_clip_offsets, clip_len, num_classes,
+                    annots_offsets, annots_class_idxs,
+                    min_annot_overlap_fraction,
+                    False, None)
+
             return np.concatenate(salvaged_clips, axis=0), \
-                   np.concatenate(salvaged_clip_offsets, axis=0), \
-                   salvaged_clip_labels, \
-                   unsalvaged_mask
+                salvaged_clip_offsets, \
+                clip_class_coverage, \
+                matched_annots_mask[unmatched_annots_idxs]
+
         else:
             # Nothing could be salvaged, return empty containers
-            return np.zeros((0, num_samps), dtype=data.dtype), \
+            return np.zeros((0, clip_len), dtype=data.dtype), \
                    np.zeros((0,), dtype=np.int), \
-                   salvaged_clip_labels, \
-                   unsalvaged_mask
+                   np.zeros((0, num_classes), dtype=np.float16), \
+                   np.full((len(unmatched_annots_idxs), ), False, dtype=np.bool)
+
+    @staticmethod
+    def _adjust_clip_annot_coverage(coverage, upper_thld, lower_thld_frac=1/3):
+        # Adjust "coverage":
+        #  force values >= upper_thld to 1.0
+        #  retain remaining values >= (lower_thld_frac * upper_thld) as is
+        #  force all other small values to 0.0
+        return np.select(
+            [coverage >= upper_thld,
+             coverage >= upper_thld * lower_thld_frac],
+            [1.0, coverage],
+            default=0.0
+        )
