@@ -6,12 +6,12 @@ import os
 
 
 class BaseArchitecture(metaclass=abc.ABCMeta):
-    def __init__(self, is_2d=True, multilabel=False, dtype=None, name=None):
+    def __init__(self, is_2d=True, multilabel=True, dtype=None, name=None):
         """
 
         :param is_2d: (bool; default:True) Set to True for spectrogram-like
             inputs, and to False for waveform-like (time-domain) inputs.
-        :param multilabel: (bool; default:False) Set appropriately so that the
+        :param multilabel: (bool; default: True) Set appropriately so that the
             loss function and accuracy metrics can be chosen correctly during
             training.
         :param dtype: Tensorflow data type of the model's weights (default:
@@ -98,7 +98,7 @@ class KooguArchitectureBase(BaseArchitecture):
     """
 
     def __init__(self, arch_config,
-                 is_2d=True, multilabel=False, dtype=None, name=None,
+                 is_2d=True, multilabel=True, dtype=None, name=None,
                  **kwargs):
         super(KooguArchitectureBase, self).__init__(
             is_2d, multilabel, dtype, name)
