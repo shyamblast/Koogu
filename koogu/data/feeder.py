@@ -60,6 +60,44 @@ class BaseFeeder(metaclass=abc.ABCMeta):
             'transform() method not implemented in derived class')
 
     @abc.abstractmethod
+    def pre_transform(self, sample, label, is_training, **kwargs):
+        """
+        This function must be implemented in the derived class.
+        It should contain logic to apply any pre-transformation augmentations to
+        a single input to the model (during training and validation) and is
+        invoked by the make_dataset() method.
+
+        :param sample: The untransformed sample to which to apply augmentations.
+        :param label: The class info pertaining to 'sample'.
+        :param is_training: Boolean, indicating if operating in training mode.
+        :param kwargs: Any additional parameters.
+
+        :return: A 2-tuple containing transformed sample and label.
+        """
+
+        raise NotImplementedError(
+            'transform() method not implemented in derived class')
+
+    @abc.abstractmethod
+    def post_transform(self, sample, label, is_training, **kwargs):
+        """
+        This function must be implemented in the derived class.
+        It should contain logic to apply any post-transformation augmentations
+        to a single input to the model (during training and validation) and is
+        invoked by the make_dataset() method.
+
+        :param sample: The transformed sample to which to apply augmentations.
+        :param label: The class info pertaining to 'sample'.
+        :param is_training: Boolean, indicating if operating in training mode.
+        :param kwargs: Any additional parameters.
+
+        :return: A 2-tuple containing transformed sample and label.
+        """
+
+        raise NotImplementedError(
+            'transform() method not implemented in derived class')
+
+    @abc.abstractmethod
     def make_dataset(self, is_training, batch_size, **kwargs):
         """
         This function must be implemented in the derived class.
@@ -85,6 +123,14 @@ class BaseFeeder(metaclass=abc.ABCMeta):
 
         return self.make_dataset(is_training, batch_size, **kwargs)
 
+    def _apply_augmentations_and_transformations(
+            self, sample, label, is_training, **kwargs):
+        s_out, l_out = self.pre_transform(sample, label, is_training, **kwargs)
+        s_out, l_out = self.transform(s_out, l_out, is_training, **kwargs)
+        s_out, l_out = self.post_transform(s_out, l_out, is_training, **kwargs)
+
+        return s_out, l_out
+
     def _queue_and_batch(self, dataset, is_training, batch_size, **kwargs):
         """Boilerplate caching, queueing and batching functionality."""
 
@@ -109,8 +155,10 @@ class BaseFeeder(metaclass=abc.ABCMeta):
                                       reshuffle_each_iteration=True)
 
         # Apply the transformation operation(s)
-        dataset = dataset.map(lambda x, y: self.transform(x, y, is_training),
-                              num_parallel_calls=num_threads)
+        dataset = dataset.map(
+            lambda x, y: self._apply_augmentations_and_transformations(
+                x, y, is_training),
+            num_parallel_calls=num_threads)
 
         dataset = dataset.batch(batch_size)
         dataset = dataset.prefetch(num_prefetch_batches)
@@ -212,6 +260,14 @@ class DataFeeder(BaseFeeder):
             **kwargs)
 
     def transform(self, sample, label, is_training, **kwargs):
+        # Pass as-is, nothing to do
+        return sample, label
+
+    def pre_transform(self, sample, label, is_training, **kwargs):
+        # Pass as-is, nothing to do
+        return sample, label
+
+    def post_transform(self, sample, label, is_training, **kwargs):
         # Pass as-is, nothing to do
         return sample, label
 
@@ -428,8 +484,7 @@ class SpectralDataFeeder(DataFeeder):
     """
     def __init__(self, data_dir, fs, spec_settings, **kwargs):
 
-        super(SpectralDataFeeder, self).__init__(
-            data_dir, **kwargs)
+        super(SpectralDataFeeder, self).__init__(data_dir, **kwargs)
 
         self._transformation = Audio2Spectral(fs, spec_settings)
 
@@ -443,8 +498,7 @@ class SpectralDataFeeder(DataFeeder):
 
         # Normalize the waveforms
         output = output - tf.reduce_mean(output, axis=-1, keepdims=True)
-        output = output / \
-            tf.reduce_max(tf.abs(output), axis=-1, keepdims=True)
+        output = output / tf.reduce_max(tf.abs(output), axis=-1, keepdims=True)
 
         # Convert to spectrogram
         output = self._transformation(output)
