@@ -18,7 +18,8 @@ from koogu.utils import instantiate_logging
 from koogu.utils.detections import SelectionTableReader, LabelHelper
 from koogu.utils.terminal import ArgparseConverters
 from koogu.utils.config import Config, ConfigError, datasection2dict, log_config
-from koogu.utils.filesystem import restrict_classes_with_whitelist_file, AudioFileList, recursive_listing
+from koogu.utils.filesystem import restrict_classes_with_whitelist_file, \
+    AudioFileList, recursive_listing
 
 _program_name = 'prepare_data'
 
@@ -61,6 +62,10 @@ def from_selection_table_map(audio_settings, audio_seltab_list,
         match any annotations). If None (default), saving of negative class
         clips will be disabled.
 
+    Other parameters specific to
+    koogu.utils.detections.assess_annotations_and_clips_match()
+    can also be specified, and will be passed as-is to the function.
+
     :return: A dictionary whose keys are annotation tags (either discovered from
         the set of annotations, or same as desired_labels if not None) and the
         values are the number of clips produced for the corresponding class.
@@ -70,44 +75,77 @@ def from_selection_table_map(audio_settings, audio_seltab_list,
 
     # Discard invalid entries, if any
     valid_entries_mask = [
-        (_validate_seltab_filemap_lhs(audio_root, lhs) and _validate_seltab_filemap_rhs(seltab_root, rhs))
+        (_validate_seltab_filemap_lhs(audio_root, lhs) and
+         _validate_seltab_filemap_rhs(seltab_root, rhs))
         for (lhs, rhs) in audio_seltab_list]
-    for entry in (e for e, e_mask in zip(audio_seltab_list, valid_entries_mask) if not e_mask):
+    for entry in (e for e, e_mask in zip(audio_seltab_list, valid_entries_mask)
+                  if not e_mask):
         logger.error('Entry ({:s},{:s}) is invalid. Skipping...'.format(*entry))
     if sum(valid_entries_mask) == 0:
         print('Nothing to process')
-        return
+        return {}
 
     classes_n_counts = annot_classes_and_counts(
         seltab_root,
-        [e[-1] for e, e_mask in zip(audio_seltab_list, valid_entries_mask) if e_mask],
-        **({'num_threads': kwargs['num_threads']} if 'num_threads' in kwargs else {}))
+        [e[-1] for e, e_mask in zip(audio_seltab_list, valid_entries_mask)
+         if e_mask],
+        **({'num_threads': kwargs['num_threads']} if 'num_threads' in kwargs
+           else {})
+    )
 
     logger.info('  {:<55s} - {:>5s}'.format('Class', 'Annotations'))
     logger.info('  {:<55s}   {:>5s}'.format('-----', '-----------'))
     for class_name in sorted(classes_n_counts.keys()):
-        logger.info('  {:<55s} - {:>5d}'.format(class_name, classes_n_counts[class_name]))
+        logger.info('  {:<55s} - {:>5d}'.format(class_name,
+                                                classes_n_counts[class_name]))
 
     ig_kwargs = {}      # Undocumented settings
     if negative_class_label is not None:
         if 'ignore_zero_annot_files' in kwargs:
-            ig_kwargs['ignore_zero_annot_files'] = kwargs.pop('ignore_zero_annot_files')
+            ig_kwargs['ignore_zero_annot_files'] = \
+                kwargs.pop('ignore_zero_annot_files')
         if 'filetypes' in kwargs:
             ig_kwargs['filetypes'] = kwargs.pop('filetypes')
     input_generator = AudioFileList.from_annotations(
-        [e for e, e_mask in zip(audio_seltab_list, valid_entries_mask) if e_mask],
+        [e for e, e_mask in zip(audio_seltab_list, valid_entries_mask)
+         if e_mask],
         audio_root, seltab_root,
-        show_progress=kwargs.pop('show_progress') if 'show_progress' in kwargs else False,
+        show_progress=kwargs.pop('show_progress', False),
         **ig_kwargs)
 
     # Re-map parameter names and add defaults for any missing ones
     if 'positive_overlap_threshold' in kwargs:
-        kwargs['min_selection_overlap_fraction'] = kwargs.pop('positive_overlap_threshold')
-    if 'negative_overlap_threshold' in kwargs:
-        if negative_class_label:
-            kwargs['max_nonmatch_overlap_fraction'] = kwargs.pop('negative_overlap_threshold')
+        if 'min_annot_overlap_fraction' in kwargs:
+            kwargs.pop('positive_overlap_threshold')
+            warnings.showwarning(
+                'Parameter \'positive_overlap_threshold\' is deprecated and ' +
+                'will be removed in the future. Ignoring the parameter since ' +
+                '\'min_annot_overlap_fraction\' is also specified.',
+                DeprecationWarning, 'prepare_data.py', '')
         else:
+            kwargs['min_annot_overlap_fraction'] = \
+                np.float16(kwargs.pop('positive_overlap_threshold'))
+            warnings.showwarning(
+                'Parameter \'positive_overlap_threshold\' is deprecated and ' +
+                'will be removed in the future. Use ' +
+                '\'min_annot_overlap_fraction\' instead.',
+                DeprecationWarning, 'prepare_data.py', '')
+    if 'negative_overlap_threshold' in kwargs:
+        if 'max_nonmatch_overlap_fraction' in kwargs:
             kwargs.pop('negative_overlap_threshold')
+            warnings.showwarning(
+                'Parameter \'negative_overlap_threshold\' is deprecated and ' +
+                'will be removed in the future. Ignoring the parameter since ' +
+                '\'max_nonmatch_overlap_fraction\' is also specified.',
+                DeprecationWarning, 'prepare_data.py', '')
+        else:
+            kwargs['max_nonmatch_overlap_fraction'] = \
+                np.float16(kwargs.pop('negative_overlap_threshold'))
+            warnings.showwarning(
+                'Parameter \'negative_overlap_threshold\' is deprecated and ' +
+                'will be removed in the future. Use ' +
+                '\'max_nonmatch_overlap_fraction\' instead.',
+                DeprecationWarning, 'prepare_data.py', '')
 
     return _batch_process(
         audio_settings,
@@ -127,11 +165,13 @@ def from_top_level_dirs(audio_settings, class_dirs,
     """
     Prepare training data using audio files in 'class_dirs'.
 
-    :param audio_settings: A dictionary specifying the parameters for processing audio from files.
-    :param class_dirs: A list containing relative paths to class-specific directories containing audio files. Each
-        directory's contents will be recursively searched for audio files.
-    :param audio_root: The full paths of the class-specific directories listed in 'class_dirs' are resolved using this
-        as the base directory.
+    :param audio_settings: A dictionary specifying the parameters for processing
+        audio from files.
+    :param class_dirs: A list containing relative paths to class-specific
+        directories containing audio files. Each directory's contents will be
+        recursively searched for audio files.
+    :param audio_root: The full paths of the class-specific directories listed
+        in 'class_dirs' are resolved using this as the base directory.
     :param output_root: "Prepared" data will be written to this directory.
     :param remap_labels_dict: If not None, must be a dictionary describing
         mapping of class labels. Use this to update existing class' labels (e.g.
@@ -139,28 +179,30 @@ def from_top_level_dirs(audio_settings, class_dirs,
         {'c4': 'c1'}), and/or to combine existing classes into new ones (e.g.
         {'c4': 'new_c2', 'c23', 'new_c2'}). Avoid chaining of mappings (e.g.
         {'c1': 'c2', 'c2': 'c3'}).
-    :param filetypes: (optional) Restrict listing to files matching extensions specified in this parameter. Has defaults
-        if unspecified.
+    :param filetypes: (optional) Restrict listing to files matching extensions
+        specified in this parameter. Has defaults if unspecified.
 
-    :return: A dictionary whose keys are annotation tags (discovered from the set of annotations) and the values are the
-        number of clips produced for the corresponding class.
+    :return: A dictionary whose keys are annotation tags (discovered from the
+        set of annotations) and the values are the number of clips produced for
+        the corresponding class.
     """
 
     logger = logging.getLogger(__name__)
 
-    file_types = kwargs.pop('filetypes') if 'filetypes' in kwargs else AudioFileList.default_audio_filetypes
+    file_types = kwargs.pop('filetypes', AudioFileList.default_audio_filetypes)
 
     logger.info('  {:<55s} - {:>5s}'.format('Class', 'Files'))
     logger.info('  {:<55s}   {:>5s}'.format('-----', '-----'))
     for class_name in class_dirs:
         count = 0
-        for _ in recursive_listing(os.path.join(audio_root, class_name), file_types):
+        for _ in recursive_listing(os.path.join(audio_root, class_name),
+                                   file_types):
             count += 1
         logger.info('  {:<55s} - {:>5d}'.format(class_name, count))
 
     input_generator = AudioFileList.from_directories(
         audio_root, class_dirs, file_types,
-        show_progress=kwargs.pop('show_progress') if 'show_progress' in kwargs else False)
+        show_progress=kwargs.pop('show_progress', False))
 
     return _batch_process(
         audio_settings, class_dirs, input_generator,
@@ -170,7 +212,10 @@ def from_top_level_dirs(audio_settings, class_dirs,
 
 
 def _batch_process_wrapper(func):
-    """Logs the running time of _batch_process() and its outputs, and saves classes list."""
+    """
+    Logs the running time of _batch_process() and its outputs, and saves classes
+    list.
+    """
     @functools.wraps(func)
     def wrapper_timer(*args, **kwargs):
 
@@ -206,15 +251,17 @@ def _batch_process(audio_settings, class_list, input_generator,
                    audio_root, dest_root,
                    desired_labels=None,
                    remap_labels_dict=None,
-                   negative_class_label=None,  # If not None, will mean that we'll be saving seltab negatives
+                   negative_class_label=None,
                    **kwargs):
+    # If not None, will mean that we'll be saving seltab negatives
 
     logger = logging.getLogger(__name__)
 
     # Warn about existing output directory
     if os.path.exists(dest_root) and os.path.isdir(dest_root):
-        warnings.showwarning('Output directory {:s} already exists. Contents may get overwritten'.format(dest_root),
-                             Warning, _program_name, '')
+        warnings.showwarning(
+            f'Output directory {dest_root} already exists. Contents may get ' +
+            'overwritten.', Warning, _program_name, '')
 
     if not os.path.exists(dest_root):
         os.makedirs(dest_root, exist_ok=True)
@@ -233,11 +280,14 @@ def _batch_process(audio_settings, class_list, input_generator,
     # List of desired and 'to be mapped' labels
     valid_classes = [lbl for lbl in label_helper.labels_to_indices.keys()]
 
-    def handle_outcome(future_h, a_file, num_annots):   # internal use utility function
+    def handle_outcome(future_h, a_file, num_annots):
+        # internal use utility function
         try:
             file_num_clips, file_per_class_clip_counts = future_h.result()
         except Exception as ho_exc:
-            logger.error('Processing file {:s} generated an exception: {:s}'.format(repr(audio_file), repr(ho_exc)))
+            logger.error(
+                'Processing file {:s} generated an exception: {:s}'.format(
+                    repr(audio_file), repr(ho_exc)))
         else:
             if num_annots is not None:   # Seltabs were available
                 if label_helper.negative_class_index is not None:
@@ -255,9 +305,9 @@ def _batch_process(audio_settings, class_list, input_generator,
                 per_class_clip_counts[c] += ci
 
     file_min_dur = float(audio_settings.clip_length) / float(audio_settings.fs)     # Set to clip duration
-    file_max_dur = kwargs.pop('max_file_duration') if 'max_file_duration' in kwargs else np.inf
+    file_max_dur = kwargs.pop('max_file_duration', np.inf)
 
-    num_workers = kwargs.pop('num_threads') if 'num_threads' in kwargs else os.cpu_count()
+    num_workers = kwargs.pop('num_threads', os.cpu_count() or 1)
     futures_dict = {}
     # Keep up to 3 * num_workers in futures_dict so that in cases where there are very many files to process, the size
     # of futures_dict (and in turn the queuing mechanism in concurrent.futures) doesn't end up hindering memory use.
@@ -270,7 +320,8 @@ def _batch_process(audio_settings, class_list, input_generator,
             # If file is too short or too long, discard and continue to next
             file_dur = librosa.get_duration(filename=audio_file_fullpath)
             if not (file_min_dur < file_dur <= file_max_dur):
-                logger.warning('%s: duration = %f s. Ignoring.', repr(audio_file_fullpath), file_dur)
+                logger.warning('%s: duration = %f s. Ignoring.',
+                               repr(audio_file_fullpath), file_dur)
                 continue
 
             # Derive destination paths. Create directories as necessary
@@ -297,12 +348,12 @@ def _batch_process(audio_settings, class_list, input_generator,
 
             # Build dictionary of args for Process.audio2clips()
             a2c_kwargs = {**kwargs}     # copy remaining unpopped kwargs
-            if annots_times is None:        # invoked by from_top_level_dirs()
+            if annots_times is None:     # invoked by from_top_level_dirs()
                 a2c_kwargs['annots_times'] = None
                 a2c_kwargs['annots_class_idxs'] = \
                     label_helper.labels_to_indices[annots_labels]
                 a2c_kwargs['annots_channels'] = None
-            else:                           # invoked by from_selection_table_map()
+            else:                        # invoked by from_selection_table_map()
                 a2c_kwargs['annots_times'] = annots_times
                 a2c_kwargs['annots_class_idxs'] = np.asarray([
                     label_helper.labels_to_indices[c] for c in annots_labels])
@@ -351,7 +402,8 @@ def annot_classes_and_counts(seltab_root, annot_files, **kwargs):
     """
 
     logger = logging.getLogger(__name__)
-    num_workers = kwargs['num_threads'] if 'num_threads' in kwargs else max(1, os.cpu_count() - 1)
+    num_workers = kwargs['num_threads'] if 'num_threads' in kwargs else \
+        max(1, os.cpu_count() - 1)
 
     filespec = [
         ('Tags', str),
@@ -359,7 +411,8 @@ def annot_classes_and_counts(seltab_root, annot_files, **kwargs):
         ('End Time (s)', float)]
 
     # Discard invalid entries, if any
-    valid_entries_mask = [_validate_seltab_filemap_rhs(seltab_root, rhs) for rhs in annot_files]
+    valid_entries_mask = [_validate_seltab_filemap_rhs(seltab_root, rhs)
+                          for rhs in annot_files]
 
     if seltab_root is None:
         full_path = lambda x: x
