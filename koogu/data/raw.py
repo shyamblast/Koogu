@@ -568,15 +568,20 @@ class Process:
 
                 if attempt_salvage and len(for_salvage_annot_idxs) > 0:
 
-                    salvaged_clips, salvaged_clip_offsets, \
-                        salvaged_clip_class_coverage, salvaged_annots_mask = \
+                    salvaged_clips, salvaged_clip_offsets = \
                         Process._salvage_clips(
-                            ch_data, audio_settings, num_samps, num_classes,
-                            curr_ch_annots_offsets, curr_ch_annots_class_idxs,
-                            min_annot_overlap_fraction,
-                            for_salvage_annot_idxs)
+                            ch_data, audio_settings, num_samps,
+                            curr_ch_annots_offsets[for_salvage_annot_idxs, :])
 
                     if salvaged_clips.shape[0] > 0:
+                        salvaged_clip_class_coverage, s_matched_annots_mask = \
+                            assess_annotations_and_clips_match(
+                                salvaged_clip_offsets, num_samps, num_classes,
+                                curr_ch_annots_offsets,
+                                curr_ch_annots_class_idxs,
+                                min_annot_overlap_fraction,
+                                keep_only_centralized_selections, None)
+
                         # Clips having satisfactory coverage with >= 1 annot
                         keep_clips_mask = np.any(
                             salvaged_clip_class_coverage >=
@@ -593,9 +598,9 @@ class Process:
                                 np.full((keep_clips_mask.sum(), ), ch_idx,
                                         dtype=np.uint8))
 
-                    # Update curr channel annots mask
-                    ch_matched_annots_mask[for_salvage_annot_idxs] = \
-                        salvaged_annots_mask
+                        # Update curr channel annots mask
+                        ch_matched_annots_mask[for_salvage_annot_idxs] = \
+                            s_matched_annots_mask[for_salvage_annot_idxs]
 
                 # Update overall mask
                 unmatched_annots_mask[
@@ -648,10 +653,8 @@ class Process:
         pass    # TODO: yet to implement
 
     @staticmethod
-    def _salvage_clips(data, audio_settings, clip_len, num_classes,
-                       annots_offsets, annots_class_idxs,
-                       min_annot_overlap_fraction,
-                       unmatched_annots_idxs):
+    def _salvage_clips(data, audio_settings, clip_len,
+                       unmatched_annots_offsets):
         """Internal function used by Process.audio2clips()"""
 
         salvaged_clips = []
@@ -659,19 +662,20 @@ class Process:
         half_len = clip_len // 2
 
         # Gather clips corresponding to all yet-unmatched annots
-        for l_idx, annot_idx in enumerate(unmatched_annots_idxs):
-            annot_num_samps = (annots_offsets[annot_idx, 1] -
-                               annots_offsets[annot_idx, 0]) + 1
+        for annot_idx in range(unmatched_annots_offsets.shape[0]):
+            annot_num_samps = (unmatched_annots_offsets[annot_idx, 1] -
+                               unmatched_annots_offsets[annot_idx, 0]) + 1
 
             if annot_num_samps < clip_len:
                 # If annotation is shorter than clip size, then we need to
                 # center the annotation within a clip
-                annot_start_samp = annots_offsets[annot_idx, 0] + \
+                annot_start_samp = unmatched_annots_offsets[annot_idx, 0] + \
                                    (annot_num_samps // 2) - half_len
                 annot_end_samp = annot_start_samp + clip_len - 1
             else:
                 # otherwise, take full annotation extents
-                annot_start_samp, annot_end_samp = annots_offsets[annot_idx, :]
+                annot_start_samp, annot_end_samp = \
+                    unmatched_annots_offsets[annot_idx, :]
 
             short_clips, short_clip_offsets = Audio.buffer_to_clips(
                 data[max(0, annot_start_samp):min(annot_end_samp + 1,
@@ -687,26 +691,13 @@ class Process:
                                              annot_start_samp)
 
         if len(salvaged_clips) > 0:
-            salvaged_clip_offsets = np.concatenate(salvaged_clip_offsets,
-                                                   axis=0)
-            clip_class_coverage, matched_annots_mask = \
-                assess_annotations_and_clips_match(
-                    salvaged_clip_offsets, clip_len, num_classes,
-                    annots_offsets, annots_class_idxs,
-                    min_annot_overlap_fraction,
-                    False, None)
-
             return np.concatenate(salvaged_clips, axis=0), \
-                salvaged_clip_offsets, \
-                clip_class_coverage, \
-                matched_annots_mask[unmatched_annots_idxs]
+                np.concatenate(salvaged_clip_offsets, axis=0)
 
         else:
             # Nothing could be salvaged, return empty containers
             return np.zeros((0, clip_len), dtype=data.dtype), \
-                   np.zeros((0,), dtype=np.int), \
-                   np.zeros((0, num_classes), dtype=np.float16), \
-                   np.full((len(unmatched_annots_idxs), ), False, dtype=np.bool)
+                np.zeros((0,), dtype=np.int)
 
     @staticmethod
     def _adjust_clip_annot_coverage(coverage, upper_thld, lower_thld_frac=1/3):
