@@ -649,10 +649,6 @@ class Process:
             return 0, np.zeros((num_classes, ), dtype=np.int)
 
     @staticmethod
-    def clips2tfrecords():
-        pass    # TODO: yet to implement
-
-    @staticmethod
     def _salvage_clips(data, audio_settings, clip_len,
                        unmatched_annots_offsets):
         """Internal function used by Process.audio2clips()"""

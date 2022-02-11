@@ -4,8 +4,7 @@ import json
 import numpy as np
 import tensorflow as tf
 
-from koogu.data import DatasetDigest, DirectoryNames, \
-    AssetsExtraNames, FilenameExtensions, tfrecord_helper
+from koogu.data import AssetsExtraNames, FilenameExtensions
 from koogu.data.raw import Convert
 from koogu.data.tf_transformations import Audio2Spectral
 from koogu.utils.filesystem import recursive_listing
@@ -422,107 +421,6 @@ class DataFeeder(BaseFeeder):
                        np.float32)
 
 
-class TFRecordFeeder(BaseFeeder):
-    """
-    A class for loading records from TFRecords files and feeding them into the
-    training/evaluation pipeline.
-    """
-
-    def __init__(self, data_dir, **kwargs):
-        """
-        :param data_dir: Directory in which the TFRecord files are available.
-        """
-
-        if any([
-            not os.path.exists(data_dir),
-            not os.path.exists(os.path.join(data_dir, DirectoryNames.TRAIN)),
-            not os.path.exists(os.path.join(data_dir, DirectoryNames.EVAL))
-        ]) or DatasetDigest.GetNumClasses(data_dir) is None:
-            raise ValueError('Invalid data directory: {:s}'.format(
-                repr(data_dir)))
-
-        self._data_dir = data_dir
-
-        # Hidden setting; default to what's best for the data
-        if 'tfrecord_handler' in kwargs:
-            self._tfrecord_handler = kwargs.pop('tfrecord_handler')
-        else:
-            ndim = DatasetDigest.GetDataShape(data_dir).shape[0]
-            if ndim == 1:  # waveforms
-                self._tfrecord_handler = \
-                    tfrecord_helper.WaveformTFRecordHandler()
-            else:   # time-freq representation; assuming 2D if it wasn't 1D
-                self._tfrecord_handler = \
-                    tfrecord_helper.SpectrogramTFRecordHandler()
-
-        self._in_shape = DatasetDigest.GetDataShape(data_dir).tolist()
-
-        # Load some dataset info & initialize the base class
-        train_eval_samples = \
-            DatasetDigest.GetPerClassAndGroupSpecCounts(data_dir)[:, :2]
-        super(TFRecordFeeder, self).__init__(
-            self._in_shape,
-            train_eval_samples[:, 0],
-            train_eval_samples[:, 1],
-            DatasetDigest.GetOrderedClassList(data_dir),
-            **kwargs)
-
-    def transform(self, sample, label, is_training, **kwargs):
-        # Pass as-is, nothing to do
-        return sample, tf.one_hot(label, self.num_classes)
-
-    def make_dataset(self, is_training, batch_size, **kwargs):
-        """
-        *** Do not call this directly ***
-
-        :param is_training: (bool)
-        :param batch_size: (int)
-        :param num_prefetch_batches: (optional) Number of prefetch batches.
-            Generally tied to the number of GPUs. (default is 1)
-        :param num_threads: (optional, int) Number of parallel read/transform
-            threads. Generally tied to number of CPUs (default if unspecified)
-        :param queue_capacity: (optional, int)
-        :param cache: (optional, bool, default: False) Cache loaded TFRecords
-        """
-
-        num_threads = \
-            kwargs.get('num_threads',
-                       len(os.sched_getaffinity(0)))  # Default to num. CPUs
-
-        # Read in the list of TFRecord files
-        filenames = tf.io.gfile.glob(
-            os.path.join(self._data_dir,
-                         DirectoryNames.TRAIN if is_training
-                         else DirectoryNames.EVAL,
-                         '*-*_*{:s}'.format(FilenameExtensions.tfrecord)))
-        # print('{:d} {:s} TFRecord files'.format(
-        #     len(filenames), 'training' if is_training else 'validation'))
-
-        interleave_cycle_length = min(num_threads, len(filenames))
-
-        # Create a dataset of available TFRecord files
-        record_fileset = tf.data.Dataset.from_tensor_slices(filenames)
-
-        # Fetch TFRecords in parallel
-        dataset = record_fileset.interleave(
-            lambda tfr_file: tf.data.TFRecordDataset(tfr_file).map(
-                lambda record: self._parse_and_convert(record)),
-            cycle_length=interleave_cycle_length,
-            num_parallel_calls=interleave_cycle_length)
-
-        return self._queue_and_batch(dataset, is_training, batch_size,
-                                     **kwargs)
-
-    def _parse_and_convert(self, record):
-
-        data, label = self._tfrecord_handler.parse_record(record)
-
-        data = tf.reshape(data, self._in_shape)
-        label = tf.cast(label, tf.int32)
-
-        return data, label
-
-
 class SpectralDataFeeder(DataFeeder):
     """
     A handy data feeder, which normalizes and converts raw audio to
@@ -552,40 +450,6 @@ class SpectralDataFeeder(DataFeeder):
         output = self._transformation(output)
 
         return output, label
-
-    def get_shape_transformation_info(self):
-        return self._in_shape, self._transformation
-
-
-class SpectralTFRecordFeeder(TFRecordFeeder):
-    """
-    A handy TFRecord feeder, which normalizes and converts raw audio to
-    time-frequency format.
-    """
-    def __init__(self, data_dir, fs, spec_settings, **kwargs):
-
-        super(SpectralTFRecordFeeder, self).__init__(
-            data_dir, **kwargs)
-
-        self._transformation = Audio2Spectral(fs, spec_settings)
-
-        # Update to what the transformed output shape would be
-        self._shape = self._transformation.compute_output_shape(
-            [1] + self._in_shape)[1:]
-
-    def transform(self, clip, label, is_training, **kwargs):
-
-        output = clip
-
-        # Normalize the waveforms
-        output = output - tf.reduce_mean(output, axis=-1, keepdims=True)
-        output = output / \
-            tf.reduce_max(tf.abs(output), axis=-1, keepdims=True)
-
-        # Convert to spectrogram
-        output = self._transformation(output)
-
-        return output, tf.one_hot(label, self.num_classes)
 
     def get_shape_transformation_info(self):
         return self._in_shape, self._transformation

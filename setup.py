@@ -19,7 +19,6 @@ setup(
     python_requires='>=3.6.0',
     install_requires=[
         'numpy',
-        'h5py',
         'scipy',
         'librosa',
         #'tensorflow-gpu>=2.4'
