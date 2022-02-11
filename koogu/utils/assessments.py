@@ -3,6 +3,7 @@ import abc
 import numpy as np
 import json
 import logging
+import warnings
 
 from koogu.data import FilenameExtensions, AssetsExtraNames
 from koogu.utils.detections import assess_annotations_and_clips_match, \
@@ -335,17 +336,51 @@ class PrecisionRecall(_Metric):
                     pp_fn_kwargs, match_fn_kwargs, **akwargs)
 
         else:
-            # Match-making function kwargs. Any unspecified parameters should
-            # default to (developer to ensure this) those of
+            # Match-making function kwargs. Any unspecified parameters would
+            # default to those of
             # koogu.utils.detections.assess_annotations_and_clips_match().
-            match_fn_kwargs = dict(
-                min_annot_overlap_fraction=np.float16(
-                    kwargs.pop('min_annot_overlap_fraction', 1.0)),
-                keep_only_centralized_annots=kwargs.pop(
-                    'keep_only_centralized_annots', False),
-                max_nonmatch_overlap_fraction=np.float16(
-                    kwargs.pop('max_nonmatch_overlap_fraction', 0.0))
-            )
+            match_fn_kwargs = {}
+            if 'min_annot_overlap_fraction' in kwargs:
+                match_fn_kwargs['min_annot_overlap_fraction'] = \
+                    np.float16(kwargs.pop('min_annot_overlap_fraction'))
+                if 'positive_overlap_threshold' in kwargs:
+                    kwargs.pop('positive_overlap_threshold')
+                    warnings.showwarning(
+                        'Parameter \'positive_overlap_threshold\' is deprecated'
+                        + ' and will be removed in the future. Ignoring the ' +
+                        'parameter since \'min_annot_overlap_fraction\' is ' +
+                        'also specified.',
+                        DeprecationWarning, 'assessments.py', '')
+            elif 'positive_overlap_threshold' in kwargs:
+                match_fn_kwargs['min_annot_overlap_fraction'] = \
+                    np.float16(kwargs.pop('positive_overlap_threshold'))
+                warnings.showwarning(
+                    'Parameter \'positive_overlap_threshold\' is deprecated ' +
+                    'and will be removed in the future. Use ' +
+                    '\'min_annot_overlap_fraction\' instead.',
+                    DeprecationWarning, 'assessments.py', '')
+            if 'keep_only_centralized_annots' in kwargs:
+                match_fn_kwargs['keep_only_centralized_annots'] = \
+                    kwargs.pop('keep_only_centralized_annots')
+            if 'max_nonmatch_overlap_fraction' in kwargs:
+                match_fn_kwargs['max_nonmatch_overlap_fraction'] = \
+                    np.float16(kwargs.pop('max_nonmatch_overlap_fraction'))
+                if 'negative_overlap_threshold' in kwargs:
+                    kwargs.pop('negative_overlap_threshold')
+                    warnings.showwarning(
+                        'Parameter \'negative_overlap_threshold\' is deprecated'
+                        + ' and will be removed in the future. Ignoring the ' +
+                        'parameter since \'max_nonmatch_overlap_fraction\' is '
+                        + 'also specified.',
+                        DeprecationWarning, 'assessments.py', '')
+            elif 'negative_overlap_threshold' in kwargs:
+                match_fn_kwargs['max_nonmatch_overlap_fraction'] = \
+                    np.float16(kwargs.pop('negative_overlap_threshold'))
+                warnings.showwarning(
+                    'Parameter \'negative_overlap_threshold\' is deprecated ' +
+                    'and will be removed in the future. Use ' +
+                    '\'max_nonmatch_overlap_fraction\' instead.',
+                    DeprecationWarning, 'assessments.py', '')
 
             # The post-processing counterpart handles nonmax-suppression within
             # lower-level functions. For this option, we do need to handle it
