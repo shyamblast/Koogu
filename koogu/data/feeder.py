@@ -3,6 +3,7 @@ import os
 import json
 import numpy as np
 import tensorflow as tf
+import logging
 
 from koogu.data import AssetsExtraNames, FilenameExtensions
 from koogu.data.raw import Convert
@@ -139,7 +140,7 @@ class BaseFeeder(metaclass=abc.ABCMeta):
 
         num_prefetch_batches = kwargs.get('num_prefetch_batches', 1)
         num_threads = kwargs.get('num_threads',  # default to num CPUs
-                                 len(os.sched_getaffinity(0)))
+                                 os.cpu_count() or 1)
 
         if is_training:  # Shuffle and repeat
             if 'queue_capacity' in kwargs:
@@ -252,6 +253,35 @@ class DataFeeder(BaseFeeder):
 
         self._data_dir = data_dir
 
+        if 'background_class' in kwargs:
+            background_class = kwargs.pop('background_class')
+
+            if background_class in class_names:
+                bg_class_idx = class_names.index(background_class)
+                if self._valid_class_mask[bg_class_idx]:
+
+                    # Update 'counts' arrays
+                    temp_mask = np.full(
+                        (self._valid_class_mask.sum(),), True, dtype=bool)
+                    temp_mask[np.sum(
+                        self._valid_class_mask[:bg_class_idx + 1]) - 1] = False
+
+                    num_per_class_samples_train = \
+                        num_per_class_samples_train[temp_mask]
+                    num_per_class_samples_eval = \
+                        num_per_class_samples_eval[temp_mask]
+
+                    # Update mask
+                    self._valid_class_mask[bg_class_idx] = False
+                else:
+                    logging.info(
+                        f'Class "{background_class}" already suppressed. ' +
+                        'Ignoring parameter \'background_class\'.')
+            else:
+                logging.warning(
+                    f'"{background_class}" not in list of classes. ' +
+                    'Ignoring parameter \'background_class\'.')
+
         super(DataFeeder, self).__init__(
             self._in_shape,
             num_per_class_samples_train,
@@ -285,9 +315,8 @@ class DataFeeder(BaseFeeder):
         :param cache: (optional, bool, default: False) Cache loaded TFRecords
         """
 
-        num_threads = \
-            kwargs.get('num_threads',
-                       len(os.sched_getaffinity(0)))  # Default to num. CPUs
+        num_threads = kwargs.get('num_threads',  # default to num CPUs
+                                 os.cpu_count() or 1)
 
         files_clips_idxs = self._files_clips_idxs_train if is_training \
             else self._files_clips_idxs_eval
