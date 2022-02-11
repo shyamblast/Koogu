@@ -555,7 +555,7 @@ class PrecisionRecall(_Metric):
 
             gt_mask = (
                     clip_class_coverage >=
-                    match_fn_kwargs_dict.get('min_annot_overlap_fraction'))
+                    match_fn_kwargs_dict.get('min_annot_overlap_fraction', 1.0))
             above_thld_mask = np.stack([
                 (scores[ch, ...][:, self._valid_class_mask] >= th)
                 for th in self._thresholds])
@@ -569,7 +569,7 @@ class PrecisionRecall(_Metric):
                     np.logical_or(
                         gt_mask,    # <- Ts in TPs;    Fs in FPs (below)
                         clip_class_coverage <= match_fn_kwargs_dict.get(
-                            'max_nonmatch_overlap_fraction')
+                            'max_nonmatch_overlap_fraction', 0.0)
                     ), axis=0)
             ).sum(axis=1).astype(np.uint)
 
