@@ -56,8 +56,8 @@ class BaseFeeder(metaclass=abc.ABCMeta):
 
         :param sample: The sample that must be 'transformed' before
             consumption by a model.
-        :param label: The class info pertaining to 'sample'.
-        :param is_training: Boolean, indicating if operating in training mode.
+        :param label: The class info pertaining to ``sample``.
+        :param is_training: (boolean) True if operating in training mode.
         :param kwargs: Any additional parameters.
 
         :return: A 2-tuple containing transformed sample and label.
@@ -74,8 +74,8 @@ class BaseFeeder(metaclass=abc.ABCMeta):
         training and validation).
 
         :param sample: The untransformed sample to which to apply augmentations.
-        :param label: The class info pertaining to 'sample'.
-        :param is_training: Boolean, indicating if operating in training mode.
+        :param label: The class info pertaining to ``sample``.
+        :param is_training: (boolean) True if operating in training mode.
         :param kwargs: Any additional parameters.
 
         :return: A 2-tuple containing transformed sample and label.
@@ -92,8 +92,8 @@ class BaseFeeder(metaclass=abc.ABCMeta):
         training and validation).
 
         :param sample: The transformed sample to which to apply augmentations.
-        :param label: The class info pertaining to 'sample'.
-        :param is_training: Boolean, indicating if operating in training mode.
+        :param label: The class info pertaining to ``sample``.
+        :param is_training: (boolean) True if operating in training mode.
         :param kwargs: Any additional parameters.
 
         :return: A 2-tuple containing transformed sample and label.
@@ -110,8 +110,9 @@ class BaseFeeder(metaclass=abc.ABCMeta):
         It should contain logic to load training & validation data (usually
         from stored files) and construct a TensorFlow Dataset.
 
-        :param is_training: Boolean, indicating if operating in training mode.
-        :param batch_size:
+        :param is_training: (boolean) True if operating in training mode.
+        :param batch_size: (integer) Number of input samples to from the dataset
+            to combine in a single batch.
 
         :return: A tf.data.Dataset
         """
@@ -122,7 +123,7 @@ class BaseFeeder(metaclass=abc.ABCMeta):
     def __call__(self, is_training, batch_size, **kwargs):
         """
 
-        :param is_training: Boolean, indicating if operating in training mode.
+        :param is_training: (boolean) True if operating in training mode.
         :param batch_size:
         :param kwargs: Passed as is to make_dataset() of inherited class.
         """
@@ -183,8 +184,9 @@ class BaseFeeder(metaclass=abc.ABCMeta):
         Override in inherited class if its :meth:`transform` alters the shape of
         the read/input data before a dataset is returned. If not None, must
         return a tuple where:
-            * first value is the untransformed input shape,
-            * second is the actual transformation function.
+
+        * first value is the untransformed input shape,
+        * second is the actual transformation function.
         """
         return None
 
@@ -553,27 +555,9 @@ class SpectralDataFeeder(DataFeeder):
     :param data_dir: Directory under which prepared data (.npz files) are
         available.
     :param fs: Sampling frequency of the prepared data.
-    :param spec_settings: A Python dictionary describing the settings to be used
-        for producing spectrograms. Supported keys in the dictionary include:
-
-        * win_len: (required)
-          Length of the analysis window (in seconds)
-        * win_overlap_prc: (required)
-          Fraction of the analysis window to have as overlap between successive
-          analysis windows. Commonly, a 50% (or 0.50) overlap is considered.
-        * nfft_equals_win_len: (optional; boolean)
-          If True (default), NFFT will equal the number of samples resulting
-          from `win_len`. If False, NFFT will be set to the next power of 2 that
-          is ≥ the number of samples resulting from `win_len`.
-        * tf_rep_type: (optional)
-          A string specifying the transformation output. 'spec' results in a
-          linear scale spectrogram. 'spec_db' (default) results in a
-          logarithmic scale (dB) spectrogram.
-        * eps: (default: 1e-10)
-          A small positive quantity added to avoid computing log(0.0).
-        * bandwidth_clip: (optional; 2-element list/tuple)
-          If specified, the generated spectrogram will be clipped along the
-          frequency axis to only include components in the specified bandwidth.
+    :param spec_settings: A Python dictionary. For a list of possible keys and
+        values, see parameters to
+        :class:`~koogu.data.tf_transformations.Audio2Spectral`.
 
     Other parameters applicable to the parent :class:`DataFeeder` class may also
     be specified.

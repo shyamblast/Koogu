@@ -60,16 +60,23 @@ def _fetch_clips(audio_filepath, audio_settings, channels, spec_settings=None):
     return librosa.get_duration(filename=audio_filepath), clips, clip_start_samples, num_samples
 
 
-def analyze_clips(classifier, clips, batch_size=1, audio_filepath=None):
+def analyze_clips(trained_model, clips, batch_size=1, audio_filepath=None):
     """
-    Run predictions on clips and obtain classification results.
-    :param classifier: A model.TrainedModel instance.
-    :param clips: An [N x ?] numpy array of N input data.
-    :param batch_size: Control how many clips are processed in a single batch.
-    :param audio_filepath: If not None, will display a progress bar.
-    :return: A tuple consisting of -
-        confidence values ([N x M] numpy array),
-        and the total time taken to process the clips.
+    Apply a trained model to one or more audio clips and obtain scores.
+
+    :param trained_model: A :class:`koogu.model.TrainedModel` instance.
+    :param clips: An [N x ?] numpy array of N input waveforms.
+    :param batch_size: (default: 1) Control how many clips are processed in a
+        single batch. Increasing this helps improve throughput, but requires
+        more RAM.
+    :param audio_filepath: (default: None) If not None, will display a progress
+        bar.
+
+    :returns: A tuple consisting of -
+
+        * detection/classification scores ([N x M] numpy array corresponding to
+          the N clips and M target classes), and
+        * the total time taken to process all the clips.
     """
 
     pbar = None if audio_filepath is None else \
@@ -254,28 +261,29 @@ def recognize(model_dir, audio_root,
          output_dir=None, raw_detections_dir=None,
          **kwargs):
     """
+    Batch-process audio files using a trained model.
 
     :param model_dir: Path to directory where the trained model for use in
         making inferences is available.
     :param audio_root: Path to directory from which to load audio files for
         inferences. Can also set this to a single audio file instead of a
-        directory. See optional parameters 'recursive' and 'combine_outputs'
-        that may be used when 'audio_root' points to a directory.
+        directory. See optional parameters ``recursive`` and ``combine_outputs``
+        that may be used when ``audio_root`` points to a directory.
     :param output_dir: If not None, processed recognition results (Raven
         selection tables) will be written out into this directory. At least
-        one of 'output_dir' or 'raw_detections_dir' must be specified.
+        one of ``output_dir`` or ``raw_detections_dir`` must be specified.
     :param raw_detections_dir: If not None, raw outputs from the model will be
-        written out into this directory. At least one of 'output_dir' or
-        'raw_detections_dir' must be specified.
+        written out into this directory. At least one of ``output_dir`` or
+        ``raw_detections_dir`` must be specified.
 
-    Optional parameters-
+    **Optional parameters**
 
     :param clip_advance: If specified, override the value that was read from
         the model's files. The value defines the amount of clip advance when
         preparing audio.
     :param threshold: (float, 0-1) Suppress writing of detections with scores
         below this value. Defaults to 0.
-    :param recursive: (bool) If set, the contents of 'audio_root' will be
+    :param recursive: (bool) If set, the contents of ``audio_root`` will be
         processed recursively.
     :param filetypes: Audio file types to restrict processing to. Option is
         ignored if processing a single file. Can specify multiple types, as a
@@ -305,9 +313,9 @@ def recognize(model_dir, audio_root,
         'Other') that must be ignored from the recognition results. The
         corresponding detections will not be written to the output selection
         tables. Can specify multiple classes for rejection, as a list.
-    :param batch_size: (int; default 1) Size to batch audio file's clips into.
+    :param batch_size: (int; default: 1) Size to batch audio file's clips into.
         Increasing this may improve speed on computers with high RAM.
-    :param num_fetch_threads: (int; default 1) Number of background threads
+    :param num_fetch_threads: (int; default: 1) Number of background threads
         that will fetch audio from files in parallel.
     :param show_progress: (bool) If enabled, messages indicating progress of
         processing will be shown on console output.

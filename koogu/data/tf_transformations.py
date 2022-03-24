@@ -67,13 +67,34 @@ class Linear2dB(tf.keras.layers.Layer):
 
 
 class Audio2Spectral(tf.keras.layers.Layer):
-    """Layer for converting waveforms into time-frequency (tf) representations.
+    """
+    Layer for converting waveforms into time-frequency representations.
 
-    Arguments:
-      fs: sampling frequency of the data in the last dimension of 'inputs'.
-      spec_settings: an dict.
-      eps: (optional) will override the eps value in spec_settings.
-      name: A string, the name of the layer.
+    :param  fs: sampling frequency of the data in the last dimension of inputs.
+    :param spec_settings: A Python dictionary describing the settings to be used
+        for producing spectrograms. Supported keys in the dictionary include:
+
+        * win_len: (required)
+          Length of the analysis window (in seconds)
+        * win_overlap_prc: (required)
+          Fraction of the analysis window to have as overlap between successive
+          analysis windows. Commonly, a 50% (or 0.50) overlap is considered.
+        * nfft_equals_win_len: (optional; boolean)
+          If True (default), NFFT will equal the number of samples resulting
+          from `win_len`. If False, NFFT will be set to the next power of 2 that
+          is ≥ the number of samples resulting from `win_len`.
+        * tf_rep_type: (optional)
+          A string specifying the transformation output. 'spec' results in a
+          linear scale spectrogram. 'spec_db' (default) results in a
+          logarithmic scale (dB) spectrogram.
+        * eps: (default: 1e-10)
+          A small positive quantity added to avoid computing log(0.0).
+        * bandwidth_clip: (optional; 2-element list/tuple)
+          If specified, the generated spectrogram will be clipped along the
+          frequency axis to only include components in the specified bandwidth.
+    :param eps: (optional) If specified, will override the `eps` value in
+        ``spec_settings``.
+    :param name: (optional; string) Name for the layer.
     """
 
     def __init__(self, fs, spec_settings, **kwargs):

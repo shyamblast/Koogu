@@ -6,6 +6,12 @@ from koogu.data import AssetsExtraNames
 
 
 class TrainedModel:
+    """
+    An interface for using a trained model for making inferences.
+
+    :param saved_model_dir: Path to the directory from which to load a trained
+        model.
+    """
 
     assets_dirname = 'assets'
     saved_model_dirname = 'koogu'
@@ -109,8 +115,18 @@ class TrainedModel:
             else json.load(open(spec_sett_filepath, 'r'))
 
     def infer(self, inputs):
+        """
+        Process data using the trained model.
 
-        infer_fn = self._infer_fns.get(TrainedModel._list2str(inputs.shape[1:]), None)
+        :param inputs: A numpy array. The first dimension corresponds to the
+            number of input samples.
+
+        :returns: An NxM numpy array of scores corresponding to the N input
+            samples and M classes.
+        """
+
+        infer_fn = self._infer_fns.get(TrainedModel._list2str(inputs.shape[1:]),
+                                       None)
         if infer_fn is not None:
             return infer_fn(inputs=inputs)['scores'].numpy()
 
@@ -122,12 +138,24 @@ class TrainedModel:
 
     @property
     def audio_settings(self):
+        """
+        Audio settings that were used for preparing model inputs.
+        """
         return self._audio_settings
 
     @property
     def spec_settings(self):
+        """
+        Spectrogram settings used for transforming waveforms into time-frequency
+        representations. If no transformation was applied (during training),
+        then this property will be None.
+        """
         return self._spec_settings
 
     @property
     def class_names(self):
+        """
+        List of class names corresponding to the scores output by the model for
+        each input.
+        """
         return self._class_names
