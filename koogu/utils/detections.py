@@ -64,6 +64,8 @@ def combine_streaks(det_scores, clip_start_samples, num_samples, squeeze_min_len
     :return:
         A tuple containing sample idxs (array of start and end pairs), aggregated scores, class IDs and, if requested,
         start-end indices making up each combined streak.
+
+    :meta private:
     """
 
     assert squeeze_min_len is None or squeeze_min_len <= num_samples
@@ -125,30 +127,47 @@ def combine_streaks(det_scores, clip_start_samples, num_samples, squeeze_min_len
 
 class SelectionTableReader(Generator):
     """
-    A generator for reading Raven selection tables. A simple, fast yet efficient way for processing selection tables.
-    Pass in the path to the file and a list containing field specifications, and retrieve table entries iteratively.
-    A field specification must be a tuple containing the name of the field (column header), the corresponding data
-    type, and optionally, a default value. The field names (including case) should match the actual column headers in
-    the selection table file. The generator returns a tuple containing each entry's fields in the same order as that of
-    the provided fields specifications list. If no matching column header is found for a field, the respective value in
-    the output will be None.
-    Example:
+    A generator for reading Raven selection tables. A simple, fast yet efficient
+    way for processing selection tables. Pass in the path to the file and a list
+    containing field specifications, and retrieve table entries iteratively,
+    without having to load the entire selection table file in memory.
+
+    :param seltab_file: Path to a Raven selection table file.
+    :param fields_spec: A list of field specifiers. A field specifier must be a
+        tuple containing -
+
+        * the name of the field (column header),
+        * the corresponding data type, and
+        * optionally, a default value.
+
+        The field names (case-sensitive) should match the actual column headers
+        in the selection table file. If no matching column header is found for a
+        specified field, then the respective value will be None in every
+        returned output. If an annotation entry is blank for a specified field,
+        then the respective value returned will be set to either the default (if
+        specified) or to None.
+    :param delimiter: (optional; default is the tab character) The delimiter in
+        the selection table file.
+
+    :return: The generator iteratively yields tuples containing type-converted
+        values corresponding to the chosen fields from each annotation read. The
+        fields in the tuple will be in the same order as that of
+        ``fields_spec``.
+
+    Example::
+
         >>> fields_spec = [('Selection', int, 0),
         ...                ('Begin Time (s)', float, 0),
         ...                ('Tags', str),
         ...                ('Score', float)]
         ...
-        >>> for entry in SelectionTableReader('something_something.selection.txt', fields_spec):
+        >>> for entry in SelectionTableReader('my_annots.selection.txt',
+        ...                                   fields_spec):
         ...     print(entry[0], entry[1], entry[2], entry[3])
+
     """
 
     def __init__(self, seltab_file, fields_spec, delimiter='\t'):
-        """
-
-        :param seltab_file: Path to a selection table file.
-        :param fields_spec: A list of field specifiers. Read description above for details.
-        :param delimiter: (Optional; default = '\t') The delimiter in the selection table file.
-        """
 
         self._delimiter = delimiter
         self._conversion_spec = [None] * len(fields_spec)
@@ -170,6 +189,9 @@ class SelectionTableReader(Generator):
 
     # internal function
     def send(self, ignored_arg):
+        """
+        :meta private:
+        """
         entry = next(self._csv_reader)
         return tuple([SelectionTableReader._convert(entry[c_spec[0]], c_spec[1], c_spec[2])
                       if c_spec is not None else None
@@ -177,6 +199,9 @@ class SelectionTableReader(Generator):
 
     # internal function
     def throw(self, type=None, value=None, traceback=None):
+        """
+        :meta private:
+        """
         raise StopIteration
 
     def __del__(self):
@@ -207,8 +232,8 @@ def assess_annotations_and_clips_match(
     :param min_annot_overlap_fraction: Lower threshold on how much coverage
         a clip must have with an annotation for the annotation to be considered
         "matched".
-    :param keep_only_centralized_annots: If enabled (default is False), very
-        short annotations (< half of clip_len) will generate full coverage (1.0)
+    :param keep_only_centralized_annots: If enabled (default: False), very short
+        annotations (< half of ``clip_len``) will generate full coverage (1.0)
         only if they occur within the central 50% extents of the clip or if the
         annotation cuts across the center of the clip. For short annotations
         that do not satisfy these conditions, their normally-computed coverage
@@ -217,25 +242,28 @@ def assess_annotations_and_clips_match(
     :param negative_class_idx: If not None, clips that do have no (or small)
         overlap with any annotation will be marked as clips of the non-target
         class whose index this parameter specifies. See
-        max_non_match_overlap_fraction for further control.
+        ``max_non_match_overlap_fraction`` for further control.
     :param max_nonmatch_overlap_fraction: A clip without enough overlap with
         any annotations will be marked as non-target class only if its
         overlap with any annotation is less than this amount (default 0.0). This
-        parameter is only used when negative_class_idx is set.
+        parameter is only used when ``negative_class_idx`` is set.
 
-    :return: A 2-tuple.
-        - MxP "coverage" matrix corresponding to the M clips and P classes. The
-            values in the matrix will be:
-            1.0   if either the m-th clip fully contained an annotation from the
-                  p-th class or vice versa (possible when annotation is longer
-                  than clip_len);
-            <1.0  if there was partial coverage (the number of overlapping
-                  samples is divided by the shorter of clip_len or annotation
-                  length);
-            0.0   if the m-th clip had no overlap with any annotations from the
-                  p-th class.
-        - N-length boolean mask of annotations that were matched with at least
-            one clip under the condition of min_annot_overlap_fraction.
+    :return: A 2-element tuple containing -
+
+      * MxP "coverage" matrix corresponding to the M clips and P classes. The
+        values in the matrix will be:
+
+        | 1.0   - if either the m-th clip fully contained an annotation from the
+        |         p-th class or vice versa (possible when annotation is longer
+        |         than ``clip_len``);
+        | <1.0  - if there was partial coverage (the number of overlapping
+        |         samples is divided by the shorter of ``clip_len`` or
+        |         annotation length);
+        | 0.0   - if the m-th clip had no overlap with any annotations from the
+        |         p-th class.
+
+      * N-length boolean mask of annotations that were matched with at least
+        one clip under the condition of ``min_annot_overlap_fraction``.
     """
 
     assert negative_class_idx is None or negative_class_idx < num_classes
@@ -372,7 +400,8 @@ def assess_annotations_and_detections_match(
         covered parts of one or more ground-truth events for it to be
         considered a "true positive".
 
-    :return: A 5-tuple.
+    :return: A 5-element tuple containing -
+
         - per-class counts of true positives
         - per-class counts of detections (true + false positives)
         - numerator for computing recall (not that given our definition of
@@ -418,7 +447,8 @@ def _coverage(base_ext, items):
     Ascertain how much of base_ext (a 2-element array-like specifying temporal
     extents) is covered by entries in items (a Nx2 numpy array specifying
     start and end times of N items).
-    Internal helper function.
+
+    :meta private:
     """
 
     if items.shape[0] == 0:
@@ -457,6 +487,28 @@ def postprocess_detections(clip_scores, clip_offsets, clip_length,
     """
     Post-process detections to group together successive detections from each
     class.
+
+    :param clip_scores: An [N x M] array containing M per-class scores for each
+        of the N clips.
+    :param clip_offsets: An N-length integer array containing indices of the
+        first sample in each clip.
+    :param clip_length: Number of waveform samples in each clip.
+    :param threshold: (default: None) If not None, scores below this value will
+        be ignored.
+    :param suppress_nonmax: (bool; default: False) If True, will apply
+        non-max suppression to only consider the top-scoring class for each
+        clip.
+    :param squeeze_min_samps: (default: None) If not None, will run the
+        algorithm to squish contiguous detections of the same class. Squeezing
+        will be limited to produce detections that are at least this many
+        samples long.
+
+    :return: A 3-element or 4-element tuple containing -
+
+        * sample indices (array of start and end pairs),
+        * aggregated scores,
+        * class IDs, and
+        * if requested, start-end indices making up each combined streak.
     """
 
     # Apply non-max suppression, if enabled, and the threshold.
@@ -480,6 +532,8 @@ def nonmax_suppress_mask(scores):
     """
     Returned mask will have True where the corresponding class doesn't have the
     top score, and False elsewhere.
+
+    :meta private:
     """
 
     nonmax_mask = np.full(scores.shape, True, dtype=np.bool)
@@ -490,9 +544,42 @@ def nonmax_suppress_mask(scores):
 
 class LabelHelper:
     """
-    Used by koogu.prepare_data and koogu.utils.assessments.
     Provides functionality for manipulating and managing class labels in a
-    modeling project.
+    problem space.
+
+    :param classes_list: List of class labels. When used during data
+        preparation, the list may be generated from available classes or
+        be provided as a pre-defined list. When used during performance
+        assessments, it is typically populated from the classes_list.json
+        file that is saved alongside raw detections.
+    :param remap_labels_dict: (default: None) If not None, must be a dictionary
+        describing mapping of class labels. Use this to
+
+        - | update existing class' labels
+          |   (e.g. ``{'c1': 'new_c1'}``),
+        - | merge together existing classes
+          |   (e.g. ``{'c4': 'c1'}``), or
+        - | combine existing classes into new ones
+          |   (e.g. ``{'c4': 'new_c2', 'c23', 'new_c2'}``).
+
+        Avoid chaining of mappings (e.g. ``{'c1': 'c2', 'c2': 'c3'}``).
+    :param negative_class_label: (default: None) If not None, must be a string
+        (e.g. 'Other', 'Noise') which will be used as a label to identify the
+        negative class clips (those that did not match any annotations). If
+        specified, will be used in conjunction with ``remap_labels_dict``.
+    :param fixed_labels: (bool; default: True) When True, ``classes_list`` will
+        remain unchanged - any new mapping targets specified in
+        ``remap_labels_dict`` will not be added and any mapped-out class labels
+        will not be omitted. Typically, it should be set to True when
+        ``classes_list`` is a pre-defined list during data preparation, and
+        always during performance assessments.
+    :param assessment_mode: (bool; default: False) Set to True when invoked
+        during performance assessments.
+
+    .. seealso::
+        :func:`koogu.prepare.from_selection_table_map`
+        :func:`koogu.prepare.from_top_level_dirs`
+        :func:`koogu.utils.assessments._Metric`
     """
 
     def __init__(self,
@@ -501,31 +588,6 @@ class LabelHelper:
                  negative_class_label=None,
                  fixed_labels=True,
                  assessment_mode=False):
-        """
-
-        :param classes_list: List of class labels. When used during data
-            preparation, the list may be generated from available classes or
-            be provided as a pre-defined list. When used during performance
-            assessments, it is typically populated from the classes_list.json
-            file that is saved alongside raw detections.
-        :param remap_labels_dict: If not None, must be a dictionary describing
-            mapping of class labels. Use this to update existing class' labels
-            (e.g. {'c1': 'new_c1'}), to merge together existing classes (e.g.
-            {'c4': 'c1'}), and/or to combine existing classes into new ones
-            (e.g. {'c4': 'new_c2', 'c23', 'new_c2'}). Avoid chaining of mappings
-            (e.g. {'c1': 'c2', 'c2': 'c3'}).
-        :param negative_class_label: A string (e.g. 'Other', 'Noise') which will
-            be used as a label to identify the negative class clips (those that
-            did not match any annotations). If specified, will be used in
-            conjunction with remap_labels_dict.
-        :param fixed_labels: If True, classes_list will remain unchanged - any
-            new mapping targets specified in remap_labels_dict will not be added
-            and any mapped-out class labels will not be omitted. Typically, it
-            should be set to True when classes_list is a pre-defined list during
-            data preparation, and always during performance assessments.
-        :param assessment_mode: Set to True when invoked during performance
-            assessments.
-        """
 
         # fixed_labels cannot be False when in assessment mode
         assert ((not assessment_mode) or (assessment_mode and fixed_labels)), \
@@ -566,14 +628,25 @@ class LabelHelper:
 
     @property
     def classes_list(self):
+        """
+        The final list of class names in the problem space, after performing
+        manipulations based on ``remap_labels_dict`` (if specified).
+        """
         return self._classes_list
 
     @property
     def negative_class_index(self):
+        """
+        Index (zero-based) of the negative class (if specified) in
+        ``classes_list``.
+        """
         return self._neg_class_idx
 
     @property
     def labels_to_indices(self):
+        """
+        A Python dictionary mapping class names (string) to zero-based indices.
+        """
         return self._class_label_to_idx
 
     @staticmethod
