@@ -2,7 +2,8 @@ import tensorflow as tf
 from . import KooguArchitectureBase
 
 
-class Architecture(KooguArchitectureBase):
+@KooguArchitectureBase.export
+class ConvNet(KooguArchitectureBase):
     """
     Boilerplate ConvNet network-building logic that can be used, with
     appropriate customization of parameters, to build networks like LeNet,
@@ -66,7 +67,7 @@ class Architecture(KooguArchitectureBase):
             'pool_strides', arch_config['pool_sizes'])
 
         model_name = params.pop('name', 'ConvNet')
-        super(Architecture, self).__init__(
+        super(ConvNet, self).__init__(
             arch_config, is_2d=True, name=model_name, **params)
 
     def build_architecture(self, inputs, is_training, data_format, **kwargs):
@@ -114,4 +115,4 @@ class Architecture(KooguArchitectureBase):
         return outputs
 
 
-__all__ = ['Architecture']
+__all__ = ['ConvNet']

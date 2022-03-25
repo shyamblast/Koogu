@@ -2,7 +2,8 @@ import tensorflow as tf
 from . import KooguArchitectureBase
 
 
-class Architecture(KooguArchitectureBase):
+@KooguArchitectureBase.export
+class DenseNet(KooguArchitectureBase):
     """
     DenseNet [http://arxiv.org/abs/1608.06993].
     This implementation supports both with and without bottleneck.
@@ -81,7 +82,7 @@ class Architecture(KooguArchitectureBase):
         arch_config['pool_strides'] = params.pop(
             'pool_strides', arch_config['pool_sizes'])
 
-        super(Architecture, self).__init__(
+        super(DenseNet, self).__init__(
             arch_config, is_2d=True, name='DenseNet', **params)
 
     def build_architecture(self, inputs, is_training, data_format, **kwargs):
@@ -220,4 +221,4 @@ class Architecture(KooguArchitectureBase):
         return outputs
 
 
-__all__ = ['Architecture']
+__all__ = ['DenseNet']

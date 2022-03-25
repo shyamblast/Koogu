@@ -2,7 +2,7 @@ import numpy as np
 import tensorflow as tf
 import abc
 from koogu.data.tf_transformations import LoG
-import os
+import sys
 
 
 class BaseArchitecture(metaclass=abc.ABCMeta):
@@ -256,10 +256,27 @@ class KooguArchitectureBase(BaseArchitecture):
 
         return outputs
 
+    @staticmethod
+    def export(subcls):
+        """
+        Decorator to use on classes that extend KooguArchitectureBase.
 
-# Include all files in current directory, as each must be an independent
-# architecture implementation.
-__all__ = [model[:-3] for model in os.listdir(os.path.dirname(__file__))
-           if model.endswith('.py') and model != '__init__.py']
+        :meta private:
+        """
 
-from . import *
+        if issubclass(subcls, KooguArchitectureBase):
+            # Only meant for subclasses of this class
+
+            curr_mod = sys.modules[__name__]
+
+            # Add subclass to current module's __all__
+            _all = getattr(curr_mod, '__all__', [])
+            if subcls.__name__ not in _all:
+                setattr(curr_mod, '__all__', _all + [subcls.__name__])
+
+        return subcls
+
+
+from .convnet import ConvNet
+from .densenet import DenseNet
+

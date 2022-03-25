@@ -7,7 +7,7 @@ import argparse
 import json
 import warnings
 
-from koogu.model import Architectures, TrainedModel, BaseArchitecture
+from koogu.model import architectures, TrainedModel
 from koogu.data import feeder
 from koogu.utils import instantiate_logging
 from koogu.utils.terminal import ArgparseConverters
@@ -24,7 +24,7 @@ def train_and_eval(data_dir, model_dir,
                    verbose=2,
                    **kwargs):
 
-    if isinstance(arch_or_model_config, BaseArchitecture):
+    if isinstance(arch_or_model_config, architectures.BaseArchitecture):
         model_arch = arch_or_model_config
     else:
         warnings.showwarning(
@@ -46,7 +46,7 @@ def train_and_eval(data_dir, model_dir,
         arch_params = model_config['arch_params']
 
         try:
-            arch_submodule = getattr(Architectures, arch)
+            arch_submodule = getattr(architectures, arch)
         except KeyError as _:
             raise ValueError('Architecture {:s} is not available.'.format(
                 arch))
