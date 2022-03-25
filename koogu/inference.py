@@ -89,7 +89,7 @@ def analyze_clips(trained_model, clips, batch_size=1, audio_filepath=None):
     for idx, (s_idx, e_idx) in enumerate(zip(batch_start_idxs, batch_end_idxs)):
 
         t_start = timer()
-        det_scores[idx] = classifier.infer(inputs=clips[s_idx:e_idx, ...])
+        det_scores[idx] = trained_model.infer(inputs=clips[s_idx:e_idx, ...])
         predict_time += (timer() - t_start)
 
         if pbar is not None:
