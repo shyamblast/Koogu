@@ -10,13 +10,14 @@ from koogu.data.raw import Filters, Settings
 
 
 class Linear2dB(tf.keras.layers.Layer):
-    """Layer for converting time-frequency (tf) representations from linear
-    to decibel scale.
+    """
+    Layer for converting time-frequency (tf) representations from linear to
+    decibel scale.
 
-    Arguments:
-      eps: Epsilon value to add, for avoiding divide-by-zero errors.
-      full_scale: Whether to convert to dB full-scale (default: False)
-      name: A string, the name of the layer.
+    :param eps: Epsilon value to add, for avoiding computing log(0.0).
+    :param full_scale: (boolean) Whether to convert to dB full-scale.
+    :param name: (optional; string) Name for the layer.
+
     """
 
     def __init__(self, eps, full_scale, **kwargs):

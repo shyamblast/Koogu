@@ -72,7 +72,7 @@ def analyze_clips(trained_model, clips, batch_size=1, audio_filepath=None):
     :param audio_filepath: (default: None) If not None, will display a progress
         bar.
 
-    :returns: A tuple consisting of -
+    :returns: A 2-element tuple consisting of -
 
         * detection/classification scores ([N x M] numpy array corresponding to
           the N clips and M target classes), and

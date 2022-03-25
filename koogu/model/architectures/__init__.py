@@ -6,18 +6,20 @@ import os
 
 
 class BaseArchitecture(metaclass=abc.ABCMeta):
-    def __init__(self, is_2d=True, multilabel=True, dtype=None, name=None):
-        """
+    """
+    Base class for implementing custom user-defined architectures.
 
-        :param is_2d: (bool; default:True) Set to True for spectrogram-like
-            inputs, and to False for waveform-like (time-domain) inputs.
-        :param multilabel: (bool; default: True) Set appropriately so that the
-            loss function and accuracy metrics can be chosen correctly during
-            training.
-        :param dtype: Tensorflow data type of the model's weights (default:
-            tf.float32).
-        :param name: Name of the model.
-        """
+    :param is_2d: (bool; default:True) Set to True for spectrogram-like
+        inputs, and to False for waveform-like (time-domain) inputs.
+    :param multilabel: (bool; default: True) Set appropriately so that the
+        loss function and accuracy metrics can be chosen correctly during
+        training.
+    :param dtype: Tensorflow data type of the model's weights (default:
+        tf.float32).
+    :param name: Name of the model.
+    """
+
+    def __init__(self, is_2d=True, multilabel=True, dtype=None, name=None):
 
         self._is_2d = is_2d
         self._multilabel = multilabel
@@ -28,15 +30,19 @@ class BaseArchitecture(metaclass=abc.ABCMeta):
     def build_network(self, input_tensor, is_training, data_format, **kwargs):
         """
         This method must be implemented in the derived class.
-        It should contain logic to construct the desired functional model
-        network starting from the input_tensor. The Logits layer must not be
-        added here, as it will be added by the caller.
+
+        It should contain logic to construct the desired sequential or
+        functional model network starting from the ``input_tensor``.
+
+        .. Note::
+            Do not add the Logits layer in your implementation. It will be
+            added by internal code.
 
         :param input_tensor: The Keras tensor to use as the input placeholder
             in model that will be built.
-        :param is_training: Boolean, indicating if operating in training mode.
+        :param is_training: (boolean) Indicates if operating in training mode.
             Certain elements of the network (e.g., dropout layers) may be
-            excluded when in training mode.
+            excluded when not in training mode.
         :param data_format: One of 'channels_last' or 'channels_first'.
 
         :return: Must return a Keras tensor corresponding to outputs of the
@@ -60,6 +66,8 @@ class BaseArchitecture(metaclass=abc.ABCMeta):
             (Logits) that the final layer must have.
 
         :return: A tf.keras.Model
+
+        :meta private:
         """
 
         # -- Build the functional model --
@@ -95,6 +103,8 @@ class BaseArchitecture(metaclass=abc.ABCMeta):
 class KooguArchitectureBase(BaseArchitecture):
     """
     Base class for architectures implemented internally within Koogu.
+
+    :meta private:
     """
 
     def __init__(self, arch_config,
@@ -162,6 +172,9 @@ class KooguArchitectureBase(BaseArchitecture):
 
     @abc.abstractmethod
     def build_architecture(self, inputs, is_training, data_format, **kwargs):
+        """
+        :meta private:
+        """
         raise NotImplementedError(
             'build_network() method not implemented in derived class')
 
