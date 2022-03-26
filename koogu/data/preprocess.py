@@ -31,7 +31,7 @@ def from_selection_table_map(audio_settings, audio_seltab_list,
                              negative_class_label=None,
                              **kwargs):
     """
-    Prepare training data using info contained in ``audio_seltab_list``.
+    Pre-process training data using info contained in ``audio_seltab_list``.
 
     :param audio_settings: A dictionary specifying the parameters for processing
         audio from files.
@@ -67,8 +67,8 @@ def from_selection_table_map(audio_settings, audio_seltab_list,
     can also be specified, and will be passed as-is to the function.
 
     :return: A dictionary whose keys are annotation tags (either discovered from
-        the set of annotations, or same as desired_labels if not None) and the
-        values are the number of clips produced for the corresponding class.
+        the set of annotations, or same as ``desired_labels`` if not None) and
+        the values are the number of clips produced for the corresponding class.
     """
 
     logger = logging.getLogger(__name__)
@@ -163,7 +163,7 @@ def from_top_level_dirs(audio_settings, class_dirs,
                         remap_labels_dict=None,
                         **kwargs):
     """
-    Prepare training data using audio files in ``class_dirs``.
+    Pre-process training data available as audio files in ``class_dirs``.
 
     :param audio_settings: A dictionary specifying the parameters for processing
         audio from files.
