@@ -12,18 +12,24 @@ from koogu.utils.filesystem import recursive_listing
 
 
 class BaseFeeder(metaclass=abc.ABCMeta):
+    """
+    Base class defining the interface for implementing feeder classes for
+    building data pipelines in Koogu.
+
+    :param data_shape: Shape of the input samples presented to the model.
+    :param num_training_samples: List of per-class counts of training samples
+        available.
+    :param num_validation_samples: List of per-class counts of validation
+        samples available.
+    :param class_names: List of names (str) corresponding to the different
+        classes in the problem space.
+    """
+
     def __init__(self, data_shape,
                  num_training_samples,
                  num_validation_samples,
                  class_names,
                  **kwargs):
-        """
-
-        :param data_shape:
-        :param num_training_samples: int or list
-        :param num_validation_samples: int or list
-        :param class_names:
-        """
 
         self._shape = data_shape
         self._class_names = class_names
@@ -44,14 +50,14 @@ class BaseFeeder(metaclass=abc.ABCMeta):
     def transform(self, sample, label, is_training, **kwargs):
         """
         This function must be implemented in the derived class.
+
         It should contain logic to apply any transformations to a single input
-        to the model (during training and validation) and is invoked by the
-        make_dataset() method.
+        to the model (during training and validation).
 
         :param sample: The sample that must be 'transformed' before
             consumption by a model.
-        :param label: The class info pertaining to 'sample'.
-        :param is_training: Boolean, indicating if operating in training mode.
+        :param label: The class info pertaining to ``sample``.
+        :param is_training: (boolean) True if operating in training mode.
         :param kwargs: Any additional parameters.
 
         :return: A 2-tuple containing transformed sample and label.
@@ -63,14 +69,13 @@ class BaseFeeder(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def pre_transform(self, sample, label, is_training, **kwargs):
         """
-        This function must be implemented in the derived class.
-        It should contain logic to apply any pre-transformation augmentations to
-        a single input to the model (during training and validation) and is
-        invoked by the make_dataset() method.
+        Implement this method in the derived class to apply any
+        pre-transformation augmentations to a single input to the model (during
+        training and validation).
 
         :param sample: The untransformed sample to which to apply augmentations.
-        :param label: The class info pertaining to 'sample'.
-        :param is_training: Boolean, indicating if operating in training mode.
+        :param label: The class info pertaining to ``sample``.
+        :param is_training: (boolean) True if operating in training mode.
         :param kwargs: Any additional parameters.
 
         :return: A 2-tuple containing transformed sample and label.
@@ -82,14 +87,13 @@ class BaseFeeder(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def post_transform(self, sample, label, is_training, **kwargs):
         """
-        This function must be implemented in the derived class.
-        It should contain logic to apply any post-transformation augmentations
-        to a single input to the model (during training and validation) and is
-        invoked by the make_dataset() method.
+        Implement this method in the derived class to apply any
+        post-transformation augmentations to a single input to the model (during
+        training and validation).
 
         :param sample: The transformed sample to which to apply augmentations.
-        :param label: The class info pertaining to 'sample'.
-        :param is_training: Boolean, indicating if operating in training mode.
+        :param label: The class info pertaining to ``sample``.
+        :param is_training: (boolean) True if operating in training mode.
         :param kwargs: Any additional parameters.
 
         :return: A 2-tuple containing transformed sample and label.
@@ -102,11 +106,13 @@ class BaseFeeder(metaclass=abc.ABCMeta):
     def make_dataset(self, is_training, batch_size, **kwargs):
         """
         This function must be implemented in the derived class.
+
         It should contain logic to load training & validation data (usually
         from stored files) and construct a TensorFlow Dataset.
 
-        :param is_training: Boolean, indicating if operating in training mode.
-        :param batch_size:
+        :param is_training: (boolean) True if operating in training mode.
+        :param batch_size: (integer) Number of input samples from the dataset to
+            combine in a single batch.
 
         :return: A tf.data.Dataset
         """
@@ -117,7 +123,7 @@ class BaseFeeder(metaclass=abc.ABCMeta):
     def __call__(self, is_training, batch_size, **kwargs):
         """
 
-        :param is_training: Boolean, indicating if operating in training mode.
+        :param is_training: (boolean) True if operating in training mode.
         :param batch_size:
         :param kwargs: Passed as is to make_dataset() of inherited class.
         """
@@ -168,28 +174,41 @@ class BaseFeeder(metaclass=abc.ABCMeta):
 
     @property
     def data_shape(self):
+        """
+        The shape of an input sample.
+        """
         return self._shape
 
     def get_shape_transformation_info(self):
         """
-        Override in inherited class if its transform() alters the shape of the
-        read/input data before a dataset is returned. If not None, must return
-        a tuple where:
-            first value is the untransformed input shape,
-            second is the actual transformation function.
+        Override in inherited class if its :meth:`transform` alters the shape of
+        the read/input data before a dataset is returned. If not None, must
+        return a tuple where:
+
+        * first value is the untransformed input shape,
+        * second is the actual transformation function.
         """
         return None
 
     @property
     def num_classes(self):
+        """
+        The number of classes in the application.
+        """
         return len(self._class_names)
 
     @property
     def class_names(self):
+        """
+        List of names (str) of the classes in the application.
+        """
         return self._class_names
 
     @property
     def training_samples(self):
+        """
+        List of per-class training samples available.
+        """
         return \
             self._num_training_samples.sum() \
             if hasattr(self._num_training_samples, '__len__') else \
@@ -197,6 +216,9 @@ class BaseFeeder(metaclass=abc.ABCMeta):
 
     @property
     def training_samples_per_class(self):
+        """
+        List of per-class validation samples available.
+        """
         if hasattr(self._num_training_samples, '__len__'):
             return self._num_training_samples
         else:
@@ -204,6 +226,9 @@ class BaseFeeder(metaclass=abc.ABCMeta):
 
     @property
     def validation_samples(self):
+        """
+        Total number of training samples available.
+        """
         return \
             self._num_validation_samples.sum() \
             if hasattr(self._num_validation_samples, '__len__') else \
@@ -211,6 +236,9 @@ class BaseFeeder(metaclass=abc.ABCMeta):
 
     @property
     def validation_samples_per_class(self):
+        """
+        Total number of validation samples available.
+        """
         if hasattr(self._num_validation_samples, '__len__'):
             return self._num_validation_samples
         else:
@@ -220,7 +248,23 @@ class BaseFeeder(metaclass=abc.ABCMeta):
 class DataFeeder(BaseFeeder):
     """
     A class for loading prepared data from numpy .npz files and feeding them
-    into the training/evaluation pipeline.
+    untransformed into the training/evaluation pipeline.
+
+    :param data_dir: Directory under which prepared data (.npz files) are
+        available.
+    :param validation_split: (default: None) Fraction of the available data that
+        must be held out for validation. If None, all available data will be
+        used as training samples.
+    :param min_clips_per_class: (default: None) The minimum number of per-class
+        samples that must be available. If fewer samples are available for a
+        class, the class will be omitted. If None, no classes will be omitted.
+    :param max_clips_per_class: (default: None) The maximum number of per-class
+        samples to consider among what is available, for each class. If more
+        samples are available for any class, the specified number of samples
+        will be randomly selected. If None, no limits will be imposed.
+    :param random_state_seed: (default: None) A seed (integer) used to
+        initialize the psuedo-random number generator that makes shuffling and
+        other randomizing operations repeatable.
     """
 
     def __init__(self, data_dir,
@@ -229,9 +273,6 @@ class DataFeeder(BaseFeeder):
                  max_clips_per_class=None,
                  random_state_seed=None,
                  **kwargs):
-        """
-        :param data_dir: Directory under which .npz files are available.
-        """
 
         assert ((validation_split is None) or (0.0 <= validation_split <= 1))
 
@@ -508,8 +549,18 @@ class DataFeeder(BaseFeeder):
 
 class SpectralDataFeeder(DataFeeder):
     """
-    A handy data feeder, which normalizes and converts raw audio to
-    time-frequency format.
+    A handy data feeder, which converts prepared audio clips into power spectral
+    density spectrograms.
+
+    :param data_dir: Directory under which prepared data (.npz files) are
+        available.
+    :param fs: Sampling frequency of the prepared data.
+    :param spec_settings: A Python dictionary. For a list of possible keys and
+        values, see parameters to
+        :class:`~koogu.data.tf_transformations.Audio2Spectral`.
+
+    Other parameters applicable to the parent :class:`DataFeeder` class may also
+    be specified.
     """
     def __init__(self, data_dir, fs, spec_settings, **kwargs):
 

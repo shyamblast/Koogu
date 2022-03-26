@@ -2,11 +2,46 @@ import tensorflow as tf
 from . import KooguArchitectureBase
 
 
-class Architecture(KooguArchitectureBase):
+@KooguArchitectureBase.export
+class ConvNet(KooguArchitectureBase):
     """
     Boilerplate ConvNet network-building logic that can be used, with
     appropriate customization of parameters, to build networks like LeNet,
     AlexNet, etc.
+
+    :param filters_per_layer: (list/tuple of ints) The length of the list/tuple
+        defines the depth of the network and each value in it specifies the
+        number of filters at the corresponding level.
+    :param pool_sizes: (optional) Must be a list of 2-element tuples (of ints)
+        specifying the factors by which to downscale (vertical, horizontal)
+        following each convolution. The length of the list must be the same as
+        that of ``filters_per_layer``. By default, a pool size of (2, 2) is
+        considered throughout.
+    :param pool_strides: (optional; defaults to whatever ``pool_sizes`` is) Must
+        be of similar structure as ``pool_sizes``, and will define the strides
+        that the pooling operation takes along the horizontal and vertical
+        directions.
+
+    **Other helpful customizations**
+
+    :param add_batchnorm: (bool; default: False) If True, batch normalization
+        layers will be added following each convolution layer.
+    :param pooling_type: (optional) By default, average pooling is performed.
+        Set to 'max' to use max pooling instead.
+
+    **Koogu-style model customizations**
+
+    :param preproc: (optional) Use this to add pre-convolution operations to the
+        model. If specified, must be a list of 2-element tuples, with each tuple
+        containing -
+
+        * the name of the operation (either a compatible Keras layer or a
+          transformation from :mod:`koogu.data.tf_transformations`.
+        * a Python dictionary specifying parameters to the operation.
+    :param dense_layers: (optional) Use this to add fully-connected (dense)
+        layers to the end of the model network. Can specify a single integer
+        (the added layer will have as many nodes) or a list of integers to add
+        multiple (connected in sequence) dense layers.
     """
 
     def __init__(self, filters_per_layer, **kwargs):
@@ -32,7 +67,7 @@ class Architecture(KooguArchitectureBase):
             'pool_strides', arch_config['pool_sizes'])
 
         model_name = params.pop('name', 'ConvNet')
-        super(Architecture, self).__init__(
+        super(ConvNet, self).__init__(
             arch_config, is_2d=True, name=model_name, **params)
 
     def build_architecture(self, inputs, is_training, data_format, **kwargs):
@@ -80,4 +115,4 @@ class Architecture(KooguArchitectureBase):
         return outputs
 
 
-__all__ = ['Architecture']
+__all__ = ['ConvNet']

@@ -68,7 +68,18 @@ class Temporal(_Augmentation):
 
     @staticmethod
     def apply_chain(clip, augmentations, probabilities, t_axis=-1):
+        """
+        Apply a chain of Temporal augmentations.
 
+        :param clip: The audio clip to apply the augmentations to.
+        :param augmentations: List of the Temporal augmentations to apply.
+        :param probabilities: List of probabilities (each in the range 0-1), one
+            per augmentation listed in `augmentations`.
+        :param t_axis: (Defaults to -1, the last dimension) Index of the axis in
+            `clip` corresponding to its time axis.
+
+        :returns: The tensor `clip` after applying the specified augmentations.
+        """
         return _Augmentation._apply_domain_chain(Temporal, clip,
                                                  augmentations, probabilities,
                                                  t_axis=t_axis)
@@ -127,7 +138,21 @@ class SpectroTemporal(_Augmentation):
 
     @staticmethod
     def apply_chain(spec, augmentations, probabilities, f_axis=0, t_axis=1):
+        """
+        Apply a chain of SpectroTemporal augmentations.
 
+        :param spec: The spectrogram to apply the augmentations to.
+        :param augmentations: List of the SpectroTemporal augmentations to
+            apply.
+        :param probabilities: List of probabilities (each in the range 0-1), one
+            per augmentation listed in `augmentations`.
+        :param f_axis: (Defaults to 0) Index of the axis in `spec` corresponding
+            to its frequency axis.
+        :param t_axis: (Defaults to 1) Index of the axis in `spec` corresponding
+            to its time axis.
+
+        :returns: The tensor `spec` after applying the specified augmentations.
+        """
         return _Augmentation._apply_domain_chain(SpectroTemporal, spec,
                                                  augmentations, probabilities,
                                                  f_axis=f_axis, t_axis=t_axis)
@@ -241,15 +266,14 @@ class RampVolume(Temporal):
     Alter the volume of signal by ramping up/down its amplitude linearly across
     the duration of the signal. In a way simulates the effect of the source
     moving away or towards the receiver.
+
+    :param val_range: A 2-element list/tuple. Ramp factor will be randomly
+        chosen in the range val_range[0] dB to val_range[1] dB. If the chosen
+        factor is non-negative, will ramp up from ~-val dB. If the chosen factor
+        is negative, will ramp down to -abs(~val) dB.
     """
 
     def __init__(self, val_range):
-        """
-        Ramp factor will be randomly chosen in the range val_range[0] dB to
-        val_range[1] dB. If the chosen factor is non-negative, will ramp up from
-        ~-val dB. If the chosen factor is negative, will ramp down to
-        -abs(~val) dB.
-        """
 
         assert val_range[0] < val_range[1]
 
@@ -277,15 +301,14 @@ class RampVolume(Temporal):
 class AddGaussianNoise(Temporal):
     """
     Add Gaussian noise.
+
+    :param val_range: A 2-element list/tuple. The level of the added noise will
+        be randomly chosen from the range val_range[0] dB to val_range[1] dB
+        (both must be non-positive). The peak noise level will approximately be
+        as many dB below the peak level of the input signal.
     """
 
     def __init__(self, val_range):
-        """
-        The level of the added noise will be randomly chosen from the range
-        val_range[0] dB to val_range[1] dB (both must be non-positive). The peak
-        noise level will approximately be as many dB below the peak level of the
-        input signal.
-        """
 
         assert val_range[0] < val_range[1] <= 0.0
 
@@ -311,21 +334,21 @@ class AddGaussianNoise(Temporal):
 @aug_register()
 class AddEcho(Temporal):
     """
-    Add echo.
+    Add echo. Produce echo effect by adding a dampened and delayed copy of the
+    input to the input. The dampened copy is produced by using a random
+    attenuation factor, and the phase of the dampened copy is also randomly
+    inverted.
+
+    :param delay_range: A 2-element list/tuple, values specified in seconds. The
+        delay amount will be randomly chosen from this range.
+    :param fs: Sampling frequency of the input. The chosen delay amount will be
+        converted to number of samples using this value.
+    :param level_range: A 2-element list/tuple or None (default). The
+        attenuation factor is derived from this range. If None, it will default
+        to [-18 dB, -12 dB].
     """
 
     def __init__(self, delay_range, fs, level_range=None):
-        """
-        Produce echo effect by adding a dampened and delayed copy of the input
-        to the input. The dampened copy is produced by using a random
-        attenuation factor, and the phase of the dampened copy is also randomly
-        inverted.
-        The attenuation factor is derived from the range 'level_range'. If
-        'level_range' is None, it will default to [-18 dB, -12 dB].
-        The delay amount will be randomly chosen from the range 'delay_range'
-        (specified as seconds). It will be converted to number of samples using
-        'fs' (the sampling frequency).
-        """
 
         assert 0 <= delay_range[0] < delay_range[1]
 
@@ -366,17 +389,17 @@ class AddEcho(Temporal):
 @aug_register()
 class ShiftPitch(Temporal):
     """
-    Shift the pitch of the contained sound(s).
+    Shift the pitch of the contained sound(s) up or down.
+
+    :param val_range: A 2-element list/tuple. The factor by which the pitch will
+        be shifted will be chosen randomly from the range val_range[0] to
+        val_range[1]. Set the range around 1.0. If the chosen value is above
+        1.0, pitch will be shifted upwards. If the chosen value is below 1.0,
+        pitch will be shifted downwards. If the chosen value equals 1.0, there
+        will be no change.
     """
 
     def __init__(self, val_range):
-        """
-        Shift the pitch of the contained sound(s) up or down by a factor that is
-        chosen randomly from the range val_range[0] to val_range[1]. Set the
-        range around 1.0. If the chosen value is above 1.0, pitch will be
-        shifted upwards. If the chosen value is below 1.0, pitch will be shifted
-        downwards. If the chosen value equals 1.0, there'll be no change.
-        """
 
         assert 0 < val_range[0] < val_range[1]
 
@@ -407,18 +430,16 @@ class ShiftPitch(Temporal):
 class AlterDistance(SpectroTemporal):
     """
     Mimic the effect of increasing/reducing the distance between a source and
-    receiver.
-    """
+    receiver by attenuating/amplifying higher frequencies while keeping lower
+    frequencies relatively unchanged.
 
-    def __init__(self, val_range):
-        """
-        Mimic the effect of increased/reduced distance between the source and
-        the receiver by attenuating/amplifying higher frequencies while keeping
-        lower frequencies relatively unchanged. The attenuation/amplification
+    :param val_range: A 2-element list/tuple. The attenuation/amplification
         factor will be randomly chosen from the range val_range[0] dB to
         val_range[1] dB. A negative value chosen effects attenuation, while a
         positive value chosen effects amplification.
-        """
+    """
+
+    def __init__(self, val_range):
 
         assert val_range[0] < val_range[1]
 
@@ -442,16 +463,16 @@ class SmearFrequency(SpectroTemporal):
     """
     Smear the spectrogram along the frequency axis. Can have the effect of
     shifting the pitch of the contained sounds.
+
+    :param val_range: A 2-element integer list/tuple. The amount to smear is
+        derived from a value chosen in the integer range val_range[0] to
+        val_range[1]. Specify the range to reflect the number of frequency bins
+        that will be involved in the smearing operation. If a positive value is
+        chosen, the smearing occurs upwards. If a negative value is chosen,
+        the smearing occurs downwards.
     """
 
     def __init__(self, val_range):
-        """
-        The amount to smear is derived from a value chosen in the integer range
-        val_range[0] to val_range[1]. Specify the range to reflect the number of
-        frequency bins that will be involved in the smearing operation. If a
-        positive value is chosen, the smearing occurs upwards. If a negative
-        value is chosen, the smearing occurs downwards.
-        """
 
         assert val_range[0] <= val_range[1]
 
@@ -478,16 +499,16 @@ class SmearTime(SpectroTemporal):
     """
     Smear the spectrogram along the time axis. Can have the effect of
     elongating the duration of the contained sounds.
+
+    :param val_range: A 2-element integer list/tuple. The amount to smear is
+        derived from a value chosen in the integer range val_range[0] to
+        val_range[1]. Specify the range to reflect the number of time windows
+        that will be involved in the smearing operation. If a positive value is
+        chosen, the smearing occurs forwards. If a negative value is chosen, the
+        smearing occurs backwards.
     """
 
     def __init__(self, val_range):
-        """
-        The amount to smear is derived from a value chosen in the integer range
-        val_range[0] to val_range[1]. Specify the range to reflect the number of
-        time windows that will be involved in the smearing operation. If a
-        positive value is chosen, the smearing occurs forwards. If a negative
-        value is chosen, the smearing occurs backwards.
-        """
 
         assert val_range[0] <= val_range[1]
 
@@ -514,16 +535,16 @@ class SquishFrequency(SpectroTemporal):
     """
     Squish the spectrogram along the frequency axis. Can have the effect of
     shifting the pitch of the contained sounds.
+
+    :param val_range: A 2-element integer list/tuple. The amount to squish is
+        derived from a value chosen in the integer range val_range[0] to
+        val_range[1]. Specify the range to reflect the number of frequency bins
+        that will be involved in the squishing operation. If a positive value is
+        chosen, the squishing occurs upwards. If a negative value is chosen, the
+        squishing occurs downwards.
     """
 
     def __init__(self, val_range):
-        """
-        The amount to squish is derived from a value chosen in the integer range
-        val_range[0] to val_range[1]. Specify the range to reflect the number of
-        frequency bins that will be involved in the squishing operation. If a
-        positive value is chosen, the squishing occurs upwards. If a negative
-        value is chosen, the squishing occurs downwards.
-        """
 
         assert val_range[0] <= val_range[1]
 
@@ -550,16 +571,16 @@ class SquishTime(SpectroTemporal):
     """
     Squish the spectrogram along the time axis. Can have the effect of
     compressing the duration of the contained sounds.
+
+    :param val_range: A 2-element integer list/tuple. The amount to squish is
+        derived from a value chosen in the integer range val_range[0] to
+        val_range[1]. Specify the range to reflect the number of time windows
+        that will be involved in the squishing operation. If a positive value is
+        chosen, the squishing occurs forwards. If a negative value is chosen,
+        the squishing occurs backwards.
     """
 
     def __init__(self, val_range):
-        """
-        The amount to squish is derived from a value chosen in the integer range
-        val_range[0] to val_range[1]. Specify the range to reflect the number of
-        time windows that will be involved in the squishing operation. If a
-        positive value is chosen, the squishing occurs forwards. If a negative
-        value is chosen, the squishing occurs backwards.
-        """
 
         assert val_range[0] <= val_range[1]
 

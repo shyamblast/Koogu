@@ -15,6 +15,26 @@ from koogu.utils.filesystem import AudioFileList
 class _Metric(metaclass=abc.ABCMeta):
     """
     Base class for implementing performance assessment logic.
+
+    :param audio_annot_list: A list containing pairs (tuples or sub-lists) of
+        relative paths to audio files and the corresponding annotation
+        (selection table) files.
+    :param raw_results_root: The full paths of the raw result container files
+        whose filenames will be derived from the audio files listed in
+        ``audio_annot_list`` will be resolved using this as base directory.
+    :param annots_root: The full paths of annotations files listed in
+        ``audio_annot_list`` will be resolved using this as base directory.
+    :param reject_classes: Name (case sensitive) of the class (like 'Noise' or
+        'Other') for which performance assessments are not to be computed. Can
+        specify multiple classes for rejection, as a list.
+    :param remap_labels_dict: If not None, must be a Python dictionary
+        describing mapping of class labels. For details, see similarly named
+        parameter to the constructor of
+        :class:`koogu.utils.detections.LabelHelper`.
+    :param negative_class_label: A string (e.g. 'Other', 'Noise') which will be
+        used as a label to identify the negative class clips (those that did
+        not match any annotations), if an inherited class deals with those. If
+        specified, will be used in conjunction with ``remap_labels_dict``.
     """
 
     def __init__(self, audio_annot_list,
@@ -23,30 +43,6 @@ class _Metric(metaclass=abc.ABCMeta):
                  remap_labels_dict=None,
                  negative_class_label=None,
                  **kwargs):
-        """
-        :param audio_annot_list: A list containing pairs (tuples or sub-lists)
-            of relative paths to audio files and the corresponding annotation
-            (selection table) files.
-        :param raw_results_root: The full paths of the raw result container
-            files whose filenames will be derived from the audio files listed in
-            'audio_annot_list' will be resolved using this as base directory.
-        :param annots_root: The full paths of annotations files listed in
-            'audio_annot_list' will be resolved using this as base directory.
-        :param reject_classes: Name (case sensitive) of the class (like 'Noise'
-            or 'Other') for which performance assessments are not to be
-            computed. Can specify multiple classes for rejection, as a list.
-        :param remap_labels_dict: If not None, must be a dictionary describing
-            mapping of class labels. Use this to update existing class' labels
-            (e.g. {'c1': 'new_c1'}), to merge together existing classes (e.g.
-            {'c4': 'c1'}), and/or to combine existing classes into new ones
-            (e.g. {'c4': 'new_c2', 'c23', 'new_c2'}). Avoid chaining of mappings
-            (e.g. {'c1': 'c2', 'c2': 'c3'}).
-        :param negative_class_label: A string (e.g. 'Other', 'Noise') which will
-            be used as a label to identify the negative class clips (those that
-            did not match any annotations), if an inherited class deals with
-            those. If specified, will be used in conjunction with
-            remap_labels_dict.
-        """
 
         if os.path.exists(
                 os.path.join(raw_results_root, AssetsExtraNames.classes_list)):
@@ -110,6 +106,12 @@ class _Metric(metaclass=abc.ABCMeta):
                         'classes. Setting will be ignored.')
 
     def assess(self, show_progress=False, **kwargs):
+        """
+        Perform the desired assessments.
+
+        :param show_progress: (default: False) If True, will show progress bars
+            during processing of each audio file.
+        """
 
         # kwargs will simply be passed as-is to the overridden internal methods.
 
@@ -245,9 +247,58 @@ class PrecisionRecall(_Metric):
     """
     Class for assessing precision-recall values.
 
-    When calling assess(), passing return_counts=True will return the per-class
-    counts for the numerators and denominators of precision and recall.
-    Otherwise, per-class and overall precision-recall values will be returned.
+    :param audio_annot_list: A list containing pairs (tuples or sub-lists) of
+        relative paths to audio files and the corresponding annotation
+        (Raven selection table) files.
+    :param raw_results_root: The full paths of the raw result container files
+        whose filenames will be derived from the audio files listed in
+        ``audio_annot_list`` will be resolved using this as base directory.
+    :param annots_root: The full paths of annotations files listed in
+        ``audio_annot_list`` will be resolved using this as base directory.
+    :param thresholds: If not None, must be either a scalar quantity or a list
+        of non-decreasing values (float values in the range 0-1) at which
+        precision and recall value(s) will be assessed. If None, will default
+        to the range 0-1 with an interval of 0.05.
+    :param post_process_detections: If True (default: False), a post-processing
+        algorithm will be applied to the raw detections before computing
+        performance stats.
+
+    **Optional parameters**
+
+    :param suppress_nonmax: If True (default: False), only the top-scoring class
+        per clip will be considered. When post-processing is enabled, the
+        parameter is handled directly in
+        :meth:`koogu.utils.detections.postprocess_detections`.
+    :param squeeze_min_dur: (default: None). If set (duration in seconds), an
+        algorithm "to squeeze together" temporally overlapping regions from
+        successive raw clips will be applied. The 'squeezing' will be restricted
+        to produce detections that are at least as long as the specified value.
+        The value must be smaller than the duration of the model inputs.
+        Parameter used only when post-processing is enabled, and converts the
+        duration to number of samples before passing it to
+        :meth:`koogu.utils.detections.postprocess_detections`.
+
+    **Parameters specific to**
+
+        - *(when post-processing isn't enabled)*
+
+          :meth:`koogu.utils.detections.assess_annotations_and_clips_match`
+
+        - *(when post-processing is enabled)*
+
+          :meth:`koogu.utils.detections.postprocess_detections`, and
+          :meth:`koogu.utils.detections.assess_annotations_and_detections_match`
+
+    can also be specified, and will be passed as-is to the respective
+    functions.
+
+    All other `kwargs` parameters (if any) will be passed as-is to the base
+    class.
+
+    When calling :meth:`assess`, passing ``return_counts=True`` will
+    return the per-class counts for the numerators and denominators of precision
+    and recall. Otherwise, per-class and overall precision-recall values will be
+    returned.
     """
 
     def __init__(self, audio_annot_list,
@@ -255,50 +306,6 @@ class PrecisionRecall(_Metric):
                  thresholds=None,
                  post_process_detections=False,
                  **kwargs):
-        """
-
-        :param audio_annot_list: A list containing pairs (tuples or sub-lists)
-            of relative paths to audio files and the corresponding annotation
-            (selection table) files.
-        :param raw_results_root: The full paths of the raw result container
-            files whose filenames will be derived from the audio files listed in
-            'audio_annot_list' will be resolved using this as base directory.
-        :param annots_root: The full paths of annotations files listed in
-            'audio_annot_list' will be resolved using this as base directory.
-        :param thresholds: If not None, must be either a scalar quantity or a
-            list of non-decreasing values (float values in the range 0-1) at
-            which precision and recall value(s) will be assessed. If None, will
-            default to the range 0-1 with an interval of 0.05.
-        :param post_process_detections: If True (default is False), a
-            post-processing algorithm will be applied to the raw detections
-            before assessing performance.
-
-        Other optional parameters:
-        :param suppress_nonmax: If True (default is False), only the top-scoring
-            class per clip will be considered. When post-processing is enabled,
-            the parameter is handled directly in
-            koogu.utils.detections.postprocess_detections().
-        :param squeeze_min_dur: (default None). If set (duration in seconds), an
-            algorithm 'to squeeze together' temporally overlapping regions from
-            successive raw clips will be applied. The 'squeezing' will be
-            restricted to produce detections that are at least as long as the
-            specified value. The value must be smaller than the duration of the
-            model inputs. Parameter used only when post-processing is enabled,
-            and converts the duration to number of samples before passing it to
-            koogu.utils.detections.postprocess_detections().
-
-        Other parameters specific to
-            - (when post-processing isn't enabled)
-                koogu.utils.detections.assess_annotations_and_clips_match()
-            - (when post-processing is enabled)
-                koogu.utils.detections.postprocess_detections(), and
-                koogu.utils.detections.assess_annotations_and_detections_match()
-        can also be specified, and will be passed as-is to the respective
-        functions.
-
-        All other optional parameters (if any) will be passed as-is to the base
-        class.
-        """
 
         if thresholds is None:  # Apply defaults
             self._thresholds = np.round(np.arange(0, 1.0 + 1e-8, 0.05), 2)
@@ -519,6 +526,8 @@ class PrecisionRecall(_Metric):
         The "post-processing counterpart" of this function handles
         nonmax-suppression internally within lower-level functions. For this
         function, we do need to handle it explicitly.
+
+        :meta private:
         """
 
         # Load raw detections info
@@ -598,6 +607,8 @@ class PrecisionRecall(_Metric):
             pp_fn_kwargs_dict, match_fn_kwargs_dict, **kwargs):
         """
         Function that first post-processes detections and then assesses perf.
+
+        :meta private:
         """
 
         # Load raw detections info

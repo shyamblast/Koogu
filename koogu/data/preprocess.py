@@ -31,7 +31,7 @@ def from_selection_table_map(audio_settings, audio_seltab_list,
                              negative_class_label=None,
                              **kwargs):
     """
-    Prepare training data using info contained in 'audio_seltab_list'.
+    Pre-process training data using info contained in ``audio_seltab_list``.
 
     :param audio_settings: A dictionary specifying the parameters for processing
         audio from files.
@@ -39,9 +39,9 @@ def from_selection_table_map(audio_settings, audio_seltab_list,
         relative paths to audio files and the corresponding annotation
         (selection table) files.
     :param audio_root: The full paths of audio files listed in
-        'audio_seltab_list' are resolved using this as the base directory.
+        ``audio_seltab_list`` are resolved using this as the base directory.
     :param seltab_root: The full paths of annotations files listed in
-        'audio_seltab_list' are resolved using this as the base directory.
+        ``audio_seltab_list`` are resolved using this as the base directory.
     :param output_root: "Prepared" data will be written to this directory.
     :param desired_labels: The target set of class labels. If not None, must be
         a list of class labels. Any selections (read from the selection tables)
@@ -49,26 +49,26 @@ def from_selection_table_map(audio_settings, audio_seltab_list,
         will be used to populate classes_list.json that will define the classes
         for the project. If None, then the list of classes will be populated
         with the annotation labels read from all selection tables.
-    :param remap_labels_dict: If not None, must be a dictionary describing
-        mapping of class labels. Use this to update existing class' labels (e.g.
-        {'c1': 'new_c1'}), to merge together existing classes (e.g.
-        {'c4': 'c1'}), and/or to combine existing classes into new ones (e.g.
-        {'c4': 'new_c2', 'c23', 'new_c2'}). Avoid chaining of mappings (e.g.
-        {'c1': 'c2', 'c2': 'c3'}).
-        Note: If desired_labels is not None, mappings for which targets are not
-        listed in desired_labels will be ignored.
+    :param remap_labels_dict: If not None, must be a Python dictionary
+        describing mapping of class labels. For details, see similarly named
+        parameter to the constructor of
+        :class:`koogu.utils.detections.LabelHelper`.
+
+        .. note:: If ``desired_labels`` is not None, mappings for which targets
+           are not listed in ``desired_labels`` will be ignored.
+
     :param negative_class_label: A string (e.g. 'Other', 'Noise') which will be
         used as a label to identify the negative class clips (those that did not
         match any annotations). If None (default), saving of negative class
         clips will be disabled.
 
     Other parameters specific to
-    koogu.utils.detections.assess_annotations_and_clips_match()
+    :func:`koogu.utils.detections.assess_annotations_and_clips_match`
     can also be specified, and will be passed as-is to the function.
 
     :return: A dictionary whose keys are annotation tags (either discovered from
-        the set of annotations, or same as desired_labels if not None) and the
-        values are the number of clips produced for the corresponding class.
+        the set of annotations, or same as ``desired_labels`` if not None) and
+        the values are the number of clips produced for the corresponding class.
     """
 
     logger = logging.getLogger(__name__)
@@ -163,7 +163,7 @@ def from_top_level_dirs(audio_settings, class_dirs,
                         remap_labels_dict=None,
                         **kwargs):
     """
-    Prepare training data using audio files in 'class_dirs'.
+    Pre-process training data available as audio files in ``class_dirs``.
 
     :param audio_settings: A dictionary specifying the parameters for processing
         audio from files.
@@ -171,14 +171,12 @@ def from_top_level_dirs(audio_settings, class_dirs,
         directories containing audio files. Each directory's contents will be
         recursively searched for audio files.
     :param audio_root: The full paths of the class-specific directories listed
-        in 'class_dirs' are resolved using this as the base directory.
+        in ``class_dirs`` are resolved using this as the base directory.
     :param output_root: "Prepared" data will be written to this directory.
-    :param remap_labels_dict: If not None, must be a dictionary describing
-        mapping of class labels. Use this to update existing class' labels (e.g.
-        {'c1': 'new_c1'}), to merge together existing classes (e.g.
-        {'c4': 'c1'}), and/or to combine existing classes into new ones (e.g.
-        {'c4': 'new_c2', 'c23', 'new_c2'}). Avoid chaining of mappings (e.g.
-        {'c1': 'c2', 'c2': 'c3'}).
+    :param remap_labels_dict: If not None, must be a Python dictionary
+        describing mapping of class labels. For details, see similarly named
+        parameter to the constructor of
+        :class:`koogu.utils.detections.LabelHelper`.
     :param filetypes: (optional) Restrict listing to files matching extensions
         specified in this parameter. Has defaults if unspecified.
 
@@ -495,7 +493,7 @@ def _validate_seltab_filemap_rhs(seltab_root, entry):
            os.path.isfile(os.path.join(seltab_root, entry) if seltab_root is not None else entry)
 
 
-__all__ = [from_selection_table_map, from_top_level_dirs]
+__all__ = ['from_selection_table_map', 'from_top_level_dirs']
 
 
 if __name__ == '__main__':

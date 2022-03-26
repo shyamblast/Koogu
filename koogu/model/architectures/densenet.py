@@ -2,10 +2,55 @@ import tensorflow as tf
 from . import KooguArchitectureBase
 
 
-class Architecture(KooguArchitectureBase):
+@KooguArchitectureBase.export
+class DenseNet(KooguArchitectureBase):
     """
     DenseNet [http://arxiv.org/abs/1608.06993].
     This implementation supports both with and without bottleneck.
+
+
+    :param layers_per_block: (list/tuple of ints) The length of the list/tuple
+        defines the number of dense-blocks in the network and each value in the
+        list specifies the number of composite function layers
+        (made up of BatchNorm-Conv-ReLU) in the corresponding dense-block.
+    :param growth_rate: (optional; default: 12) Number of composite function
+        layers per dense-block.
+    :param compression: (optional; default: 1.0) Specifies the rate of
+        compression applied in transition blocks. A value of 1.0 means no
+        compression; specify value < 1.0 to bring about compression.
+    :param with_bottleneck: (bool; default: False) Weather to include bottleneck
+        layers.
+
+    **Other helpful customizations**
+
+    :param quasi_dense: (bool; default: False) If True, feed-forward connections
+        within a dense-block will be reduced, as described in
+        `Madhusudhana et. al. 2021 <https://doi.org/10.1098/rsif.2021.0297>`_.
+    :param pooling_type: (optional) By default, average pooling is performed.
+        Set to 'max' to use max pooling instead.
+    :param pool_sizes: (optional) Must be a list of 2-element tuples (of ints)
+        specifying the factors by which to downscale (vertical, horizontal)
+        in each transition block. The length of the list must be one less than
+        that of ``layers_per_block``. By default, a pool size of (3, 3) is
+        considered throughout.
+    :param pool_strides: (optional; defaults to whatever ``pool_sizes`` is) Must
+        be of similar structure as ``pool_sizes``, and will define the strides
+        that the pooling operation takes along the horizontal and vertical
+        directions.
+
+    **Koogu-style model customizations**
+
+    :param preproc: (optional) Use this to add pre-convolution operations to the
+        model. If specified, must be a list of 2-element tuples, with each tuple
+        containing -
+
+        * the name of the operation (either a compatible Keras layer or a
+          transformation from :mod:`koogu.data.tf_transformations`.
+        * a Python dictionary specifying parameters to the operation.
+    :param dense_layers: (optional) Use this to add fully-connected (dense)
+        layers to the end of the model network. Can specify a single integer
+        (the added layer will have as many nodes) or a list of integers to add
+        multiple (connected in sequence) dense layers.
     """
 
     def __init__(self, layers_per_block, **kwargs):
@@ -37,7 +82,7 @@ class Architecture(KooguArchitectureBase):
         arch_config['pool_strides'] = params.pop(
             'pool_strides', arch_config['pool_sizes'])
 
-        super(Architecture, self).__init__(
+        super(DenseNet, self).__init__(
             arch_config, is_2d=True, name='DenseNet', **params)
 
     def build_architecture(self, inputs, is_training, data_format, **kwargs):
@@ -176,4 +221,4 @@ class Architecture(KooguArchitectureBase):
         return outputs
 
 
-__all__ = ['Architecture']
+__all__ = ['DenseNet']
