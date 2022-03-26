@@ -545,7 +545,7 @@ def nonmax_suppress_mask(scores):
 class LabelHelper:
     """
     Provides functionality for manipulating and managing class labels in a
-    problem space.
+    problem space, without resorting to altering selection tables.
 
     :param classes_list: List of class labels. When used during data
         preparation, the list may be generated from available classes or
@@ -577,8 +577,8 @@ class LabelHelper:
         during performance assessments.
 
     .. seealso::
-        :func:`koogu.prepare.from_selection_table_map`
-        :func:`koogu.prepare.from_top_level_dirs`
+        :func:`koogu.data.preprocess.from_selection_table_map`
+        :func:`koogu.data.preprocess.from_top_level_dirs`
         :func:`koogu.utils.assessments._Metric`
     """
 
