@@ -5,10 +5,9 @@ import logging
 from tensorflow.python.client import device_lib
 import argparse
 import json
-import warnings
 
 from koogu.model import architectures, TrainedModel
-from koogu.data import feeder
+from koogu.data.feeder import BaseFeeder
 from koogu.utils import instantiate_logging
 from koogu.utils.terminal import ArgparseConverters
 from koogu.utils.config import Config, ConfigError, datasection2dict, log_config
@@ -17,41 +16,93 @@ from koogu.utils.config import Config, ConfigError, datasection2dict, log_config
 _program_name = 'train_and_eval'
 
 
-def train_and_eval(data_dir, model_dir,
-                   data_config,
-                   arch_or_model_config,
+def train_and_eval(data_feeder, model_dir,
+                   data_settings,
+                   model_architecture,
                    training_config,
                    verbose=2,
                    **kwargs):
+    """
+    Perform training and evaluation.
 
-    if isinstance(arch_or_model_config, architectures.BaseArchitecture):
-        model_arch = arch_or_model_config
-    else:
-        warnings.showwarning(
-            'Use of model config (dict) to set up a model will be ' +
-            'deprecated in the future. Please use koogu.model.Architectures' +
-            ' to choose and configure models instead.',
-            DeprecationWarning, 'train_and_eval.py', 0)
+    :param data_feeder: An instance of a :class:`~data.feeder.BaseFeeder`
+        implementation (e.g., :class:`~data.feeder.SpectralDataFeeder`).
+    :param model_dir: Path to the directory into which the trained model and its
+        supporting files will be written.
+    :param data_settings: A Python dictionary containing -
 
-        # Check fields in model_config
-        required_fields = ['arch', 'arch_params']
-        if any([field not in arch_or_model_config
-                for field in required_fields]):
-            print('Required fields missing in \'arch_or_model_config\'',
-                  file=sys.stderr)
-            return -1
-        model_config = {k: v for k, v in arch_or_model_config.items()}  # copy
-        # Pop out req field vals
-        arch = model_config['arch']
-        arch_params = model_config['arch_params']
+        * `audio_settings` : a sub-dictionary specifying parameters considered
+          in data pre-processing,
+        * `spec_settings` : (optional) a sub-dictionary specifying parameters
+          considered in data transformation (if any considered).
 
-        try:
-            arch_submodule = getattr(architectures, arch)
-        except KeyError as _:
-            raise ValueError('Architecture {:s} is not available.'.format(
-                arch))
+        These settings are not used during training, but must be specified so
+        that they will be saved along with the trained model after training
+        completes.
 
-        model_arch = arch_submodule(**arch_params, **model_config)
+    :param model_architecture: An instance of a
+        :class:`~model.architectures.BaseArchitecture` implementation (e.g.,
+        :class:`~model.architectures.DenseNet`).
+    :param training_settings: Training hyperparameters. A Python dictionary
+        containing settings for defining the training process, controlling
+        regularization, etc.
+
+        `Required fields`
+
+        * `batch_size`: (integer) Number of input samples from the dataset to
+          combine in a single batch.
+        * `epochs`: (integer) Number of epochs to perform the training for.
+
+        `Optional fields`
+
+        * `optimizer`: The optimizer to use during training. Must be a 2-element
+          tuple specifying the name (string) of the optimizer and its
+          parameters (a Python dictionary containing key-value pairs). Defaults
+          to ``['Adam', {}]``.
+        * `weighted_loss`: (boolean; default: True) When enabled, loss function
+          during training will be weighted based on the disparities in
+          per-class training samples available.
+        * `l2_weight_decay`: To enable, set to a reasonable value (e.g., 1e-4).
+          Enabling it will add L2 regularization, with the specified decay.
+        * `learning_rate`: Learning rate for training (default: 0.001). Can also
+          specify dynamic rates, in one of two ways:
+
+          * set this key to a static value, and specify both
+            `lr_change_at_epochs` and `lr_update_factors` (see below), or
+          * set this key to be a callable (e.g., function) which takes the
+            current epoch number as input and returns the desired learning rate
+            for the epoch.
+        * `lr_change_at_epochs`: List of integers specifying the epochs at which
+          the learning rate must be updated. If specifying this, `learning_rate`
+          must be static.
+        * `lr_update_factors`: List of integers (one element more than
+          lr_change_at_epochs) specifying the decimation factor of the current
+          learning rate at the set epochs. If specifying this, `learning_rate`
+          must be static.
+        * `dropout_rate`: Helps the model generalize better. Set to a small
+          positive quantity (e.g., 0.05). Functionality is disabled by default.
+        * `epochs_between_evals`: (optional; integer) Number of epochs to wait
+          before performing another validation run. (default: 5)
+    :param verbose: Level of information to display. Set to -
+
+        | 0 - for no display
+        | 1 - to display progress bars for each epoch
+        | 2 - to display one-line summary per epoch (default)
+    :param random_seed: (optional) A seed (integer) used to initialize the
+        psuedo-random number generator that makes setting randomized initial
+        values for model parameters repeatable.
+
+    :return: A Python dictionary containing a record of the training history,
+        including the "training" and "evaluation" accuracies and losses at each
+        epoch.
+    """
+
+    isinstance(data_feeder, BaseFeeder), 'data_feeder must be an instance ' + \
+        'of a class that implements koogu.data.feeder.BaseFeeder'
+
+    isinstance(model_architecture, architectures.BaseArchitecture), \
+        'model_architecture must be an instance of a class that implements ' + \
+        'koogu.model.architectures.BaseArchitecture'
 
     # Check fields in training_config
     required_fields = ['batch_size', 'epochs']
@@ -106,14 +157,9 @@ def train_and_eval(data_dir, model_dir,
               file=sys.stderr)
         return -2
 
-    # If data_dir parameter was already an instantiated BaseFeeder object,
-    # pass it on. Otherwise, create a default one.
-    data_feeder = data_dir if isinstance(data_dir, feeder.BaseFeeder) \
-        else feeder.TFRecordFeeder(data_dir)
-
     # Invoke the underlying main function
     return _main(data_feeder, model_dir,
-                 data_config, model_arch, training_cfg,
+                 data_settings, model_architecture, training_cfg,
                  verbose, **kwargs)
 
 
@@ -228,7 +274,7 @@ def _main(data_feeder, model_dir, data_cfg, model_arch, training_cfg,
         loss=loss_fn,
         metrics=[acc_metric])
 
-    if verbose > 0:
+    if verbose == 'auto' or verbose > 0:
         print('Data: {:d} classes, {:d} training & {:d} eval samples'.format(
             data_feeder.num_classes, data_feeder.training_samples,
             data_feeder.validation_samples))
