@@ -111,8 +111,8 @@ class BaseFeeder(metaclass=abc.ABCMeta):
         from stored files) and construct a TensorFlow Dataset.
 
         :param is_training: (boolean) True if operating in training mode.
-        :param batch_size: (integer) Number of input samples to from the dataset
-            to combine in a single batch.
+        :param batch_size: (integer) Number of input samples from the dataset to
+            combine in a single batch.
 
         :return: A tf.data.Dataset
         """
