@@ -11,7 +11,7 @@ setup(
     description='Machine Learning for Bioacoustics',
     long_description=long_description,
     long_description_content_type='text/markdown',
-    url='https://github.com/shyamblast/Koogu',
+    url='https://shyamblast.github.io/Koogu/',
     author='Shyam Madhusudhana',
     author_email='shyamm@cornell.edu',
     license='GNU General Public License v3.0',
