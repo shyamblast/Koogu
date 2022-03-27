@@ -161,7 +161,7 @@ rinoh_documents = [(
     master_doc,
     'target',
     '{} Documentation'.format(REPO_NAME),
-    '© {}'.format(copyright),
+    'Copyright {}'.format(copyright),
 )]
 today_fmt = "%B %d, %Y"
 
