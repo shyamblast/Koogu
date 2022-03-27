@@ -1,4 +1,4 @@
-python3-sphinx-rtd-theme
 m2r
 recommonmark
-
+GitPython
+rinohtype
