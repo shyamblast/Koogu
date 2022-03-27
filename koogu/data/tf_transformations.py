@@ -513,7 +513,7 @@ class GaussianBlur(tf.keras.layers.Layer):
         else:
             self.kernel_x = None
 
-        padding_amt = int(np.ceil(sigma * 3))
+        padding_amt = int(np.ceil(sigma * 4))
         padding_vec = [[0, 0], [0, 0], [0, 0], [0, 0]]
         padding_vec[f_axis] = [padding_amt, padding_amt]
         if apply_2d:
