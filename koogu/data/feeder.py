@@ -562,6 +562,8 @@ class SpectralDataFeeder(DataFeeder):
     :param spec_settings: A Python dictionary. For a list of possible keys and
         values, see parameters to
         :class:`~koogu.data.tf_transformations.Audio2Spectral`.
+    :param normalize_clips: (optional; boolean) If True (default), input clips
+        will be normalized before applying transform (computing spectrograms).
     :param cache: (optional; boolean) If True (default), the logic to 'queue &
         batch' training/evaluation samples (loaded from disk) will also cache
         the samples. Helps speed up processing.
@@ -570,6 +572,8 @@ class SpectralDataFeeder(DataFeeder):
     be specified.
     """
     def __init__(self, data_dir, fs, spec_settings, **kwargs):
+
+        self._normalize = kwargs.pop('normalize_clips', True)
 
         super(SpectralDataFeeder, self).__init__(data_dir, **kwargs)
 
@@ -584,8 +588,10 @@ class SpectralDataFeeder(DataFeeder):
         output = clip
 
         # Normalize the waveforms
-        output = output - tf.reduce_mean(output, axis=-1, keepdims=True)
-        output = output / tf.reduce_max(tf.abs(output), axis=-1, keepdims=True)
+        if self._normalize:
+            output = output - tf.reduce_mean(output, axis=-1, keepdims=True)
+            output = output / tf.reduce_max(tf.abs(output),
+                                            axis=-1, keepdims=True)
 
         # Convert to spectrogram
         output = self._transformation(output)
