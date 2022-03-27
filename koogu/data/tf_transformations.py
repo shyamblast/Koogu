@@ -2,7 +2,6 @@
 import tensorflow as tf
 import numpy as np
 from scipy import signal
-from scipy.interpolate import interp1d
 import logging
 import functools
 
@@ -355,7 +354,7 @@ class LoG(tf.keras.layers.Layer):
         for s_idx, curr_sigma in enumerate(scales_sigmas):
             # Add padding (incrementally) prior to convolutions so that values
             # at boundaries are not very unrealistic.
-            curr_scale_padding = int(round(3 * curr_sigma))
+            curr_scale_padding = int(np.ceil(curr_sigma * 4))
             incr_padding = curr_scale_padding - prev_scale_padding
 
             base_padding_vec = [[0, 0], [0, 0], [0, 0], [0, 0]]
