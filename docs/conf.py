@@ -177,7 +177,7 @@ html_context['downloads'].append( ('epub', download_filepath + '.epub') )
 # -- Autodoc options ---------------------------------------------------------
 autodoc_member_order = 'groupwise'
 autodoc_mock_imports = [
-    #'numpy',
+    'numpy',
     'scipy',
     'librosa',
     'tensorflow',
