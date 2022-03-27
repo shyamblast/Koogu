@@ -161,7 +161,7 @@ rinoh_documents = [(
     master_doc,
     'target',
     '{} Documentation'.format(REPO_NAME),
-    'Copyright {}'.format(copyright),
+    '© {}'.format(copyright),
 )]
 today_fmt = "%B %d, %Y"
 
@@ -169,7 +169,7 @@ download_filepath = '/{}/{}/{}/{}-docs_{}_{}'.format(
     REPO_NAME, current_language, current_version, REPO_NAME, current_language, current_version)
 
 html_context['downloads'] = list()
-html_context['downloads'].append( ('pdf', download_filepath + '.pdf') )
+#html_context['downloads'].append( ('pdf', download_filepath + '.pdf') )    # disable for now since rinoh is failing
 html_context['downloads'].append( ('epub', download_filepath + '.epub') )
  
 
