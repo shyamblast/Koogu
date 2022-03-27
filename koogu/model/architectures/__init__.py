@@ -1,7 +1,7 @@
 import numpy as np
 import tensorflow as tf
 import abc
-from koogu.data.tf_transformations import LoG
+from koogu.data.tf_transformations import LoG, GaussianBlur
 import sys
 
 
@@ -187,6 +187,11 @@ class KooguArchitectureBase(BaseArchitecture):
             if 'name' not in params:
                 fixed_params['name'] = 'PreLoG'
             return LoG, fixed_params
+
+        elif name == 'GaussianBlur':
+            if 'name' not in params:
+                fixed_params['name'] = 'PreGaussBlur'
+            return GaussianBlur, fixed_params
 
         elif name == 'Conv2D':
             if 'kernel_size' not in params:

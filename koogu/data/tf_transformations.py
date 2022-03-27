@@ -476,6 +476,90 @@ class LoG(tf.keras.layers.Layer):
         return dict(list(base_config.items()) + list(config.items()))
 
 
+class GaussianBlur(tf.keras.layers.Layer):
+    """
+    Layer for applying Gaussian blur to time-frequency (tf) representations.
+
+    :param sigma: Scalar value defining the Gaussian kernel.
+    :param apply_2d: (boolean; default: True) If True, will apply smoothing
+        along both time- and frequency axes. Otherwise, smoothing is only
+        applied along the frequency axis.
+    """
+
+    def __init__(self, sigma=1, apply_2d=True, **kwargs):
+
+        data_format = kwargs.pop('data_format', 'channels_last')
+
+        assert data_format in ['channels_first', 'channels_last'], \
+            'Only 2 formats supported'
+
+        super(GaussianBlur, self).__init__(
+            name=kwargs.pop('name', 'GaussianBlur'), **kwargs)
+
+        self.sigma = sigma
+        self.data_format = data_format
+
+        f_axis, t_axis = (1, 2) if data_format == 'channels_last' else (2, 3)
+
+        kernel = Filters.gauss_kernel_1d(sigma)
+        kernel_len = np.int32(len(kernel))
+
+        # Reshaping as [H, W, in_channels, out_channels]
+        self.kernel_y = tf.constant(
+            np.reshape(kernel, [kernel_len, 1, 1, 1]), dtype=self.dtype)
+        if apply_2d:
+            self.kernel_x = tf.constant(
+                np.reshape(kernel, [1, kernel_len, 1, 1]), dtype=self.dtype)
+        else:
+            self.kernel_x = None
+
+        padding_amt = int(np.ceil(sigma * 3))
+        padding_vec = [[0, 0], [0, 0], [0, 0], [0, 0]]
+        padding_vec[f_axis] = [padding_amt, padding_amt]
+        if apply_2d:
+            padding_vec[t_axis] = [padding_amt, padding_amt]
+        self.padding_vec = tf.constant(padding_vec, dtype=tf.int32)
+
+        self.input_spec = tf.keras.layers.InputSpec(ndim=4)
+
+    @tf.function
+    def call(self, inputs, **kwargs):
+
+        if self.data_format == 'channels_last':
+            data_format_other = 'NHWC'
+        else:
+            data_format_other = 'NCHW'
+
+        # Add necessary padding
+        outputs = tf.pad(inputs, self.padding_vec, 'SYMMETRIC')
+
+        # Apply Gaussian kernel(s)
+        outputs = tf.nn.conv2d(outputs, self.kernel_y,
+                               strides=[1, 1, 1, 1],
+                               padding='VALID',
+                               data_format=data_format_other)
+        if self.kernel_x is not None:
+            outputs = tf.nn.conv2d(outputs, self.kernel_x,
+                                   strides=[1, 1, 1, 1],
+                                   padding='VALID',
+                                   data_format=data_format_other)
+
+        return outputs
+
+    def compute_output_shape(self, input_shape):
+        return input_shape
+
+    def get_config(self):
+        config = {
+            'sigma': self.sigma,
+            'apply_2d': self.kernel_x is not None,
+            'data_format': self.data_format
+        }
+
+        base_config = super(GaussianBlur, self).get_config()
+        return dict(list(base_config.items()) + list(config.items()))
+
+
 def apply_gaussian_blur(surface, apply_2d=True, sigma=1.0, padding='SAME', data_format='NHWC'):
     """Apply Gaussian blurring in 1-dimension (if apply_2d is False) or
     in 2-dimensions (as separable 1-dimensional convolutions).
