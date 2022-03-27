@@ -1,3 +1,5 @@
+sphinx
+sphinx-rtd-theme
 m2r
 recommonmark
 GitPython
