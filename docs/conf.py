@@ -169,7 +169,7 @@ download_filepath = '/{}/{}/{}/{}-docs_{}_{}'.format(
     REPO_NAME, current_language, current_version, REPO_NAME, current_language, current_version)
 
 html_context['downloads'] = list()
-html_context['downloads'].append( ('pdf', download_filepath + '.pdf') )
+#html_context['downloads'].append( ('pdf', download_filepath + '.pdf') )    # disable for now since rinoh is failing
 html_context['downloads'].append( ('epub', download_filepath + '.epub') )
  
 
