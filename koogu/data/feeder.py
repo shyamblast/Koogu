@@ -141,7 +141,7 @@ class BaseFeeder(metaclass=abc.ABCMeta):
     def _queue_and_batch(self, dataset, is_training, batch_size, **kwargs):
         """Boilerplate caching, queueing and batching functionality."""
 
-        if bool(kwargs.pop('cache', False)):
+        if bool(kwargs.get('cache', False)):
             dataset = dataset.cache()
 
         num_prefetch_batches = kwargs.get('num_prefetch_batches', 1)
@@ -265,6 +265,9 @@ class DataFeeder(BaseFeeder):
     :param random_state_seed: (default: None) A seed (integer) used to
         initialize the psuedo-random number generator that makes shuffling and
         other randomizing operations repeatable.
+    :param cache: (optional; boolean) If True (default), the logic to 'queue &
+        batch' training/evaluation samples (loaded from disk) will also cache
+        the samples. Helps speed up processing.
     """
 
     def __init__(self, data_dir,
@@ -293,6 +296,7 @@ class DataFeeder(BaseFeeder):
                 min_clips_per_class, max_clips_per_class)
 
         self._data_dir = data_dir
+        self._cache = kwargs.pop('cache', True)
 
         if 'background_class' in kwargs:
             background_class = kwargs.pop('background_class')
@@ -353,7 +357,6 @@ class DataFeeder(BaseFeeder):
         :param num_threads: (optional, int) Number of parallel read/transform
             threads. Generally tied to number of CPUs (default if unspecified)
         :param queue_capacity: (optional, int)
-        :param cache: (optional, bool, default: False) Cache loaded TFRecords
         """
 
         num_threads = kwargs.get('num_threads',  # default to num CPUs
@@ -392,6 +395,7 @@ class DataFeeder(BaseFeeder):
             num_parallel_calls=interleave_cycle_length)
 
         return self._queue_and_batch(dataset, is_training, batch_size,
+                                     cache=self._cache,
                                      **kwargs)
 
     @staticmethod
@@ -558,6 +562,9 @@ class SpectralDataFeeder(DataFeeder):
     :param spec_settings: A Python dictionary. For a list of possible keys and
         values, see parameters to
         :class:`~koogu.data.tf_transformations.Audio2Spectral`.
+    :param cache: (optional; boolean) If True (default), the logic to 'queue &
+        batch' training/evaluation samples (loaded from disk) will also cache
+        the samples. Helps speed up processing.
 
     Other parameters applicable to the parent :class:`DataFeeder` class may also
     be specified.
