@@ -12,7 +12,7 @@ from koogu.utils.detections import assess_annotations_and_clips_match, \
 from koogu.utils.filesystem import AudioFileList
 
 
-class _Metric(metaclass=abc.ABCMeta):
+class BaseMetric(metaclass=abc.ABCMeta):
     """
     Base class for implementing performance assessment logic.
 
@@ -243,7 +243,7 @@ class _Metric(metaclass=abc.ABCMeta):
             os.path.join(self._annots_root, entry))
 
 
-class PrecisionRecall(_Metric):
+class PrecisionRecall(BaseMetric):
     """
     Class for assessing precision-recall values.
 
