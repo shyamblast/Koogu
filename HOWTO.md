@@ -2,11 +2,11 @@ How to use
 ==========
 Koogu offers tools for ML development from the simplest of bioacoustics
 applications to more complex scenarios. All stages of the workflow 
-(preparation, training, performance assessment, inference) can be performed
+(data preparation, training, performance assessment, inference) can be performed
 independently as outlined below.
 
 If you are interested in a hands-on demo (on Google Colab) with real data,
-[here is a video providing an instructional walk-through
+here is a [video providing an instructional walk-through
 ](https://youtu.be/3ANAbT90sfo?t=2665) on using the package.
 
 For a more thorough coverage, please refer to Koogu's
