@@ -579,7 +579,7 @@ class LabelHelper:
     .. seealso::
         :func:`koogu.data.preprocess.from_selection_table_map`
         :func:`koogu.data.preprocess.from_top_level_dirs`
-        :func:`koogu.utils.assessments._Metric`
+        :func:`koogu.utils.assessments.BaseMetric`
     """
 
     def __init__(self,

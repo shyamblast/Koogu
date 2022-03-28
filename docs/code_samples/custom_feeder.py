@@ -30,7 +30,7 @@ def read_files(filelist, sp_idx):
         yield clip, label
 
 
-class MyFeeder(koogu.data.feeder.BaseFeeder):
+class MyFeeder(BaseFeeder):
 
     def __init__(self):
         """
@@ -114,7 +114,7 @@ class MyFeeder(koogu.data.feeder.BaseFeeder):
 # [end-first-example]
 
 
-class MyFeeder(koogu.data.feeder.BaseFeeder):
+class MyFeeder(BaseFeeder):
 
     # [start-second-example-snippet]
     # --- update the constructor from the above example ---

@@ -1,7 +1,7 @@
 import numpy as np
 import tensorflow as tf
 import abc
-from koogu.data.tf_transformations import LoG
+from koogu.data.tf_transformations import LoG, GaussianBlur
 import sys
 
 
@@ -12,8 +12,9 @@ class BaseArchitecture(metaclass=abc.ABCMeta):
     :param is_2d: (bool; default:True) Set to True for spectrogram-like
         inputs, and to False for waveform-like (time-domain) inputs.
     :param multilabel: (bool; default: True) Set appropriately so that the
-        loss function and accuracy metrics can be chosen correctly during
-        training.
+        loss function and accuracy metrics can be chosen correctly. A multilabel
+        model's Logits (final) layer will have Sigmoid activation whereas a
+        single-label model's will have SoftMax activation.
     :param dtype: Tensorflow data type of the model's weights (default:
         tf.float32).
     :param name: Name of the model.
@@ -64,6 +65,8 @@ class BaseArchitecture(metaclass=abc.ABCMeta):
             batch dimension here).
         :param num_classes: Number of classes; dictates the number of nodes
             (Logits) that the final layer must have.
+        :param is_training: (boolean) Indicates if operating in training mode.
+        :param data_format: One of 'channels_last' or 'channels_first'.
 
         :return: A tf.keras.Model
 
@@ -187,6 +190,11 @@ class KooguArchitectureBase(BaseArchitecture):
             if 'name' not in params:
                 fixed_params['name'] = 'PreLoG'
             return LoG, fixed_params
+
+        elif name == 'GaussianBlur':
+            if 'name' not in params:
+                fixed_params['name'] = 'PreGaussBlur'
+            return GaussianBlur, fixed_params
 
         elif name == 'Conv2D':
             if 'kernel_size' not in params:

@@ -12,7 +12,12 @@ The below example extends :class:`koogu.data.feeder.SpectralDataFeeder` by addin
 .. literalinclude:: ../code_samples/data_augmentation.py
    :end-before: [end-first-example]
 
-The above example demonstrates finer control in implementing augmentations wherein one may employ branching/looping constructs to combine different augmentations as desired. Sometimes, you may want to simply apply a series of augmentations in a particular order, with respective chosen probabilities. The below code snippet demonstrates the use of :ref:`convenience interface <augmentation-convenience_interface>` to apply chained augmentations.
+The above example demonstrates finer control in implementing augmentations wherein one may employ branching/looping constructs to combine different augmentations as desired.
+
+Convenience interface
+^^^^^^^^^^^^^^^^^^^^^
+
+Sometimes, you may want to simply apply a series of augmentations in a particular order, with respective chosen probabilities. The below code snippet demonstrates the use of :ref:`convenience interface <augmentation-convenience_interface>` to apply chained augmentations. You need not use any TensorFlow API here 😀.
 
 .. literalinclude:: ../code_samples/data_augmentation.py
    :start-after: [start-second-example-snippet]

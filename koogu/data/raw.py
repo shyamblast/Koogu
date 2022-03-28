@@ -328,13 +328,21 @@ class Convert:
 
 
 class Filters:
-    """Abstract class providing filter arrays for various filtering operations."""
+    """
+    Abstract class providing filter arrays for various filtering operations.
+    """
 
     @staticmethod
     def gauss_kernel_1d(sigma):
-        """A 1-dimensional Gaussian kernel for convolutions."""
+        """
+        A 1-dimensional Gaussian kernel for convolutions.
 
-        n = np.ceil(sigma * 3)  # 3 x sigma contains >99% of values in a Gaussian
+        :param sigma: Std. dev. of the Gaussian.
+
+        :return: Gaussian curve (normalized) of length ((8 x sigma) + 1)
+        """
+
+        n = np.ceil(sigma * 4)  # 3x sigma contains >99% of values in a Gaussian
         kernel = np.exp(-(np.arange(-n, n + 1) ** 2) / (2 * (sigma ** 2)))
         kernel = kernel / np.sum(kernel)  # Normalize
 

@@ -303,8 +303,7 @@ def _main(data_feeder, model_dir, data_cfg, model_arch, training_cfg,
         [x.name for x in device_lib.list_local_devices()
          if x.device_type == 'GPU'])
     feeder_args = dict(batch_size=training_cfg['batch_size'],
-                       num_prefetch_batches=max(1, num_gpu_devices),
-                       cache=True)
+                       num_prefetch_batches=max(1, num_gpu_devices))
 
     history = classifier.fit(
         x=data_feeder(True, **feeder_args),

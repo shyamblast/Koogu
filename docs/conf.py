@@ -1,14 +1,9 @@
-# Configuration file for the Sphinx documentation builder.
-#
-# This file only contains a selection of the most common options. For a full
-# list see the documentation:
-# https://www.sphinx-doc.org/en/master/usage/configuration.html
 
 # -- Path setup --------------------------------------------------------------
 
-import sys, os
-from m2r import MdInclude
-from recommonmark.transform import AutoStructify
+import os
+import sys
+
 sys.path.insert(0, os.path.abspath('..'))
 
 # -- Project information -----------------------------------------------------
@@ -18,7 +13,7 @@ copyright = '2022, Shyam Madhusudhana'
 author = 'Shyam Madhusudhana'
 
 # The first 2 components of software version
-version = '0.6.2'
+version = '0.6.3'
 # The full version, including alpha/beta/rc tags
 release = ''
 
@@ -35,7 +30,7 @@ extensions = [
     'recommonmark'
 ]
 
-source_suffix = ['.rst', '.md']
+source_suffix = ['.rst']
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
@@ -185,23 +180,4 @@ autodoc_mock_imports = [
 
 # -- Code highlight options --------------------------------------------------
 highlight_language = 'python3'
-
-
-
-# https://github.com/rtfd/recommonmark/blob/master/docs/conf.py
-def setup(app):
-    config = {
-        # 'url_resolver': lambda url: github_doc_root + url,
-        'auto_toc_tree_section': 'Contents',
-        'enable_eval_rst': True,
-    }
-    app.add_config_value('recommonmark_config', config, True)
-    app.add_transform(AutoStructify)
-
-    # from m2r to make `mdinclude` work
-    app.add_config_value('no_underscore_emphasis', False, 'env')
-    app.add_config_value('m2r_parse_relative_links', False, 'env')
-    app.add_config_value('m2r_anonymous_references', False, 'env')
-    app.add_config_value('m2r_disable_inline_math', False, 'env')
-    app.add_directive('mdinclude', MdInclude)
 

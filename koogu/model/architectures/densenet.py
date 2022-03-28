@@ -5,7 +5,7 @@ from . import KooguArchitectureBase
 @KooguArchitectureBase.export
 class DenseNet(KooguArchitectureBase):
     """
-    DenseNet [http://arxiv.org/abs/1608.06993].
+    DenseNet (`Huang et. al., 2016 <http://arxiv.org/abs/1608.06993>`_).
     This implementation supports both with and without bottleneck.
 
 
