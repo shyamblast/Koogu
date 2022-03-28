@@ -22,15 +22,17 @@ You may test the below code snippets yourself, using the sample dataset. Once, y
 have it working, you could modify the program to suit your own dataset.
 
 The code sections below expect the training and test audio files and corresponding
-annotation files to be organized in a directory structure as shown below::
+annotation files to be organized in a directory structure as shown below:
+
+.. code-block:: none
 
   projects
   └─ NARW
-    └─ data
-      ├─ train_audio
-      ├─ train_annotations
-      ├─ test_audio
-      └─ test_annotations
+     └─ data
+        ├─ train_audio
+        ├─ train_annotations
+        ├─ test_audio
+        └─ test_annotations
 
 Imports
 -------
