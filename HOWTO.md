@@ -1,34 +1,29 @@
-Koogu
-=======
-A python package for developing and using Machine Learning (ML) solutions in
-Animal Bioacoustics.  
-
-The package offers tools for -
-* preparing and processing audio for training ML models,
-* training ML models and assessing their performance, and
-* using trained ML models for automatic recognition.
-
 How to use
-----------
+==========
 Koogu offers tools for ML development from the simplest of bioacoustics
 applications to more complex scenarios. All stages of the workflow 
-(preparation, training, inference, performance assessment) can be performed independently and
-are described below.
+(preparation, training, performance assessment, inference) can be performed
+independently as outlined below.
 
-For those interested in a hands-on demo (on Google Colab) with real data, [here is a video
-providing an instructional walk-through](https://youtu.be/3ANAbT90sfo?t=2665) on using the package.
+If you are interested in a hands-on demo (on Google Colab) with real data,
+[here is a video providing an instructional walk-through
+](https://youtu.be/3ANAbT90sfo?t=2665) on using the package.
+
+For a more thorough coverage, please refer to Koogu's
+[online documentation](https://shyamblast.github.io/Koogu/).
 
 ## 1. Data preparation
 
 Imports needed:
 ```python
-from koogu import prepare
+from koogu.data import preprocess
+from koogu.data import feeder
 ```
 
 Describe what kind of processing is needed for your application.
 
 The below example
-instructs the ___prepare___ module to break up audio data read from disk into _2 s_
+instructs the ___preprocess___ module to break up audio data read from disk into _2 s_
 clips with a _75%_ overlap between successive clips. Audio loaded from files will
 be resampled to the sampling frequency *desired_fs* Hz if they weren't already at
 that sampling frequency.
@@ -50,7 +45,7 @@ be invoked.
   directory `audio_root` and place the annotations under a common directory
   `annots_root`, then build a Python _list_ `audio_annot_list` containing pairs
   (as 2-element *list*s or *tuple*s) that map an audio file to its corresponding
-  annotation file. Audio files and annotation files may be organized into
+  annotation file. Audio files and annotation files may be further organized into
   subdirectories under `audio_root` and `annots_root`, and the corresponding
   relative paths to the files can be specified in `audio_annot_list`.
   ```python
@@ -67,7 +62,7 @@ be invoked.
   ]
   
   # Convert audio files into prepared data
-  clip_counts = prepare.from_selection_table_map(
+  clip_counts = preprocess.from_selection_table_map(
     audio_settings, audio_annot_list,
     audio_root, annots_root,
     output_root=prepared_audio_dir
@@ -106,42 +101,13 @@ and broken up waveforms and the respective class label info are stored under
 *clip_counts* is a dictionary indicating the number of clips written for each
 class.
 
-___
+The ***feeder*** module makes available customizable Python classes that offer
+the ability to efficiently feed "prepared" data into a training/evaluation
+pipeline.
 
-## 2. Training
-
-Imports needed:
-```python
-from koogu.model import Architectures
-from koogu.data.feeder import SpectralDataFeeder
-from koogu import train
-```
-
-- The first import provides a few varieties of customizable neural network
-  architectures. Model complexity can be controlled with the customizations
-  offered by the architecture-specific classes.
-  
-  User-defined architectures (including pre-trained models) can be
-  implemented by extending ***koogu.model.BaseArchitecture***.
-
-- The ***feeder*** module makes available a few varieties of customizable
-  Python classes, each offering different capabilities, for efficiently
-  feeding "prepared" data into a training/evaluation pipeline. The above
-  example imports a feeder that also transforms loaded waveforms into
-  spectrograms.
-  
-  Additional customizations and inclusion of data augmentation operations
-  are possible by overriding the classes' ***transform()*** method in an
-  inherited class. Furthermore, user-defined feeders can be implemented
-  by extending any of the available feeders or by extending 
-  ***koogu.data.feeder.BaseFeeder***.
-
-- The training process can be controlled, along with the hyperparameter
-  and regularization settings, by setting the appropriate values in the
-  _dict_ that input to ***train()***.
-
-
-A typical training/eval workflow is shown below. 
+In common bioacoustic applications, audio clips must be transformed into
+spectrograms before they can be fed to a model. For this purpose, we can use the
+SpectralDataFeeder which transforms loaded waveforms into spectrograms on-the-fly.
 
 ```python
 # Settings describing the transformation of audio clips into
@@ -154,19 +120,53 @@ spec_settings = {
 }
 
 # Set up a feeder that
-#   i)   loads the prepared audio clips,
-#   ii)  transforms the waveform clips into spectrogrms, and
+#   i)   loads the pre-processed audio clips,
+#   ii)  transforms the waveform clips into spectrograms, and
 #   iii) feeds them into the training pipeline.
-data_feeder = SpectralDataFeeder(
+data_feeder = feeder.SpectralDataFeeder(
   prepared_audio_dir,
   audio_settings['desired_fs'],
-  data_settings,
+  spec_settings,
   validation_split=0.15             # as a fraction
 )
+```
+
+Additional customizations of the transformation operation are possible by
+overriding the feeder class' ***transform()*** method in an inherited class.
+Performing on-the-fly transformations offers us the ability to apply randomized
+data augmentations in both time- and spectrotemporal domains independently.
+Data augmentations can be included by overriding the feeder class'
+***pre_transform()*** and ***post_transform()*** methods. Furthermore, user-defined
+feeders can be implemented by extending any of the available feeders or by
+extending ***koogu.data.feeder.BaseFeeder***.
+
+___
+
+## 2. Training
+
+Imports needed:
+```python
+from koogu.model import architectures
+from koogu import train
+```
+
+- The first import provides a few varieties of customizable neural network
+  architectures. Model complexity can be controlled with the customizations
+  offered by the architecture-specific classes.
+  
+  User-defined architectures (including pre-trained models) can be
+  implemented by extending ***koogu.model.BaseArchitecture***.
+
+- The training process can be controlled, along with hyperparameter and
+  regularization settings, by assigning appropriate values to the various
+  fields in the _dict_ that is input to ***train()***.
 
 
+A typical training/eval workflow is shown below. 
+
+```python
 # Architecture choice and model customizations
-model = Architectures.densenet(
+model = architectures.DenseNet(
   layers_per_block=[4, 8, 8, 4],
   growth_rate=12
 )
@@ -194,7 +194,7 @@ model_dir = '/mnt/projects/dolphins/trained_models/DenseNet_1'
 
 # Perform training
 history = train(
-  data_feeder,
+  data_feeder,                      # connect to the feeder
   model_dir,
   data_settings,
   model,
@@ -297,7 +297,7 @@ Imports needed:
 from koogu import recognize
 ```
 
-Once you are settled on a choice of detection threshold that yields a suitable
+Once you are settled on a choice of detection threshold that yields a desired
 precision-recall trade-off, you can apply the trained model on new recordings.
 Automatic recognition results are written out in
 [Raven Lite](https://ravensoundsoftware.com/software/raven-lite/) /
@@ -320,7 +320,7 @@ recognize(
   threshold=0.75,
   #combine_outputs=True,  # combine detections from sub-directory into single annotation files
   batch_size=64,
-  recursive=True,   # Process subdirectories also
+  recursive=True,         # Process subdirectories also
   show_progress=True
 )
 ```

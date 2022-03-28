@@ -5,16 +5,19 @@ Koogu
 A python package for developing and using Machine Learning (ML) solutions in
 Animal Bioacoustics.  
 
-Koogu (ಕೂಗು) is a word in the Kannada language and means "call" (used as a
-_noun_) or "to call" (used as a _verb_). The package offers tools for -
-* preparing and processing audio for training ML models,
-* training ML models and assessing their performance, and
-* using trained ML models for automatic recognition.
+Koogu (ಕೂಗು; /ko͞ogu/) is a word in the Kannada language and means "call" (used as a
+_noun_) or "to call" (used as a _verb_).
+
+The package offers tools for -
+* preparing audio (pre-process and transform) to form inputs to ML models,
+* training ML models,
+* assessing their performance, and
+* using trained ML models for automating analyses of large datasets.
 
 Installation
 ------------
 
-The package is available on PyPI, and can be installed as follows
+Koogu can be installed, via PyPI, as follows
 ```bash
 pip install koogu
 ```
