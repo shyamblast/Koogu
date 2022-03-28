@@ -26,13 +26,13 @@ annotation files to be organized in a directory structure as shown below:
 
 .. code-block:: none
 
-  projects
-  └─ NARW
-     └─ data
-        ├─ train_audio
-        ├─ train_annotations
-        ├─ test_audio
-        └─ test_annotations
+  📁 projects
+  └─ 📁 NARW
+     └─ 📁 data
+        ├─ 📁 train_audio
+        ├─ 📁 train_annotations
+        ├─ 📁 test_audio
+        └─ 📁 test_annotations
 
 Imports
 -------
@@ -67,6 +67,7 @@ spectrograms.
    :linenos:
    :lineno-match:
 
+
 1.1 Preprocess
 ^^^^^^^^^^^^^^
 
@@ -85,6 +86,12 @@ parameter ``negative_class_label``).
    :end-before: [preprocess--end]
    :linenos:
    :lineno-match:
+
+.. seealso::
+   If your project does not have annotations, but you have audio files corresponding
+   to each species/call type organized under separate directories, you can
+   pre-process the data using :func:`~koogu.data.preprocess.from_top_level_dirs`
+   instead of :func:`~koogu.data.preprocess.from_selection_table_map`.
 
 You can check how many clips were generated for each class -
 

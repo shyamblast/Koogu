@@ -7,5 +7,5 @@ Performance assessment
    
    .. automethod:: assess
 
-.. autoclass:: koogu.utils.assessments._Metric
+.. autoclass:: koogu.utils.assessments.BaseMetric
    :members:

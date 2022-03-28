@@ -28,7 +28,7 @@ data_settings = {
         'desired_fs': 1000
     },
 
-    # Settings for converting audio to a time-frequency (tf) representation
+    # Settings for converting audio to a time-frequency representation
     'spec_settings': {
         'win_len': 0.128,
         'win_overlap_prc': 0.75,

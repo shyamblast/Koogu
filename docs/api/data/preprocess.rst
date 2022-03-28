@@ -1,13 +1,14 @@
 Data pre-processing
 ===================
 
-Many of the neural networks models used in bioacoustics, especially convolutional neural networks, expect inputs to be of fixed-dimensions, both during training and while making inferences. Preparing model inputs involves, at a minimum, breaking up of long-duration audio files into shorter segments as suitable for the target sound(s) in consideration. Koogu provides convenient interfaces to efficiently **batch-process** large collections of acoustic recordings (stored in various file formats) in preparing model inputs. In addition to extracting segments, the below interfaces also support the following audio pre-processing operations -
+Pre-processed data (clips + associated label/class information) are written to the
+filesystem for later consumption during model training. In addition to extracting
+clips from raw audio, the below interfaces also support the following audio
+pre-processing operations -
 
 * standardizing the sampling frequencies of all recordings,
 * application of low-pass, high-pass or band-pass filters, and
 * waveform normalization.
-
-Prepared clips are stored along with label/class information.
 
 .. _audio_settings:
 
