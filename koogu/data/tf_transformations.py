@@ -560,6 +560,121 @@ class GaussianBlur(tf.keras.layers.Layer):
         return dict(list(base_config.items()) + list(config.items()))
 
 
+class Spec2Img(tf.keras.layers.Layer):
+    """
+    Layer for converting time-frequency representations into images. The layer's
+    inputs can either be a single spectrogram (shape: H x W) or a batch of B
+    spectrograms (shape: B x H x W).
+
+    :param cmap: An Nx3 array of RGB color values. Typically, N is 256. If
+        `cmap` also contains alpha values (Nx4 instead of Nx3), the last channel
+        will be discarded. For example, to specify a 'jet' colorscale, you could
+        use `matplotlib.cm.jet(range(256))`.
+    :param vmin: (optional; default: None) If specified along with `vmax`,
+        spectrogram values will be scaled to the range [`vmin`, `vmax`].
+    :param vmax: (optional; default: None) If specified along with `vmin`,
+        spectrogram values will be scaled to the range [`vmin`, `vmax`].
+    :param img_size: (optional; default: None) If not None, must specify a
+        2-element tuple (new H, new W) that indicates the shape that the output
+        image must be resized to.
+    :param resize_method: (optional; default: 'bilinear') If resizing of
+        spectrogram(s) is enabled (via `img_size`), this parameter will define
+        the method used for resizing. For available options, see TensorFlow's
+        tf.image.resize().
+
+    If only one of `vmin` or `vmax` is specified while the other isn't,
+    spectrogram values will be scaled relative to the minimum and maximum values
+    within each spectrogram.
+
+    :return: If `img_size` was None, will return a tensor of shape [H x W x 3]
+        or [B x H x W x 3]. If `img_size` was specified, then replace H with
+        `img_size[0]` and W with `img_size[1]`.
+
+    """
+
+    def __init__(self, cmap, vmin=None, vmax=None, img_size=None, **kwargs):
+
+        assert img_size is None or len(img_size) == 2, \
+            '\'img_size\', if specified, must be a 2-element list/tuple'
+
+        # Force to be non-trainable
+        kwargs['trainable'] = False
+
+        self._cmap = cmap[:, :3]    # keep only RGB; will discard alpha
+        self._img_size = img_size
+        self._resize_method = kwargs.pop('resize_method', 'bilinear')
+
+        if vmin is not None and vmax is not None:
+            self._vmin = vmin
+            self._vmax = vmax
+        else:
+            self._vmin = self._vmax = None
+
+        super(Spec2Img, self).__init__(
+            name=kwargs.pop('name', 'Spec2Img'), **kwargs)
+
+        self._colors = tf.constant(self._cmap, dtype=self.dtype)
+
+    @tf.function
+    def call(self, inputs, **kwargs):
+
+        outputs = inputs
+
+        # Normalize values to the range [0.0, 1.0]
+        if self._vmin is None:
+            # Scale to available range
+            outputs = outputs - tf.reduce_min(outputs,
+                                              axis=(-2, -1), keepdims=True)
+            outputs = outputs / tf.reduce_max(outputs,
+                                              axis=(-2, -1), keepdims=True)
+        else:
+            # Apply capping, if/as necessary
+            outputs = tf.maximum(self._vmin, outputs)
+            outputs = tf.minimum(self._vmax, outputs)
+            # Now scale
+            outputs = (outputs - self._vmin) / self._vmax
+
+        # Quantize
+        idxs = tf.cast(tf.round(outputs * (self._cmap.shape[0] - 1)), tf.int32)
+
+        # Map to colors
+        outputs = tf.gather(self._colors, idxs)
+
+        # Resize, if requested
+        if self._img_size is not None:
+            outputs = tf.image.resize(outputs, self._img_size,
+                                      method=self._resize_method)
+
+        # If not already in the desired type, cast it
+        if self.dtype != outputs.dtype:
+            outputs = tf.cast(outputs, self.dtype)
+
+        return outputs
+
+    def compute_output_shape(self, input_shape):
+        return (
+            # Batch dim (if any)
+            input_shape[:-2] +
+            # Image dims
+            (input_shape[-2:] if self._img_size is None else self._img_size) +
+            # Channels
+            (3, ))
+
+    def get_config(self):
+        config = {
+            'cmap': self._cmap
+        }
+        if self._img_size is not None:
+            config['img_size'] = self._img_size
+            config['resize_method'] = self._resize_method
+        if self._vmin is not None:
+            config['vmin'] = self._vmin
+            config['vmax'] = self._vmax
+
+        base_config = super(Spec2Img, self).get_config()
+        return dict(list(base_config.items()) + list(config.items()))
+
+
 def apply_gaussian_blur(surface, apply_2d=True, sigma=1.0, padding='SAME', data_format='NHWC'):
     """Apply Gaussian blurring in 1-dimension (if apply_2d is False) or
     in 2-dimensions (as separable 1-dimensional convolutions).
