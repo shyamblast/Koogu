@@ -9,8 +9,6 @@ class BaseArchitecture(metaclass=abc.ABCMeta):
     """
     Base class for implementing custom user-defined architectures.
 
-    :param is_2d: (bool; default:True) Set to True for spectrogram-like
-        inputs, and to False for waveform-like (time-domain) inputs.
     :param multilabel: (bool; default: True) Set appropriately so that the
         loss function and accuracy metrics can be chosen correctly. A multilabel
         model's Logits (final) layer will have Sigmoid activation whereas a
@@ -20,9 +18,8 @@ class BaseArchitecture(metaclass=abc.ABCMeta):
     :param name: Name of the model.
     """
 
-    def __init__(self, is_2d=True, multilabel=True, dtype=None, name=None):
+    def __init__(self, multilabel=True, dtype=None, name=None):
 
-        self._is_2d = is_2d
         self._multilabel = multilabel
         self._dtype = dtype or tf.float32
         self._name = name
@@ -79,11 +76,6 @@ class BaseArchitecture(metaclass=abc.ABCMeta):
         inputs = tf.keras.Input(shape=input_shape, dtype=self._dtype)
         outputs = inputs
 
-        if self._is_2d:
-            # Add the channel axis
-            outputs = tf.expand_dims(
-                inputs, axis=3 if data_format == 'channels_last' else 1)
-
         # Build the desired network in the inherited class
         outputs = self.build_network(outputs, is_training, data_format,
                                      **kwargs)
@@ -114,8 +106,9 @@ class KooguArchitectureBase(BaseArchitecture):
                  is_2d=True, multilabel=True, dtype=None, name=None,
                  **kwargs):
         super(KooguArchitectureBase, self).__init__(
-            is_2d, multilabel, dtype, name)
+            multilabel, dtype, name)
 
+        self._is_2d = is_2d
         self._arch_config = arch_config
 
         # Default to an empty list. Otherwise, save 2-tuples of
@@ -151,6 +144,11 @@ class KooguArchitectureBase(BaseArchitecture):
         """
 
         outputs = input_tensor
+
+        if self._is_2d:
+            # Add the channel axis
+            outputs = tf.expand_dims(
+                outputs, axis=3 if data_format == 'channels_last' else 1)
 
         # Do preprocessing operations (if any)
         for pp_op, pp_params in self._preprocs:
