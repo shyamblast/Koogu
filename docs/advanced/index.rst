@@ -7,3 +7,4 @@ Advanced usage
 
    custom_feeders
    data_augmentation
+   transfer_learning
