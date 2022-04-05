@@ -1,8 +1,9 @@
 import tensorflow as tf
+from koogu.data.feeder import SpectralDataFeeder
 from koogu.data.augmentations import Temporal, SpectroTemporal
 
 
-class MySpectralDataFeeder(koogu.data.feeder.SpectralDataFeeder):
+class MySpectralDataFeeder(SpectralDataFeeder):
 
     def pre_transform(self, clip, label, is_training, **kwargs):
         """
@@ -51,7 +52,7 @@ class MySpectralDataFeeder(koogu.data.feeder.SpectralDataFeeder):
 # [end-first-example]
 
 
-class MySpectralDataFeeder2(koogu.data.feeder.SpectralDataFeeder):
+class MySpectralDataFeeder2(SpectralDataFeeder):
 
     # [start-second-example-snippet]
     def pre_transform(self, clip, label, is_training, **kwargs):
@@ -92,6 +93,6 @@ class MySpectralDataFeeder2(koogu.data.feeder.SpectralDataFeeder):
             0.20        # apply to 1 in 5 input spectrograms
         ]
 
-        output = SpectrroTemporal.apply_chain(spec, augmentations, probabilities)
+        output = SpectroTemporal.apply_chain(spec, augmentations, probabilities)
 
         return output, label
