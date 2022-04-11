@@ -45,12 +45,13 @@ class DenseNet(KooguArchitectureBase):
         containing -
 
         * the name of the operation (either a compatible Keras layer or a
-          transformation from :mod:`koogu.data.tf_transformations`.
+          transformation from :mod:`koogu.data.tf_transformations`).
         * a Python dictionary specifying parameters to the operation.
     :param dense_layers: (optional) Use this to add fully-connected (dense)
         layers to the end of the model network. Can specify a single integer
         (the added layer will have as many nodes) or a list of integers to add
         multiple (connected in sequence) dense layers.
+    :param data_format: One of 'channels_last' (default) or 'channels_first'.
     """
 
     def __init__(self, layers_per_block, **kwargs):
@@ -85,10 +86,10 @@ class DenseNet(KooguArchitectureBase):
         super(DenseNet, self).__init__(
             arch_config, is_2d=True, name='DenseNet', **params)
 
-    def build_architecture(self, inputs, is_training, data_format, **kwargs):
+    def build_architecture(self, inputs, is_training, **kwargs):
 
         dropout_rate = kwargs.get('dropout_rate', 0.0) if is_training else 0.0
-        channel_axis = 3 if data_format == 'channels_last' else 1
+        channel_axis = 3 if self._data_format == 'channels_last' else 1
 
         arch_config = self.config
 
@@ -111,11 +112,11 @@ class DenseNet(KooguArchitectureBase):
                 # Ensure that pixels at boundaries are properly accounted for
                 # when stride > 1.
                 cf_outputs = KooguArchitectureBase.pad_for_valid_conv2d(
-                    cf_outputs, kernel_size, strides, data_format)
+                    cf_outputs, kernel_size, strides, self._data_format)
 
             cf_outputs = tf.keras.layers.Conv2D(
                 filters=num_filters, kernel_size=kernel_size, strides=strides,
-                padding=padding, use_bias=False, data_format=data_format,
+                padding=padding, use_bias=False, data_format=self._data_format,
                 kernel_initializer=tf.keras.initializers.VarianceScaling(),
                 name=name_prefix + 'Conv2D')(cf_outputs)
 
@@ -197,11 +198,11 @@ class DenseNet(KooguArchitectureBase):
                         outputs,
                         arch_config['pool_sizes'][block_idx],
                         arch_config['pool_strides'][block_idx],
-                        data_format)
+                        self._data_format)
                     outputs = pooling(
                         pool_size=arch_config['pool_sizes'][block_idx],
                         strides=arch_config['pool_strides'][block_idx],
-                        padding='valid', data_format=data_format,
+                        padding='valid', data_format=self._data_format,
                         name='T{:d}_Pool'.format(block_idx + 1))(outputs)
 
         # Final batch_norm & activation
@@ -212,11 +213,11 @@ class DenseNet(KooguArchitectureBase):
         # Pooling or flattening
         if arch_config['flatten_leaf_nodes']:  # if flattening was enabled
             outputs = tf.keras.layers.Flatten(
-                data_format=data_format)(outputs)
+                data_format=self._data_format)(outputs)
         else:
             # This is the default - take global mean
             outputs = tf.keras.layers.GlobalAveragePooling2D(
-                data_format=data_format)(outputs)
+                data_format=self._data_format)(outputs)
 
         return outputs
 

@@ -3,9 +3,9 @@ Koogu
 [![DOI](https://zenodo.org/badge/255961543.svg)](https://zenodo.org/badge/latestdoi/255961543)
 
 A python package for developing and using Machine Learning (ML) solutions in
-Animal Bioacoustics.  
+Animal Bioacoustics.
 
-Koogu (ಕೂಗು; /ko͞ogu/) is a word in the Kannada language and means "call" (used as a
+Koogu (ಕೂಗು; <span style="font-family: arial,sans-serif">/ko͞ogu/</span>) is a word in the Kannada language, meaning "call" (used as a
 _noun_) or "to call" (used as a _verb_).
 
 The package offers tools for -

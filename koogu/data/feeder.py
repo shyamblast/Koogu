@@ -124,7 +124,7 @@ class BaseFeeder(metaclass=abc.ABCMeta):
         """
 
         :param is_training: (boolean) True if operating in training mode.
-        :param batch_size:
+        :param batch_size: Training batch size.
         :param kwargs: Passed as is to make_dataset() of inherited class.
         """
 
@@ -263,11 +263,16 @@ class DataFeeder(BaseFeeder):
         samples are available for any class, the specified number of samples
         will be randomly selected. If None, no limits will be imposed.
     :param random_state_seed: (default: None) A seed (integer) used to
-        initialize the psuedo-random number generator that makes shuffling and
+        initialize the pseudo-random number generator that makes shuffling and
         other randomizing operations repeatable.
     :param cache: (optional; boolean) If True (default), the logic to 'queue &
         batch' training/evaluation samples (loaded from disk) will also cache
         the samples. Helps speed up processing.
+    :param suppress_nonmax: (optional; boolean) If True, the class labels will
+        be one-hot type arrays, useful for training single-class prediction
+        models. Otherwise (default is False), they will be suitable for training
+        multi-class prediction models, giving values in the range 0-1 for each
+        class.
     """
 
     def __init__(self, data_dir,
@@ -286,6 +291,8 @@ class DataFeeder(BaseFeeder):
             class_names = json.load(f)
         num_classes = len(class_names)
 
+        self._suppress_nonmax = kwargs.pop('suppress_nonmax', False)
+
         # Gather info for building dataset pipeline later
         self._valid_class_mask, self._in_shape, \
             num_per_class_samples_train, self._files_clips_idxs_train, \
@@ -293,7 +300,9 @@ class DataFeeder(BaseFeeder):
             DataFeeder.build_dataset_info(
                 data_dir, num_classes,
                 validation_split, random_state,
-                min_clips_per_class, max_clips_per_class)
+                min_clips_per_class, max_clips_per_class,
+                self._suppress_nonmax
+            )
 
         self._data_dir = data_dir
         self._cache = kwargs.pop('cache', True)
@@ -383,7 +392,8 @@ class DataFeeder(BaseFeeder):
                 lambda a, b: DataFeeder.file_data_generator(
                     os.path.join(self._data_dir, b.decode()),
                     files_clips_idxs[a],
-                    self._valid_class_mask),
+                    self._valid_class_mask,
+                    self._suppress_nonmax),
                 args=(file_idx, npz_file),
                 output_signature=(
                     tf.TensorSpec(shape=(self._in_shape[0],),
@@ -401,10 +411,24 @@ class DataFeeder(BaseFeeder):
     @staticmethod
     def build_dataset_info(data_dir, num_classes,
                            validation_split, random_state,
-                           min_clips_per_class=None, max_clips_per_class=None):
+                           min_clips_per_class=None, max_clips_per_class=None,
+                           suppress_nonmax=False):
+        """
+
+        :param suppress_nonmax: If True, the class labels will be one-hot type
+            arrays, useful for single-class prediction models. Otherwise, they
+            will be suitable for multi-class prediction models, giving values
+            in the range 0-1 for each class.
+
+        :meta private:
+        """
+
+        get_file_labels_mask = \
+            DataFeeder._get_file_labels_mask_one_hot if suppress_nonmax else \
+            DataFeeder._get_file_labels_mask
 
         per_file_class_counts = [
-            np.sum(DataFeeder._get_file_labels_mask(
+            np.sum(get_file_labels_mask(
                 os.path.join(data_dir, file)), axis=0)
             for file in recursive_listing(
                 data_dir, match_extensions=FilenameExtensions.numpy)]
@@ -449,7 +473,7 @@ class DataFeeder(BaseFeeder):
                 recursive_listing(data_dir,
                                   match_extensions=FilenameExtensions.numpy)):
 
-            label_mask = DataFeeder._get_file_labels_mask(
+            label_mask = get_file_labels_mask(
                 os.path.join(data_dir, file))[:, useable_class_mask]
 
             file_train_clips_idxs = [np.zeros((0, ), dtype=np.int)]
@@ -494,10 +518,21 @@ class DataFeeder(BaseFeeder):
             per_class_samples_count_ev, files_clips_idxs_ev
 
     @staticmethod
-    def file_data_generator(npz_filepath, file_clips_idxs, valid_class_mask):
+    def file_data_generator(npz_filepath, file_clips_idxs, valid_class_mask,
+                            suppress_nonmax=False):
 
         clips, labels = DataFeeder._get_file_clips_and_labels(
             npz_filepath, file_clips_idxs, valid_class_mask)
+
+        if suppress_nonmax:
+            # Update labels to be one-hot type, based on the max valued class
+            # for each clip. If multiple classes have same max value for a clip,
+            # the first of those classes will become the 'hot' item.
+            labels = np.where(
+                np.arange(labels.shape[1]) ==
+                np.expand_dims(labels.argmax(axis=1), axis=1),
+                1.0, 0.0
+            ).astype(labels.dtype)
 
         for clip, label in zip(clips, labels):
             yield clip, label
@@ -542,6 +577,14 @@ class DataFeeder(BaseFeeder):
             return data['labels'] == 1
 
     @staticmethod
+    def _get_file_labels_mask_one_hot(filepath):
+        with np.load(filepath) as data:
+            labels = data['labels']
+
+        return (np.arange(labels.shape[1]) ==
+                np.expand_dims(labels.argmax(axis=1), axis=1))
+
+    @staticmethod
     def _get_file_clips_and_labels(filepath, clips_idxs, class_mask):
         # In the npz file, clips are stored as int16 & labels are stored as
         # float16. Convert them appropriately before returning.
@@ -564,9 +607,6 @@ class SpectralDataFeeder(DataFeeder):
         :class:`~koogu.data.tf_transformations.Audio2Spectral`.
     :param normalize_clips: (optional; boolean) If True (default), input clips
         will be normalized before applying transform (computing spectrograms).
-    :param cache: (optional; boolean) If True (default), the logic to 'queue &
-        batch' training/evaluation samples (loaded from disk) will also cache
-        the samples. Helps speed up processing.
 
     Other parameters applicable to the parent :class:`DataFeeder` class may also
     be specified.

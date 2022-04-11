@@ -1,7 +1,7 @@
 import numpy as np
 import tensorflow as tf
 import abc
-from koogu.data.tf_transformations import LoG, GaussianBlur
+from koogu.data import tf_transformations
 import sys
 
 
@@ -9,8 +9,6 @@ class BaseArchitecture(metaclass=abc.ABCMeta):
     """
     Base class for implementing custom user-defined architectures.
 
-    :param is_2d: (bool; default:True) Set to True for spectrogram-like
-        inputs, and to False for waveform-like (time-domain) inputs.
     :param multilabel: (bool; default: True) Set appropriately so that the
         loss function and accuracy metrics can be chosen correctly. A multilabel
         model's Logits (final) layer will have Sigmoid activation whereas a
@@ -20,15 +18,14 @@ class BaseArchitecture(metaclass=abc.ABCMeta):
     :param name: Name of the model.
     """
 
-    def __init__(self, is_2d=True, multilabel=True, dtype=None, name=None):
+    def __init__(self, multilabel=True, dtype=None, name=None):
 
-        self._is_2d = is_2d
         self._multilabel = multilabel
         self._dtype = dtype or tf.float32
         self._name = name
 
     @abc.abstractmethod
-    def build_network(self, input_tensor, is_training, data_format, **kwargs):
+    def build_network(self, input_tensor, is_training, **kwargs):
         """
         This method must be implemented in the derived class.
 
@@ -44,7 +41,6 @@ class BaseArchitecture(metaclass=abc.ABCMeta):
         :param is_training: (boolean) Indicates if operating in training mode.
             Certain elements of the network (e.g., dropout layers) may be
             excluded when not in training mode.
-        :param data_format: One of 'channels_last' or 'channels_first'.
 
         :return: Must return a Keras tensor corresponding to outputs of the
             architecture.
@@ -53,7 +49,7 @@ class BaseArchitecture(metaclass=abc.ABCMeta):
         raise NotImplementedError(
             'build_network() method not implemented in derived class')
 
-    def __call__(self, input_shape, num_classes, is_training, data_format,
+    def __call__(self, input_shape, num_classes, is_training,
                  **kwargs):
         """
         Creates a Keras tensor with input_shape and passes it, along with
@@ -66,7 +62,6 @@ class BaseArchitecture(metaclass=abc.ABCMeta):
         :param num_classes: Number of classes; dictates the number of nodes
             (Logits) that the final layer must have.
         :param is_training: (boolean) Indicates if operating in training mode.
-        :param data_format: One of 'channels_last' or 'channels_first'.
 
         :return: A tf.keras.Model
 
@@ -79,13 +74,8 @@ class BaseArchitecture(metaclass=abc.ABCMeta):
         inputs = tf.keras.Input(shape=input_shape, dtype=self._dtype)
         outputs = inputs
 
-        if self._is_2d:
-            # Add the channel axis
-            outputs = tf.expand_dims(
-                inputs, axis=3 if data_format == 'channels_last' else 1)
-
         # Build the desired network in the inherited class
-        outputs = self.build_network(outputs, is_training, data_format,
+        outputs = self.build_network(outputs, is_training,
                                      **kwargs)
 
         # Classification layer
@@ -107,6 +97,15 @@ class KooguArchitectureBase(BaseArchitecture):
     """
     Base class for architectures implemented internally within Koogu.
 
+    Optional parameters
+
+    :param dense_layers: If an integer, a single fully-connected layer with as
+        many nodes will be added at the end of the network. If a list, then as
+        many fully-connected layers will be added as there are items in the list
+        and each layer will have as many nodes as the corresponding integer item
+        in the list.
+    :param data_format: One of 'channels_last' (default) or 'channels_first'.
+
     :meta private:
     """
 
@@ -114,27 +113,33 @@ class KooguArchitectureBase(BaseArchitecture):
                  is_2d=True, multilabel=True, dtype=None, name=None,
                  **kwargs):
         super(KooguArchitectureBase, self).__init__(
-            is_2d, multilabel, dtype, name)
+            multilabel, dtype, name)
 
+        self._is_2d = is_2d
         self._arch_config = arch_config
-
-        # Default to an empty list. Otherwise, save 2-tuples of
-        # preproc layer ref, and the preproc layer's params.
-        self._preprocs = [
-            KooguArchitectureBase._get_preproc(preproc_op, preproc_params)
-            for (preproc_op, preproc_params) in kwargs.get('preproc', [])]
 
         self._dense_layers = \
             kwargs.get('dense_layers', [])  # default to an empty list
         if not hasattr(self._dense_layers, '__len__'):
             self._dense_layers = [self._dense_layers]
 
+        self._data_format = kwargs.get('data_format', 'channels_last')
+        assert self._data_format in ['channels_first', 'channels_last'], \
+            '\'data_format\' must be one of \'channels_first\' or ' + \
+            '\'channels_last\''
+
+        # Default to an empty list. Otherwise, save instantiated objects of
+        # classes that are instances of tf.keras.layers.Layer.
+        self._preprocs = [
+            KooguArchitectureBase._get_preproc(preproc_item, self._data_format)
+            for preproc_item in kwargs.get('preproc', [])]
+
     @property
     def config(self):
         """Architecture configuration parameters"""
         return {k: v for k, v in self._arch_config.items()}  # return a copy
 
-    def build_network(self, input_tensor, is_training, data_format, **kwargs):
+    def build_network(self, input_tensor, is_training, **kwargs):
         """
         Adds Koogu-specific bells & whistles around the architecture (which
         will be created by the inherited class).
@@ -145,19 +150,23 @@ class KooguArchitectureBase(BaseArchitecture):
         :param is_training: Boolean, indicating if operating in training mode.
             Certain elements of the network (e.g., dropout layers) may be
             excluded when in training mode.
-        :param data_format: One of 'channels_last' or 'channels_first'.
 
         :return: A Keras tensor corresponding to outputs of the architecture.
         """
 
         outputs = input_tensor
 
-        # Do preprocessing operations (if any)
-        for pp_op, pp_params in self._preprocs:
-            outputs = pp_op(data_format=data_format, **pp_params)(outputs)
+        if self._is_2d:
+            # Add the channel axis
+            outputs = tf.expand_dims(
+                outputs, axis=3 if self._data_format == 'channels_last' else 1)
+
+        # Add preprocessing operations (if any)
+        for pp_item in self._preprocs:
+            outputs = pp_item(outputs)
 
         # Build the custom architecture
-        outputs = self.build_architecture(outputs, is_training, data_format,
+        outputs = self.build_architecture(outputs, is_training,
                                           **kwargs)
 
         # Add dense layers as requested
@@ -174,7 +183,7 @@ class KooguArchitectureBase(BaseArchitecture):
         return outputs
 
     @abc.abstractmethod
-    def build_architecture(self, inputs, is_training, data_format, **kwargs):
+    def build_architecture(self, inputs, is_training, **kwargs):
         """
         :meta private:
         """
@@ -182,21 +191,42 @@ class KooguArchitectureBase(BaseArchitecture):
             'build_network() method not implemented in derived class')
 
     @staticmethod
-    def _get_preproc(name, params):
+    def _get_preproc(preproc_item, data_format):
+
+        if isinstance(preproc_item, tf.keras.layers.Layer):
+            # If it was already an instantiated object, return as-is
+            return preproc_item
+        elif not (
+                isinstance(preproc_item, (tuple, list)) and
+                len(preproc_item) == 2 and
+                isinstance(preproc_item[0], str) and
+                isinstance(preproc_item[1], dict)):
+            raise ValueError('A \'preproc\' item must be a 2-element ' +
+                             'tuple/list specifying a valid preprocessing ' +
+                             'operation\'s name and its parameters as a dict.')
+
+        # Instantiate the preprocessing item based on the details provided
+        name, params = preproc_item
 
         fixed_params = {k: v for k, v in params.items()}  # copy
 
         if name == 'LoG':
             if 'name' not in params:
                 fixed_params['name'] = 'PreLoG'
-            return LoG, fixed_params
+            return tf_transformations.LoG(**fixed_params)
 
         elif name == 'GaussianBlur':
             if 'name' not in params:
                 fixed_params['name'] = 'PreGaussBlur'
-            return GaussianBlur, fixed_params
+            return tf_transformations.GaussianBlur(**fixed_params)
 
-        elif name == 'Conv2D':
+        # If we're here, then it wasn't a Koogu preproc op. Try some compatible
+        # keras ones.
+
+        if 'data_format' not in params:     # Add data_format if missing
+            fixed_params['data_format'] = data_format
+
+        if name == 'Conv2D':
             if 'kernel_size' not in params:
                 fixed_params['kernel_size'] = (3, 3)
             if 'strides' not in params:
@@ -210,21 +240,21 @@ class KooguArchitectureBase(BaseArchitecture):
                     tf.keras.initializers.VarianceScaling()
             if 'name' not in params:
                 fixed_params['name'] = 'Pre_Conv'
-            return tf.keras.layers.Conv2D, fixed_params
+            return tf.keras.layers.Conv2D(**fixed_params)
 
         elif name == 'MaxPool2D':
             if 'padding' not in params:
                 fixed_params['padding'] = 'same'
             if 'name' not in params:
                 fixed_params['name'] = 'Pre_MaxPool'
-            return tf.keras.layers.MaxPool2D, fixed_params
+            return tf.keras.layers.MaxPool2D(**fixed_params)
 
         elif name == 'AvgPool2D':
             if 'padding' not in params:
                 fixed_params['padding'] = 'same'
             if 'name' not in params:
                 fixed_params['name'] = 'Pre_AvgPool'
-            return tf.keras.layers.AvgPool2D, fixed_params
+            return tf.keras.layers.AvgPool2D(**fixed_params)
 
         # Add others here in an if-elif ladder
 

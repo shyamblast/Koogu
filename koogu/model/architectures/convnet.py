@@ -36,12 +36,13 @@ class ConvNet(KooguArchitectureBase):
         containing -
 
         * the name of the operation (either a compatible Keras layer or a
-          transformation from :mod:`koogu.data.tf_transformations`.
+          transformation from :mod:`koogu.data.tf_transformations`).
         * a Python dictionary specifying parameters to the operation.
     :param dense_layers: (optional) Use this to add fully-connected (dense)
         layers to the end of the model network. Can specify a single integer
         (the added layer will have as many nodes) or a list of integers to add
         multiple (connected in sequence) dense layers.
+    :param data_format: One of 'channels_last' (default) or 'channels_first'.
     """
 
     def __init__(self, filters_per_layer, **kwargs):
@@ -70,10 +71,10 @@ class ConvNet(KooguArchitectureBase):
         super(ConvNet, self).__init__(
             arch_config, is_2d=True, name=model_name, **params)
 
-    def build_architecture(self, inputs, is_training, data_format, **kwargs):
+    def build_architecture(self, inputs, is_training, **kwargs):
 
         dropout_rate = kwargs.get('dropout_rate', 0.0) if is_training else 0.0
-        channel_axis = 3 if data_format == 'channels_last' else 1
+        channel_axis = 3 if self._data_format == 'channels_last' else 1
 
         arch_config = self.config
 
@@ -89,7 +90,7 @@ class ConvNet(KooguArchitectureBase):
                               arch_config['pool_strides'])):
             outputs = tf.keras.layers.Conv2D(
                 filters=num_filters, kernel_size=(3, 3), strides=(1, 1),
-                padding='same', use_bias=False, data_format=data_format,
+                padding='same', use_bias=False, data_format=self._data_format,
                 kernel_initializer=tf.keras.initializers.VarianceScaling(),
                 name=f'Conv2D_{l_idx + 1:d}')(outputs)
 
@@ -107,10 +108,11 @@ class ConvNet(KooguArchitectureBase):
 
             outputs = pooling(pool_size=pool_size,
                               strides=pool_stride,
-                              padding='valid', data_format=data_format,
+                              padding='valid', data_format=self._data_format,
                               name=f'Pool_{l_idx + 1:d}')(outputs)
 
-        outputs = tf.keras.layers.Flatten(data_format=data_format)(outputs)
+        outputs = tf.keras.layers.Flatten(
+            data_format=self._data_format)(outputs)
 
         return outputs
 

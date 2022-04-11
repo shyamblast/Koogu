@@ -1,11 +1,14 @@
 Koogu
 =====
 
+.. role:: raw-html(raw)
+   :format: html
+
 Koogu is a Python package for developing and using Machine Learning (ML) solutions in
 Animal Bioacoustics.
 
    | Koogu (**ಕೂಗು**)
-   | /kuːgʊ/
+   | :raw-html:`<span style="font-family: arial,sans-serif">/ko͞ogu/</span>`
    |  a word in the Kannada language meaning
    |   - *call*, *utterance* (used as a *noun*)
    |   - *to call* (used as a *verb*)
