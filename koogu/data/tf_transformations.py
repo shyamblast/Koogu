@@ -2,7 +2,7 @@
 import tensorflow as tf
 import numpy as np
 from scipy import signal
-import logging
+#import logging
 import functools
 
 from koogu.data.raw import Filters, Settings
@@ -576,9 +576,10 @@ class Spec2Img(tf.keras.layers.Layer):
         the method used for resizing. For available options, see TensorFlow's
         tf.image.resize().
 
-    If only one of `vmin` or `vmax` is specified while the other isn't,
+    If only one of `vmin` or `vmax` is specified, it will be ignored and
     spectrogram values will be scaled relative to the minimum and maximum values
-    within each spectrogram.
+    within each spectrogram. If both `vmin` and `vmax` are specified, `vmin`
+    must be < `vmax`.
 
     :return: If `img_size` was None, will return a tensor of shape [H x W x 3]
         or [B x H x W x 3]. If `img_size` was specified, then replace H with
@@ -599,6 +600,7 @@ class Spec2Img(tf.keras.layers.Layer):
         self._resize_method = kwargs.pop('resize_method', 'bilinear')
 
         if vmin is not None and vmax is not None:
+            assert vmin < vmax, '\'vmin\' must be < \'vmax\''
             self._vmin = vmin
             self._vmax = vmax
         else:
@@ -626,7 +628,7 @@ class Spec2Img(tf.keras.layers.Layer):
             outputs = tf.maximum(self._vmin, outputs)
             outputs = tf.minimum(self._vmax, outputs)
             # Now scale
-            outputs = (outputs - self._vmin) / self._vmax
+            outputs = (outputs - self._vmin) / (self._vmax - self._vmin)
 
         # Quantize
         idxs = tf.cast(tf.round(outputs * (self._cmap.shape[0] - 1)), tf.int32)
