@@ -25,7 +25,7 @@ class BaseArchitecture(metaclass=abc.ABCMeta):
         self._name = name
 
     @abc.abstractmethod
-    def build_network(self, input_tensor, is_training, data_format, **kwargs):
+    def build_network(self, input_tensor, is_training, **kwargs):
         """
         This method must be implemented in the derived class.
 
@@ -41,7 +41,6 @@ class BaseArchitecture(metaclass=abc.ABCMeta):
         :param is_training: (boolean) Indicates if operating in training mode.
             Certain elements of the network (e.g., dropout layers) may be
             excluded when not in training mode.
-        :param data_format: One of 'channels_last' or 'channels_first'.
 
         :return: Must return a Keras tensor corresponding to outputs of the
             architecture.
@@ -50,7 +49,7 @@ class BaseArchitecture(metaclass=abc.ABCMeta):
         raise NotImplementedError(
             'build_network() method not implemented in derived class')
 
-    def __call__(self, input_shape, num_classes, is_training, data_format,
+    def __call__(self, input_shape, num_classes, is_training,
                  **kwargs):
         """
         Creates a Keras tensor with input_shape and passes it, along with
@@ -63,7 +62,6 @@ class BaseArchitecture(metaclass=abc.ABCMeta):
         :param num_classes: Number of classes; dictates the number of nodes
             (Logits) that the final layer must have.
         :param is_training: (boolean) Indicates if operating in training mode.
-        :param data_format: One of 'channels_last' or 'channels_first'.
 
         :return: A tf.keras.Model
 
@@ -77,7 +75,7 @@ class BaseArchitecture(metaclass=abc.ABCMeta):
         outputs = inputs
 
         # Build the desired network in the inherited class
-        outputs = self.build_network(outputs, is_training, data_format,
+        outputs = self.build_network(outputs, is_training,
                                      **kwargs)
 
         # Classification layer
@@ -98,6 +96,15 @@ class BaseArchitecture(metaclass=abc.ABCMeta):
 class KooguArchitectureBase(BaseArchitecture):
     """
     Base class for architectures implemented internally within Koogu.
+
+    Optional parameters
+
+    :param dense_layers: If an integer, a single fully-connected layer with as
+        many nodes will be added at the end of the network. If a list, then as
+        many fully-connected layers will be added as there are items in the list
+        and each layer will have as many nodes as the corresponding integer item
+        in the list.
+    :param data_format: One of 'channels_last' (default) or 'channels_first'.
 
     :meta private:
     """
@@ -122,12 +129,17 @@ class KooguArchitectureBase(BaseArchitecture):
         if not hasattr(self._dense_layers, '__len__'):
             self._dense_layers = [self._dense_layers]
 
+        self._data_format = kwargs.get('data_format', 'channels_last')
+        assert self._data_format in ['channels_first', 'channels_last'], \
+            '\'data_format\' must be one of \'channels_first\' or ' + \
+            '\'channels_last\''
+
     @property
     def config(self):
         """Architecture configuration parameters"""
         return {k: v for k, v in self._arch_config.items()}  # return a copy
 
-    def build_network(self, input_tensor, is_training, data_format, **kwargs):
+    def build_network(self, input_tensor, is_training, **kwargs):
         """
         Adds Koogu-specific bells & whistles around the architecture (which
         will be created by the inherited class).
@@ -138,7 +150,6 @@ class KooguArchitectureBase(BaseArchitecture):
         :param is_training: Boolean, indicating if operating in training mode.
             Certain elements of the network (e.g., dropout layers) may be
             excluded when in training mode.
-        :param data_format: One of 'channels_last' or 'channels_first'.
 
         :return: A Keras tensor corresponding to outputs of the architecture.
         """
@@ -148,14 +159,14 @@ class KooguArchitectureBase(BaseArchitecture):
         if self._is_2d:
             # Add the channel axis
             outputs = tf.expand_dims(
-                outputs, axis=3 if data_format == 'channels_last' else 1)
+                outputs, axis=3 if self._data_format == 'channels_last' else 1)
 
         # Do preprocessing operations (if any)
         for pp_op, pp_params in self._preprocs:
-            outputs = pp_op(data_format=data_format, **pp_params)(outputs)
+            outputs = pp_op(data_format=self._data_format, **pp_params)(outputs)
 
         # Build the custom architecture
-        outputs = self.build_architecture(outputs, is_training, data_format,
+        outputs = self.build_architecture(outputs, is_training,
                                           **kwargs)
 
         # Add dense layers as requested
@@ -172,7 +183,7 @@ class KooguArchitectureBase(BaseArchitecture):
         return outputs
 
     @abc.abstractmethod
-    def build_architecture(self, inputs, is_training, data_format, **kwargs):
+    def build_architecture(self, inputs, is_training, **kwargs):
         """
         :meta private:
         """

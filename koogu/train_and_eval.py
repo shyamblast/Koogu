@@ -123,10 +123,6 @@ def train_and_eval(data_feeder, model_dir,
         training_config.get('learning_rate', 0.001)  # default of 0.001
 
     # Handle kwargs
-    if 'data_format' not in kwargs:
-        kwargs['data_format'] = 'channels_last'
-    else:
-        assert kwargs['data_format'] in ['channels_first', 'channels_last']
     if 'dropout_rate' in training_config:
         # Move this into kwargs. It's needed during model-building
         kwargs['dropout_rate'] = training_config['dropout_rate']

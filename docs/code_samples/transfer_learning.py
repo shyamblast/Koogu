@@ -6,7 +6,7 @@ from matplotlib import cm
 
 class MyTransferModel(BaseArchitecture):
 
-    def build_network(self, input_tensor, is_training, data_format, **kwargs):
+    def build_network(self, input_tensor, is_training, **kwargs):
 
         # Many of the available pre-trained models expect inputs to be of a
         # particular size. The `input_tensor` may not already be in that shape,
