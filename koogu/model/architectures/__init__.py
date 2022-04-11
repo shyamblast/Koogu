@@ -1,7 +1,7 @@
 import numpy as np
 import tensorflow as tf
 import abc
-from koogu.data.tf_transformations import LoG, GaussianBlur
+from koogu.data import tf_transformations
 import sys
 
 
@@ -118,12 +118,6 @@ class KooguArchitectureBase(BaseArchitecture):
         self._is_2d = is_2d
         self._arch_config = arch_config
 
-        # Default to an empty list. Otherwise, save 2-tuples of
-        # preproc layer ref, and the preproc layer's params.
-        self._preprocs = [
-            KooguArchitectureBase._get_preproc(preproc_op, preproc_params)
-            for (preproc_op, preproc_params) in kwargs.get('preproc', [])]
-
         self._dense_layers = \
             kwargs.get('dense_layers', [])  # default to an empty list
         if not hasattr(self._dense_layers, '__len__'):
@@ -133,6 +127,12 @@ class KooguArchitectureBase(BaseArchitecture):
         assert self._data_format in ['channels_first', 'channels_last'], \
             '\'data_format\' must be one of \'channels_first\' or ' + \
             '\'channels_last\''
+
+        # Default to an empty list. Otherwise, save instantiated objects of
+        # classes that are instances of tf.keras.layers.Layer.
+        self._preprocs = [
+            KooguArchitectureBase._get_preproc(preproc_item, self._data_format)
+            for preproc_item in kwargs.get('preproc', [])]
 
     @property
     def config(self):
@@ -161,9 +161,9 @@ class KooguArchitectureBase(BaseArchitecture):
             outputs = tf.expand_dims(
                 outputs, axis=3 if self._data_format == 'channels_last' else 1)
 
-        # Do preprocessing operations (if any)
-        for pp_op, pp_params in self._preprocs:
-            outputs = pp_op(data_format=self._data_format, **pp_params)(outputs)
+        # Add preprocessing operations (if any)
+        for pp_item in self._preprocs:
+            outputs = pp_item(outputs)
 
         # Build the custom architecture
         outputs = self.build_architecture(outputs, is_training,
@@ -191,21 +191,42 @@ class KooguArchitectureBase(BaseArchitecture):
             'build_network() method not implemented in derived class')
 
     @staticmethod
-    def _get_preproc(name, params):
+    def _get_preproc(preproc_item, data_format):
+
+        if isinstance(preproc_item, tf.keras.layers.Layer):
+            # If it was already an instantiated object, return as-is
+            return preproc_item
+        elif not (
+                isinstance(preproc_item, (tuple, list)) and
+                len(preproc_item) == 2 and
+                isinstance(preproc_item[0], str) and
+                isinstance(preproc_item[1], dict)):
+            raise ValueError('A \'preproc\' item must be a 2-element ' +
+                             'tuple/list specifying a valid preprocessing ' +
+                             'operation\'s name and its parameters as a dict.')
+
+        # Instantiate the preprocessing item based on the details provided
+        name, params = preproc_item
 
         fixed_params = {k: v for k, v in params.items()}  # copy
 
         if name == 'LoG':
             if 'name' not in params:
                 fixed_params['name'] = 'PreLoG'
-            return LoG, fixed_params
+            return tf_transformations.LoG(**fixed_params)
 
         elif name == 'GaussianBlur':
             if 'name' not in params:
                 fixed_params['name'] = 'PreGaussBlur'
-            return GaussianBlur, fixed_params
+            return tf_transformations.GaussianBlur(**fixed_params)
 
-        elif name == 'Conv2D':
+        # If we're here, then it wasn't a Koogu preproc op. Try some compatible
+        # keras ones.
+
+        if 'data_format' not in params:     # Add data_format if missing
+            fixed_params['data_format'] = data_format
+
+        if name == 'Conv2D':
             if 'kernel_size' not in params:
                 fixed_params['kernel_size'] = (3, 3)
             if 'strides' not in params:
@@ -219,21 +240,21 @@ class KooguArchitectureBase(BaseArchitecture):
                     tf.keras.initializers.VarianceScaling()
             if 'name' not in params:
                 fixed_params['name'] = 'Pre_Conv'
-            return tf.keras.layers.Conv2D, fixed_params
+            return tf.keras.layers.Conv2D(**fixed_params)
 
         elif name == 'MaxPool2D':
             if 'padding' not in params:
                 fixed_params['padding'] = 'same'
             if 'name' not in params:
                 fixed_params['name'] = 'Pre_MaxPool'
-            return tf.keras.layers.MaxPool2D, fixed_params
+            return tf.keras.layers.MaxPool2D(**fixed_params)
 
         elif name == 'AvgPool2D':
             if 'padding' not in params:
                 fixed_params['padding'] = 'same'
             if 'name' not in params:
                 fixed_params['name'] = 'Pre_AvgPool'
-            return tf.keras.layers.AvgPool2D, fixed_params
+            return tf.keras.layers.AvgPool2D(**fixed_params)
 
         # Add others here in an if-elif ladder
 
