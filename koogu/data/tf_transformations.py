@@ -595,7 +595,7 @@ class Spec2Img(tf.keras.layers.Layer):
         # Force to be non-trainable
         kwargs['trainable'] = False
 
-        self._cmap = cmap[:, :3]    # keep only RGB; will discard alpha
+        self._cmap = np.asarray(cmap)[:, :3]      # keep only RGB; discard alpha
         self._img_size = img_size
         self._resize_method = kwargs.pop('resize_method', 'bilinear')
 
