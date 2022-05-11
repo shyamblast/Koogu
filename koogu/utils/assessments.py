@@ -9,7 +9,7 @@ from koogu.data import FilenameExtensions, AssetsExtraNames
 from koogu.utils.detections import assess_annotations_and_clips_match, \
     assess_annotations_and_detections_match, postprocess_detections, \
     nonmax_suppress_mask, LabelHelper
-from koogu.utils.filesystem import AudioFileList
+from koogu.utils.filesystem import AudioFileList, get_valid_audio_annot_entries
 
 
 class BaseMetric(metaclass=abc.ABCMeta):
@@ -66,22 +66,12 @@ class BaseMetric(metaclass=abc.ABCMeta):
         self._annots_root = annots_root
 
         # Discard invalid entries, if any
-        valid_entries_mask = [
-            (self._validate_seltab_filemap_lhs(lhs) and
-             self._validate_seltab_filemap_rhs(rhs))
-            for (lhs, rhs) in audio_annot_list]
-        for entry in (e for e, e_mask in zip(audio_annot_list,
-                                             valid_entries_mask) if not e_mask):
-            logger.warning(
-                'Entry ({:s},{:s}) is invalid. Skipping...'.format(*entry))
+        self._audio_annot_list = get_valid_audio_annot_entries(
+            audio_annot_list, raw_results_root, annots_root,
+            plus_extn=FilenameExtensions.numpy, logger=logger)
 
-        if sum(valid_entries_mask) == 0:
-            logger.warning('Nothing to process')
-            return
-
-        self._audio_annot_list = [
-            e for e, e_mask in zip(audio_annot_list, valid_entries_mask)
-            if e_mask]
+        if len(self._audio_annot_list) == 0:
+            logger.warning('Empty list. Nothing to process')
 
         # Undocumented settings
         self._ig_kwargs = {}
@@ -228,19 +218,6 @@ class BaseMetric(metaclass=abc.ABCMeta):
                 else np.arange(scores.shape[0])
 
         return scores, clip_offsets, clip_length, fs, channels
-
-    def _validate_seltab_filemap_lhs(self, entry):
-        return len(entry) > 0 and (
-            os.path.isdir(os.path.join(self._raw_results_root, entry)) or
-            os.path.exists(
-                os.path.join(self._raw_results_root,
-                             entry + FilenameExtensions.numpy))
-        )
-
-    def _validate_seltab_filemap_rhs(self, entry):
-        return len(entry) > 0 and os.path.isfile(
-            entry if self._annots_root is None else
-            os.path.join(self._annots_root, entry))
 
 
 class PrecisionRecall(BaseMetric):

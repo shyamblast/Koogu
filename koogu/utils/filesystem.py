@@ -217,3 +217,49 @@ class AudioFileList:
             if pbar is not None:
                 pbar.increment()
 
+
+def get_valid_audio_annot_entries(audio_annot_list, audio_root, annot_root,
+                                  plus_extn=None, logger=None):
+    """
+    Validate presence of files in `audio_annot_list` and return a list of only
+    valid entries. Each entry is a pair of audio file/dir and annot file.
+
+    `plus_extn` if not None (e.g., '.npz') will be appended to each audio file.
+
+    :meta private:
+    """
+
+    if logger is None:
+        logger = logging.getLogger(__name__)
+
+    def validate_lhs(entry):
+        return len(entry) > 0 and (
+            os.path.isdir(os.path.join(audio_root, entry)) or
+            os.path.exists(os.path.join(
+                audio_root, entry if plus_extn is None else (entry + plus_extn)
+            ))
+        )
+
+    def validate_rhs(entry):
+        return len(entry) > 0 and (
+            os.path.isfile(
+                entry if annot_root is None else os.path.join(annot_root, entry)
+            )
+        )
+
+    valid_entries_mask = [False] * len(audio_annot_list)
+    for e_idx, (lhs, rhs) in enumerate(audio_annot_list):
+        l_v = validate_lhs(lhs)
+        r_v = validate_rhs(rhs)
+        if l_v and r_v:
+            valid_entries_mask[e_idx] = True
+        else:
+            logger.error(
+                f'Validity of elements in entry ({lhs}, {rhs}) are ' +
+                f'({l_v}, {r_v}). Will discard entry.')
+
+    # Discard invalid entries, if any
+    return [entry
+            for entry, v in zip(audio_annot_list, valid_entries_mask)
+            if v]
+

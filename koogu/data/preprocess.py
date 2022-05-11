@@ -19,7 +19,7 @@ from koogu.utils.detections import SelectionTableReader, LabelHelper
 from koogu.utils.terminal import ArgparseConverters
 from koogu.utils.config import Config, ConfigError, datasection2dict, log_config
 from koogu.utils.filesystem import restrict_classes_with_whitelist_file, \
-    AudioFileList, recursive_listing
+    AudioFileList, get_valid_audio_annot_entries, recursive_listing
 
 _program_name = 'prepare_data'
 
@@ -74,21 +74,15 @@ def from_selection_table_map(audio_settings, audio_seltab_list,
     logger = logging.getLogger(__name__)
 
     # Discard invalid entries, if any
-    valid_entries_mask = [
-        (_validate_seltab_filemap_lhs(audio_root, lhs) and
-         _validate_seltab_filemap_rhs(seltab_root, rhs))
-        for (lhs, rhs) in audio_seltab_list]
-    for entry in (e for e, e_mask in zip(audio_seltab_list, valid_entries_mask)
-                  if not e_mask):
-        logger.error('Entry ({:s},{:s}) is invalid. Skipping...'.format(*entry))
-    if sum(valid_entries_mask) == 0:
+    v_audio_seltab_list = get_valid_audio_annot_entries(
+            audio_seltab_list, audio_root, seltab_root, logger=logger)
+    if len(v_audio_seltab_list) == 0:
         print('Nothing to process')
         return {}
 
     classes_n_counts = annot_classes_and_counts(
         seltab_root,
-        [e[-1] for e, e_mask in zip(audio_seltab_list, valid_entries_mask)
-         if e_mask],
+        [e[-1] for e in v_audio_seltab_list],
         **({'num_threads': kwargs['num_threads']} if 'num_threads' in kwargs
            else {})
     )
@@ -107,8 +101,7 @@ def from_selection_table_map(audio_settings, audio_seltab_list,
         if 'filetypes' in kwargs:
             ig_kwargs['filetypes'] = kwargs.pop('filetypes')
     input_generator = AudioFileList.from_annotations(
-        [e for e, e_mask in zip(audio_seltab_list, valid_entries_mask)
-         if e_mask],
+        v_audio_seltab_list,
         audio_root, seltab_root,
         show_progress=kwargs.pop('show_progress', False),
         **ig_kwargs)
@@ -409,8 +402,11 @@ def annot_classes_and_counts(seltab_root, annot_files, **kwargs):
         ('End Time (s)', float)]
 
     # Discard invalid entries, if any
-    valid_entries_mask = [_validate_seltab_filemap_rhs(seltab_root, rhs)
-                          for rhs in annot_files]
+    valid_entries_mask = [
+        os.path.isfile(
+            af if seltab_root is None else os.path.join(seltab_root, af))
+        for af in annot_files
+    ]
 
     if seltab_root is None:
         full_path = lambda x: x
@@ -482,15 +478,6 @@ def _instantiate_logging(args, audio_settings):
 #     _ = Settings.Audio(**audio_settings)    # Will throw, if failure. Will be caught by caller
 #
 #     return audio_settings
-
-
-def _validate_seltab_filemap_lhs(audio_root, entry):
-    return len(entry) > 0 and os.path.exists(os.path.join(audio_root, entry))
-
-
-def _validate_seltab_filemap_rhs(seltab_root, entry):
-    return len(entry) > 0 and \
-           os.path.isfile(os.path.join(seltab_root, entry) if seltab_root is not None else entry)
 
 
 __all__ = ['from_selection_table_map', 'from_top_level_dirs']
