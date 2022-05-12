@@ -37,7 +37,10 @@ def from_selection_table_map(audio_settings, audio_seltab_list,
         audio from files.
     :param audio_seltab_list: A list containing pairs (tuples or sub-lists) of
         relative paths to audio files and the corresponding annotation
-        (selection table) files.
+        (selection table) files. Alternatively, you could also specify (path to)
+        a 2-column csv file containing these pairs of entries (in the same
+        order). Only use the csv option if the paths are simple (i.e., the
+        filenames do not contain commas or other special characters).
     :param audio_root: The full paths of audio files listed in
         ``audio_seltab_list`` are resolved using this as the base directory.
     :param seltab_root: The full paths of annotations files listed in

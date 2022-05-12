@@ -1,6 +1,7 @@
 import os
 import numpy as np
 import logging
+import csv
 
 from koogu.utils.detections import SelectionTableReader
 from koogu.utils.terminal import ProgressBar
@@ -218,11 +219,16 @@ class AudioFileList:
                 pbar.increment()
 
 
-def get_valid_audio_annot_entries(audio_annot_list, audio_root, annot_root,
+def get_valid_audio_annot_entries(audio_annot_list_or_csv,
+                                  audio_root, annot_root,
                                   plus_extn=None, logger=None):
     """
-    Validate presence of files in `audio_annot_list` and return a list of only
-    valid entries. Each entry is a pair of audio file/dir and annot file.
+    Validate presence of files in `audio_annot_list_or_csv` and return a list of
+    only valid entries. Each entry is a pair of audio file/dir and annot file.
+    Alternatively, `audio_annot_list_or_csv` could also be specified as (a path
+    to) a 2-column csv file containing audio-annot pairs. Only use the csv
+    option if the paths are simple (i.e., the filenames do not contain commas or
+    other special characters).
 
     `plus_extn` if not None (e.g., '.npz') will be appended to each audio file.
 
@@ -246,6 +252,22 @@ def get_valid_audio_annot_entries(audio_annot_list, audio_root, annot_root,
                 entry if annot_root is None else os.path.join(annot_root, entry)
             )
         )
+
+    if isinstance(audio_annot_list_or_csv, (list, tuple)):
+        audio_annot_list = audio_annot_list_or_csv
+    elif isinstance(audio_annot_list_or_csv, str):
+        if os.path.exists(audio_annot_list_or_csv):
+            # Attempt reading it as a csv file
+            with open(audio_annot_list_or_csv, 'r', newline='') as fh:
+                audio_annot_list = [
+                    entry[:2] for entry in csv.reader(fh) if len(entry) >= 2]
+        else:
+            raise ValueError('Path specified in audio_annot_list ' +
+                             f'({audio_annot_list_or_csv}) does not exist.')
+    else:
+        raise ValueError(
+            'Audio file & annotation pairs must either be specified as a list' +
+            ' of pairs, or as a path to a csv file')
 
     valid_entries_mask = [False] * len(audio_annot_list)
     for e_idx, (lhs, rhs) in enumerate(audio_annot_list):
