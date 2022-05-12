@@ -141,7 +141,8 @@ class BaseMetric(metaclass=abc.ABCMeta):
 
             # Convert textual annotation labels to integers
             annots_class_idxs = np.asarray(
-                [self.class_label_to_idx[c] for c in annots_labels],
+                [self._label_helper.labels_to_indices[c]
+                 for c in annots_labels],
                 dtype=np.uint16)
 
             # Keep only valid classes' entries
@@ -173,10 +174,6 @@ class BaseMetric(metaclass=abc.ABCMeta):
     @property
     def negative_class_idx(self):
         return self._label_helper.negative_class_index
-
-    @property
-    def class_label_to_idx(self):
-        return self._label_helper.labels_to_indices
 
     @abc.abstractmethod
     def _init_containers(self, **kwargs):
@@ -431,14 +428,13 @@ class PrecisionRecall(BaseMetric):
             th_reca[:, temp] = (reca_numers[:, temp].astype(np.float32) /
                                 np.expand_dims(self._reca_denom[temp], axis=0))
             per_class_perf = {
-                class_name: dict(
-                    precision=th_prec[:, self.class_label_to_idx[class_name]],
-                    recall=th_reca[:, self.class_label_to_idx[class_name]]
+                self.class_names[c_name_idx]: dict(
+                    precision=th_prec[:, v_c_idx],
+                    recall=th_reca[:, v_c_idx]
                 )
-                for class_name, v in zip(self.class_names,
-                                         self._valid_class_mask)
-                if (v and
-                    self._reca_denom[self.class_label_to_idx[class_name]] > 0)
+                for v_c_idx, c_name_idx in enumerate(
+                    np.where(self._valid_class_mask)[0])
+                if self._reca_denom[v_c_idx] > 0
             }
 
             overall_perf = dict(
@@ -461,19 +457,14 @@ class PrecisionRecall(BaseMetric):
 
         else:
             per_class_counts = {
-                class_name: dict(
-                    tp=self._prec_numers[
-                       :, self.class_label_to_idx[class_name]],
-                    tp_plus_fp=self._prec_denoms[
-                               :, self.class_label_to_idx[class_name]],
-                    recall_numerator=reca_numers[
-                                     :, self.class_label_to_idx[class_name]],
-                    tp_plus_fn=self._reca_denom[
-                        self.class_label_to_idx[class_name]]
+                self.class_names[c_name_idx]: dict(
+                    tp=self._prec_numers[:, v_c_idx],
+                    tp_plus_fp=self._prec_denoms[:, v_c_idx],
+                    recall_numerator=reca_numers[:, v_c_idx],
+                    tp_plus_fn=self._reca_denom[v_c_idx]
                 )
-                for class_name, v in zip(self.class_names,
-                                         self._valid_class_mask)
-                if v
+                for v_c_idx, c_name_idx in enumerate(
+                    np.where(self._valid_class_mask)[0])
             }
 
             return per_class_counts
@@ -628,7 +619,9 @@ class PrecisionRecall(BaseMetric):
                 self._prec_denoms[th_idx] += tp_plus_fp[self._valid_class_mask]
                 self._reca_numers[th_idx] += reca_num[self._valid_class_mask]
 
-        for gt_c_idx in annots_class_idxs:
+        # Map annot_idx to a valid_class_idx, and add up occurrences
+        annot_idx_remapper = np.cumsum(self._valid_class_mask) - 1
+        for gt_c_idx in annot_idx_remapper[annots_class_idxs]:
             self._reca_denom[gt_c_idx] += 1
 
 
