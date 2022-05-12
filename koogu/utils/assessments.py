@@ -226,7 +226,10 @@ class PrecisionRecall(BaseMetric):
 
     :param audio_annot_list: A list containing pairs (tuples or sub-lists) of
         relative paths to audio files and the corresponding annotation
-        (Raven selection table) files.
+        (Raven selection table) files. Alternatively, you could also specify
+        (path to) a 2-column csv file containing these pairs of entries (in the
+        same order). Only use the csv option if the paths are simple (i.e., the
+        filenames do not contain commas or other special characters).
     :param raw_results_root: The full paths of the raw result container files
         whose filenames will be derived from the audio files listed in
         ``audio_annot_list`` will be resolved using this as base directory.
