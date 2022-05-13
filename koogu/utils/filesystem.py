@@ -136,12 +136,19 @@ class AudioFileList:
 
                 # Derive annot start & end times from in-file offsets and durations and yield each listed audio file
                 # individually.
-                files_times_tags = [[entry[2] if entry[4] is None else os.path.join(entry[4], entry[2]),
-                                     (entry[3], entry[3] + (entry[1] - entry[0])),
-                                     entry[5],
-                                     1 if entry[6] is None else entry[6]]
-                                    for entry in SelectionTableReader(full_path(seltab_path), multi_file_filespec)
-                                    if any([e is not None for e in entry])]
+                files_times_tags = [
+                    [entry[2] if entry[4] is None else os.path.join(entry[4], entry[2]),
+                     (entry[3], entry[3] + (entry[1] - entry[0])),
+                     entry[5],
+                     entry[6] or 1]
+                    for entry in SelectionTableReader(full_path(seltab_path),
+                                                      multi_file_filespec)
+                    if ((entry[0] is not None) and
+                        (entry[1] is not None) and
+                        (entry[2] is not None) and
+                        (entry[3] is not None) and
+                        (entry[5] is not None))
+                ]
 
                 if len(files_times_tags) == 0:
                     logger.warning(
@@ -200,9 +207,14 @@ class AudioFileList:
             else:
                 # Individual audio file
 
-                times_tags = [(entry[0], entry[1], entry[2], 1 if entry[3] is None else entry[3])
-                              for entry in SelectionTableReader(full_path(seltab_path), single_file_filespec)
-                              if any([e is not None for e in entry])]
+                times_tags = [
+                    (entry[0], entry[1], entry[2], entry[3] or 1)
+                    for entry in SelectionTableReader(full_path(seltab_path),
+                                                      single_file_filespec)
+                    if ((entry[0] is not None) and
+                        (entry[1] is not None) and
+                        (entry[2] is not None))
+                ]
 
                 if len(times_tags) > 0:
                     yield audio_path, \

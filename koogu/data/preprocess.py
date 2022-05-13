@@ -450,7 +450,7 @@ def _get_labels_counts_from_annot_file(annot_filepath, filespec):
     """Helper function for annot_classes_and_counts()"""
     labels = [entry[0]
               for entry in SelectionTableReader(annot_filepath, filespec)
-              if any([e is not None for e in entry])]
+              if all([e is not None for e in entry])]
     return np.unique(labels, return_counts=True)
 
 
