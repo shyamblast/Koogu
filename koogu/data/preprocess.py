@@ -26,6 +26,7 @@ _program_name = 'prepare_data'
 
 def from_selection_table_map(audio_settings, audio_seltab_list,
                              audio_root, seltab_root, output_root,
+                             label_column_name=None,
                              desired_labels=None,
                              remap_labels_dict=None,
                              negative_class_label=None,
@@ -46,6 +47,9 @@ def from_selection_table_map(audio_settings, audio_seltab_list,
     :param seltab_root: The full paths of annotations files listed in
         ``audio_seltab_list`` are resolved using this as the base directory.
     :param output_root: "Prepared" data will be written to this directory.
+    :param label_column_name: A string identifying the header of the column in
+        the selection table file(s) from which class labels are to be extracted.
+        If None (default), will look for a column with the header "Tags".
     :param desired_labels: The target set of class labels. If not None, must be
         a list of class labels. Any selections (read from the selection tables)
         having labels that are not in this list will be discarded. This list
@@ -86,6 +90,7 @@ def from_selection_table_map(audio_settings, audio_seltab_list,
     classes_n_counts = annot_classes_and_counts(
         seltab_root,
         [e[-1] for e in v_audio_seltab_list],
+        label_column_name or "Tags",
         **({'num_threads': kwargs['num_threads']} if 'num_threads' in kwargs
            else {})
     )
@@ -106,6 +111,7 @@ def from_selection_table_map(audio_settings, audio_seltab_list,
     input_generator = AudioFileList.from_annotations(
         v_audio_seltab_list,
         audio_root, seltab_root,
+        label_column_name or "Tags",
         show_progress=kwargs.pop('show_progress', False),
         **ig_kwargs)
 
@@ -388,7 +394,8 @@ def _batch_process(audio_settings, class_list, input_generator,
     return label_helper.classes_list, per_class_clip_counts
 
 
-def annot_classes_and_counts(seltab_root, annot_files, **kwargs):
+def annot_classes_and_counts(seltab_root, annot_files, label_column_name,
+                             **kwargs):
     """
     Query the list of annot_files to determine the unique labels present and
     their respective counts.
@@ -400,7 +407,7 @@ def annot_classes_and_counts(seltab_root, annot_files, **kwargs):
         max(1, os.cpu_count() - 1)
 
     filespec = [
-        ('Tags', str),
+        (label_column_name, str),
         ('Begin Time (s)', float),
         ('End Time (s)', float)]
 

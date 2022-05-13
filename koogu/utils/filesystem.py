@@ -68,7 +68,8 @@ class AudioFileList:
                 pbar.increment()
 
     @staticmethod
-    def from_annotations(selmap, audio_root, seltab_root, show_progress=False,
+    def from_annotations(selmap, audio_root, seltab_root, label_column_name,
+                         show_progress=False,
                          ignore_zero_annot_files=True,
                          filetypes=None, added_ext=None):
         """
@@ -78,6 +79,9 @@ class AudioFileList:
             'seltab_root'.
         :param audio_root: Root directory for all audio files.
         :param seltab_root: Root directory for all annotation files.
+        :param label_column_name: A string (e.g., "Tags") identifying the header
+            of the column in the selection table file(s) from which class labels
+            are to be extracted.
         :param show_progress: Show progress bar during processing.
         :param ignore_zero_annot_files: Where the audio reference in selmap
             points to an audio file and the corresponding annot file contains
@@ -102,14 +106,14 @@ class AudioFileList:
 
         single_file_filespec = [('Begin Time (s)', float),
                                 ('End Time (s)', float),
-                                ('Tags', str),
+                                (label_column_name, str),
                                 ('Channel', int, 1)]
         multi_file_filespec = [('Begin Time (s)', float),
                                ('End Time (s)', float),
                                ('Begin File', str),
                                ('File Offset (s)', float),
                                ('Relative Path', str),
-                               ('Tags', str),
+                               (label_column_name, str),
                                ('Channel', int, 1)]
 
         logger = logging.getLogger(__name__)

@@ -27,6 +27,9 @@ class BaseMetric(metaclass=abc.ABCMeta):
         ``audio_annot_list`` will be resolved using this as base directory.
     :param annots_root: The full paths of annotations files listed in
         ``audio_annot_list`` will be resolved using this as base directory.
+    :param label_column_name: A string identifying the header of the column in
+        the selection table file(s) from which class labels are to be extracted.
+        If None (default), will look for a column with the header "Tags".
     :param reject_classes: Name (case sensitive) of the class (like 'Noise' or
         'Other') for which performance assessments are not to be computed. Can
         specify multiple classes for rejection, as a list.
@@ -42,6 +45,7 @@ class BaseMetric(metaclass=abc.ABCMeta):
 
     def __init__(self, audio_annot_list,
                  raw_results_root, annots_root,
+                 label_column_name=None,
                  reject_classes=None,
                  remap_labels_dict=None,
                  negative_class_label=None,
@@ -67,6 +71,7 @@ class BaseMetric(metaclass=abc.ABCMeta):
 
         self._raw_results_root = raw_results_root
         self._annots_root = annots_root
+        self._label_column_name = label_column_name or "Tags"  # default: "Tags"
 
         # Discard invalid entries, if any
         self._audio_annot_list = get_valid_audio_annot_entries(
@@ -111,6 +116,7 @@ class BaseMetric(metaclass=abc.ABCMeta):
         input_generator = AudioFileList.from_annotations(
             self._audio_annot_list,
             self._raw_results_root, self._annots_root,
+            self._label_column_name,
             show_progress=show_progress,
             **self._ig_kwargs)
 
@@ -235,6 +241,9 @@ class PrecisionRecall(BaseMetric):
         ``audio_annot_list`` will be resolved using this as base directory.
     :param annots_root: The full paths of annotations files listed in
         ``audio_annot_list`` will be resolved using this as base directory.
+    :param label_column_name: A string identifying the header of the column in
+        the selection table file(s) from which class labels are to be extracted.
+        If None (default), will look for a column with the header "Tags".
     :param thresholds: If not None, must be either a scalar quantity or a list
         of non-decreasing values (float values in the range 0-1) at which
         precision and recall value(s) will be assessed. If None, will default
@@ -283,6 +292,7 @@ class PrecisionRecall(BaseMetric):
 
     def __init__(self, audio_annot_list,
                  raw_results_root, annots_root,
+                 label_column_name=None,
                  thresholds=None,
                  post_process_detections=False,
                  **kwargs):
@@ -390,6 +400,7 @@ class PrecisionRecall(BaseMetric):
 
         super(PrecisionRecall, self).__init__(
             audio_annot_list, raw_results_root, annots_root,
+            label_column_name=label_column_name,
             **kwargs)
 
     @property
