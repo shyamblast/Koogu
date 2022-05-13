@@ -18,7 +18,7 @@ class DenseNet(KooguArchitectureBase):
     :param compression: (optional; default: 1.0) Specifies the rate of
         compression applied in transition blocks. A value of 1.0 means no
         compression; specify value < 1.0 to bring about compression.
-    :param with_bottleneck: (bool; default: False) Weather to include bottleneck
+    :param with_bottleneck: (bool; default: False) Whether to include bottleneck
         layers.
 
     **Other helpful customizations**
@@ -51,6 +51,9 @@ class DenseNet(KooguArchitectureBase):
         layers to the end of the model network. Can specify a single integer
         (the added layer will have as many nodes) or a list of integers to add
         multiple (connected in sequence) dense layers.
+    :param add_dense_layer_nonlinearity: (boolean; default: False) If True, will
+        apply ReLU activation to the outputs of the BatchNormalization layer
+        following each added dense layer (as per `dense_layers`).
     :param data_format: One of 'channels_last' (default) or 'channels_first'.
     """
 

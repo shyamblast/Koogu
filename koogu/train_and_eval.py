@@ -330,7 +330,7 @@ def _main(data_feeder, model_dir, data_cfg, model_arch, training_cfg,
             [x for x in range(training_cfg['epochs_between_evals'],
                               training_cfg['epochs'] + 1,
                               training_cfg['epochs_between_evals'])]
-        of.write(json.dumps(str(history_c)))
+        of.write(json.dumps(eval(str(history_c))))
 
     TrainedModel.finalize_and_save(classifier,
                                    model_dir,

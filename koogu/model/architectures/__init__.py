@@ -104,6 +104,9 @@ class KooguArchitectureBase(BaseArchitecture):
         many fully-connected layers will be added as there are items in the list
         and each layer will have as many nodes as the corresponding integer item
         in the list.
+    :param add_dense_layer_nonlinearity: (boolean; default: False) If True, will
+        apply ReLU activation to the outputs of the BatchNormalization layer
+        following each added dense layer (as per `dense_layers`).
     :param data_format: One of 'channels_last' (default) or 'channels_first'.
 
     :meta private:
@@ -122,6 +125,9 @@ class KooguArchitectureBase(BaseArchitecture):
             kwargs.get('dense_layers', [])  # default to an empty list
         if not hasattr(self._dense_layers, '__len__'):
             self._dense_layers = [self._dense_layers]
+
+        self._dense_layers_activation = \
+            bool(kwargs.get('add_dense_layer_nonlinearity', False))
 
         self._data_format = kwargs.get('data_format', 'channels_last')
         assert self._data_format in ['channels_first', 'channels_last'], \
@@ -175,10 +181,12 @@ class KooguArchitectureBase(BaseArchitecture):
                                             name='FC-D{:d}'.format(dl_idx + 1)
                                             )(outputs)
             outputs = tf.keras.layers.BatchNormalization(
-                scale=False,
+                scale=False, epsilon=1e-8,
                 name='BatchNorm-D{:d}'.format(dl_idx + 1))(outputs)
-            outputs = tf.keras.layers.Activation(
-                'relu', name='ReLu-D{:d}'.format(dl_idx + 1))(outputs)
+
+            if self._dense_layers_activation:
+                outputs = tf.keras.layers.Activation(
+                    'relu', name='ReLu-D{:d}'.format(dl_idx + 1))(outputs)
 
         return outputs
 

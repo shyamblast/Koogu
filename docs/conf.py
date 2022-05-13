@@ -13,7 +13,7 @@ copyright = '2022, Shyam Madhusudhana'
 author = 'Shyam Madhusudhana'
 
 # The first 2 components of software version
-version = '0.6.4'
+version = '0.6.5'
 # The full version, including alpha/beta/rc tags
 release = ''
 

@@ -47,7 +47,8 @@ be invoked.
   (as 2-element *list*s or *tuple*s) that map an audio file to its corresponding
   annotation file. Audio files and annotation files may be further organized into
   subdirectories under `audio_root` and `annots_root`, and the corresponding
-  relative paths to the files can be specified in `audio_annot_list`.
+  relative paths to the files can be specified in `audio_annot_list` (`audio_annot_list`
+  may also be set as the path to a csv file that contains the mapping pairs).
   ```python
   # Root directories under which audio & corresponding annotation files are available
   audio_root = '/mnt/projects/dolphins/training_data/audio'
@@ -92,8 +93,10 @@ _<sup>†</sup>_ Koogu currently supports annotations in
   [Raven Lite](https://ravensoundsoftware.com/software/raven-lite/) /
   [RavenPro](https://ravensoundsoftware.com/software/raven-pro/) selection table
   format, which is basically a simple tab-delimited text file providing (at a
-  minimum) the start-time, end-time and label for each event/call. Values in the
-  _Tags_ column (must exist) will be used as class labels.
+  minimum) the start-time, end-time and label for each event/call. By default,
+  values in the _Tags_ column (if it exists) will be used as class labels. You
+  could also force to look for class labels in a different column by specifying
+  the name of the corresponding column.
 
 The two functions under ___prepare___ support a few customizations. Resampled
 and broken up waveforms and the respective class label info are stored under

@@ -9,7 +9,7 @@ from koogu.data import FilenameExtensions, AssetsExtraNames
 from koogu.utils.detections import assess_annotations_and_clips_match, \
     assess_annotations_and_detections_match, postprocess_detections, \
     nonmax_suppress_mask, LabelHelper
-from koogu.utils.filesystem import AudioFileList
+from koogu.utils.filesystem import AudioFileList, get_valid_audio_annot_entries
 
 
 class BaseMetric(metaclass=abc.ABCMeta):
@@ -18,12 +18,18 @@ class BaseMetric(metaclass=abc.ABCMeta):
 
     :param audio_annot_list: A list containing pairs (tuples or sub-lists) of
         relative paths to audio files and the corresponding annotation
-        (selection table) files.
+        (selection table) files. Alternatively, you could also specify (path to)
+        a 2-column csv file containing these pairs of entries (in the same
+        order). Only use the csv option if the paths are simple (i.e., the
+        filenames do not contain commas or other special characters).
     :param raw_results_root: The full paths of the raw result container files
         whose filenames will be derived from the audio files listed in
         ``audio_annot_list`` will be resolved using this as base directory.
     :param annots_root: The full paths of annotations files listed in
         ``audio_annot_list`` will be resolved using this as base directory.
+    :param label_column_name: A string identifying the header of the column in
+        the selection table file(s) from which class labels are to be extracted.
+        If None (default), will look for a column with the header "Tags".
     :param reject_classes: Name (case sensitive) of the class (like 'Noise' or
         'Other') for which performance assessments are not to be computed. Can
         specify multiple classes for rejection, as a list.
@@ -39,6 +45,7 @@ class BaseMetric(metaclass=abc.ABCMeta):
 
     def __init__(self, audio_annot_list,
                  raw_results_root, annots_root,
+                 label_column_name=None,
                  reject_classes=None,
                  remap_labels_dict=None,
                  negative_class_label=None,
@@ -64,24 +71,15 @@ class BaseMetric(metaclass=abc.ABCMeta):
 
         self._raw_results_root = raw_results_root
         self._annots_root = annots_root
+        self._label_column_name = label_column_name or "Tags"  # default: "Tags"
 
         # Discard invalid entries, if any
-        valid_entries_mask = [
-            (self._validate_seltab_filemap_lhs(lhs) and
-             self._validate_seltab_filemap_rhs(rhs))
-            for (lhs, rhs) in audio_annot_list]
-        for entry in (e for e, e_mask in zip(audio_annot_list,
-                                             valid_entries_mask) if not e_mask):
-            logger.warning(
-                'Entry ({:s},{:s}) is invalid. Skipping...'.format(*entry))
+        self._audio_annot_list = get_valid_audio_annot_entries(
+            audio_annot_list, raw_results_root, annots_root,
+            plus_extn=FilenameExtensions.numpy, logger=logger)
 
-        if sum(valid_entries_mask) == 0:
-            logger.warning('Nothing to process')
-            return
-
-        self._audio_annot_list = [
-            e for e, e_mask in zip(audio_annot_list, valid_entries_mask)
-            if e_mask]
+        if len(self._audio_annot_list) == 0:
+            logger.warning('Empty list. Nothing to process')
 
         # Undocumented settings
         self._ig_kwargs = {}
@@ -118,6 +116,7 @@ class BaseMetric(metaclass=abc.ABCMeta):
         input_generator = AudioFileList.from_annotations(
             self._audio_annot_list,
             self._raw_results_root, self._annots_root,
+            self._label_column_name,
             show_progress=show_progress,
             **self._ig_kwargs)
 
@@ -151,7 +150,8 @@ class BaseMetric(metaclass=abc.ABCMeta):
 
             # Convert textual annotation labels to integers
             annots_class_idxs = np.asarray(
-                [self.class_label_to_idx[c] for c in annots_labels],
+                [self._label_helper.labels_to_indices[c]
+                 for c in annots_labels],
                 dtype=np.uint16)
 
             # Keep only valid classes' entries
@@ -183,10 +183,6 @@ class BaseMetric(metaclass=abc.ABCMeta):
     @property
     def negative_class_idx(self):
         return self._label_helper.negative_class_index
-
-    @property
-    def class_label_to_idx(self):
-        return self._label_helper.labels_to_indices
 
     @abc.abstractmethod
     def _init_containers(self, **kwargs):
@@ -229,19 +225,6 @@ class BaseMetric(metaclass=abc.ABCMeta):
 
         return scores, clip_offsets, clip_length, fs, channels
 
-    def _validate_seltab_filemap_lhs(self, entry):
-        return len(entry) > 0 and (
-            os.path.isdir(os.path.join(self._raw_results_root, entry)) or
-            os.path.exists(
-                os.path.join(self._raw_results_root,
-                             entry + FilenameExtensions.numpy))
-        )
-
-    def _validate_seltab_filemap_rhs(self, entry):
-        return len(entry) > 0 and os.path.isfile(
-            entry if self._annots_root is None else
-            os.path.join(self._annots_root, entry))
-
 
 class PrecisionRecall(BaseMetric):
     """
@@ -249,12 +232,18 @@ class PrecisionRecall(BaseMetric):
 
     :param audio_annot_list: A list containing pairs (tuples or sub-lists) of
         relative paths to audio files and the corresponding annotation
-        (Raven selection table) files.
+        (Raven selection table) files. Alternatively, you could also specify
+        (path to) a 2-column csv file containing these pairs of entries (in the
+        same order). Only use the csv option if the paths are simple (i.e., the
+        filenames do not contain commas or other special characters).
     :param raw_results_root: The full paths of the raw result container files
         whose filenames will be derived from the audio files listed in
         ``audio_annot_list`` will be resolved using this as base directory.
     :param annots_root: The full paths of annotations files listed in
         ``audio_annot_list`` will be resolved using this as base directory.
+    :param label_column_name: A string identifying the header of the column in
+        the selection table file(s) from which class labels are to be extracted.
+        If None (default), will look for a column with the header "Tags".
     :param thresholds: If not None, must be either a scalar quantity or a list
         of non-decreasing values (float values in the range 0-1) at which
         precision and recall value(s) will be assessed. If None, will default
@@ -303,6 +292,7 @@ class PrecisionRecall(BaseMetric):
 
     def __init__(self, audio_annot_list,
                  raw_results_root, annots_root,
+                 label_column_name=None,
                  thresholds=None,
                  post_process_detections=False,
                  **kwargs):
@@ -410,6 +400,7 @@ class PrecisionRecall(BaseMetric):
 
         super(PrecisionRecall, self).__init__(
             audio_annot_list, raw_results_root, annots_root,
+            label_column_name=label_column_name,
             **kwargs)
 
     @property
@@ -454,14 +445,13 @@ class PrecisionRecall(BaseMetric):
             th_reca[:, temp] = (reca_numers[:, temp].astype(np.float32) /
                                 np.expand_dims(self._reca_denom[temp], axis=0))
             per_class_perf = {
-                class_name: dict(
-                    precision=th_prec[:, self.class_label_to_idx[class_name]],
-                    recall=th_reca[:, self.class_label_to_idx[class_name]]
+                self.class_names[c_name_idx]: dict(
+                    precision=th_prec[:, v_c_idx],
+                    recall=th_reca[:, v_c_idx]
                 )
-                for class_name, v in zip(self.class_names,
-                                         self._valid_class_mask)
-                if (v and
-                    self._reca_denom[self.class_label_to_idx[class_name]] > 0)
+                for v_c_idx, c_name_idx in enumerate(
+                    np.where(self._valid_class_mask)[0])
+                if self._reca_denom[v_c_idx] > 0
             }
 
             overall_perf = dict(
@@ -484,19 +474,14 @@ class PrecisionRecall(BaseMetric):
 
         else:
             per_class_counts = {
-                class_name: dict(
-                    tp=self._prec_numers[
-                       :, self.class_label_to_idx[class_name]],
-                    tp_plus_fp=self._prec_denoms[
-                               :, self.class_label_to_idx[class_name]],
-                    recall_numerator=reca_numers[
-                                     :, self.class_label_to_idx[class_name]],
-                    tp_plus_fn=self._reca_denom[
-                        self.class_label_to_idx[class_name]]
+                self.class_names[c_name_idx]: dict(
+                    tp=self._prec_numers[:, v_c_idx],
+                    tp_plus_fp=self._prec_denoms[:, v_c_idx],
+                    recall_numerator=reca_numers[:, v_c_idx],
+                    tp_plus_fn=self._reca_denom[v_c_idx]
                 )
-                for class_name, v in zip(self.class_names,
-                                         self._valid_class_mask)
-                if v
+                for v_c_idx, c_name_idx in enumerate(
+                    np.where(self._valid_class_mask)[0])
             }
 
             return per_class_counts
@@ -651,7 +636,9 @@ class PrecisionRecall(BaseMetric):
                 self._prec_denoms[th_idx] += tp_plus_fp[self._valid_class_mask]
                 self._reca_numers[th_idx] += reca_num[self._valid_class_mask]
 
-        for gt_c_idx in annots_class_idxs:
+        # Map annot_idx to a valid_class_idx, and add up occurrences
+        annot_idx_remapper = np.cumsum(self._valid_class_mask) - 1
+        for gt_c_idx in annot_idx_remapper[annots_class_idxs]:
             self._reca_denom[gt_c_idx] += 1
 
 

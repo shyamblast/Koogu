@@ -42,6 +42,9 @@ class ConvNet(KooguArchitectureBase):
         layers to the end of the model network. Can specify a single integer
         (the added layer will have as many nodes) or a list of integers to add
         multiple (connected in sequence) dense layers.
+    :param add_dense_layer_nonlinearity: (boolean; default: False) If True, will
+        apply ReLU activation to the outputs of the BatchNormalization layer
+        following each added dense layer (as per `dense_layers`).
     :param data_format: One of 'channels_last' (default) or 'channels_first'.
     """
 

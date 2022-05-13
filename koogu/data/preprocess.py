@@ -19,13 +19,14 @@ from koogu.utils.detections import SelectionTableReader, LabelHelper
 from koogu.utils.terminal import ArgparseConverters
 from koogu.utils.config import Config, ConfigError, datasection2dict, log_config
 from koogu.utils.filesystem import restrict_classes_with_whitelist_file, \
-    AudioFileList, recursive_listing
+    AudioFileList, get_valid_audio_annot_entries, recursive_listing
 
 _program_name = 'prepare_data'
 
 
 def from_selection_table_map(audio_settings, audio_seltab_list,
                              audio_root, seltab_root, output_root,
+                             label_column_name=None,
                              desired_labels=None,
                              remap_labels_dict=None,
                              negative_class_label=None,
@@ -37,12 +38,18 @@ def from_selection_table_map(audio_settings, audio_seltab_list,
         audio from files.
     :param audio_seltab_list: A list containing pairs (tuples or sub-lists) of
         relative paths to audio files and the corresponding annotation
-        (selection table) files.
+        (selection table) files. Alternatively, you could also specify (path to)
+        a 2-column csv file containing these pairs of entries (in the same
+        order). Only use the csv option if the paths are simple (i.e., the
+        filenames do not contain commas or other special characters).
     :param audio_root: The full paths of audio files listed in
         ``audio_seltab_list`` are resolved using this as the base directory.
     :param seltab_root: The full paths of annotations files listed in
         ``audio_seltab_list`` are resolved using this as the base directory.
     :param output_root: "Prepared" data will be written to this directory.
+    :param label_column_name: A string identifying the header of the column in
+        the selection table file(s) from which class labels are to be extracted.
+        If None (default), will look for a column with the header "Tags".
     :param desired_labels: The target set of class labels. If not None, must be
         a list of class labels. Any selections (read from the selection tables)
         having labels that are not in this list will be discarded. This list
@@ -74,21 +81,16 @@ def from_selection_table_map(audio_settings, audio_seltab_list,
     logger = logging.getLogger(__name__)
 
     # Discard invalid entries, if any
-    valid_entries_mask = [
-        (_validate_seltab_filemap_lhs(audio_root, lhs) and
-         _validate_seltab_filemap_rhs(seltab_root, rhs))
-        for (lhs, rhs) in audio_seltab_list]
-    for entry in (e for e, e_mask in zip(audio_seltab_list, valid_entries_mask)
-                  if not e_mask):
-        logger.error('Entry ({:s},{:s}) is invalid. Skipping...'.format(*entry))
-    if sum(valid_entries_mask) == 0:
+    v_audio_seltab_list = get_valid_audio_annot_entries(
+            audio_seltab_list, audio_root, seltab_root, logger=logger)
+    if len(v_audio_seltab_list) == 0:
         print('Nothing to process')
         return {}
 
     classes_n_counts = annot_classes_and_counts(
         seltab_root,
-        [e[-1] for e, e_mask in zip(audio_seltab_list, valid_entries_mask)
-         if e_mask],
+        [e[-1] for e in v_audio_seltab_list],
+        label_column_name or "Tags",
         **({'num_threads': kwargs['num_threads']} if 'num_threads' in kwargs
            else {})
     )
@@ -107,9 +109,9 @@ def from_selection_table_map(audio_settings, audio_seltab_list,
         if 'filetypes' in kwargs:
             ig_kwargs['filetypes'] = kwargs.pop('filetypes')
     input_generator = AudioFileList.from_annotations(
-        [e for e, e_mask in zip(audio_seltab_list, valid_entries_mask)
-         if e_mask],
+        v_audio_seltab_list,
         audio_root, seltab_root,
+        label_column_name or "Tags",
         show_progress=kwargs.pop('show_progress', False),
         **ig_kwargs)
 
@@ -392,7 +394,8 @@ def _batch_process(audio_settings, class_list, input_generator,
     return label_helper.classes_list, per_class_clip_counts
 
 
-def annot_classes_and_counts(seltab_root, annot_files, **kwargs):
+def annot_classes_and_counts(seltab_root, annot_files, label_column_name,
+                             **kwargs):
     """
     Query the list of annot_files to determine the unique labels present and
     their respective counts.
@@ -404,13 +407,16 @@ def annot_classes_and_counts(seltab_root, annot_files, **kwargs):
         max(1, os.cpu_count() - 1)
 
     filespec = [
-        ('Tags', str),
+        (label_column_name, str),
         ('Begin Time (s)', float),
         ('End Time (s)', float)]
 
     # Discard invalid entries, if any
-    valid_entries_mask = [_validate_seltab_filemap_rhs(seltab_root, rhs)
-                          for rhs in annot_files]
+    valid_entries_mask = [
+        os.path.isfile(
+            af if seltab_root is None else os.path.join(seltab_root, af))
+        for af in annot_files
+    ]
 
     if seltab_root is None:
         full_path = lambda x: x
@@ -451,7 +457,7 @@ def _get_labels_counts_from_annot_file(annot_filepath, filespec):
     """Helper function for annot_classes_and_counts()"""
     labels = [entry[0]
               for entry in SelectionTableReader(annot_filepath, filespec)
-              if any([e is not None for e in entry])]
+              if all([e is not None for e in entry])]
     return np.unique(labels, return_counts=True)
 
 
@@ -482,15 +488,6 @@ def _instantiate_logging(args, audio_settings):
 #     _ = Settings.Audio(**audio_settings)    # Will throw, if failure. Will be caught by caller
 #
 #     return audio_settings
-
-
-def _validate_seltab_filemap_lhs(audio_root, entry):
-    return len(entry) > 0 and os.path.exists(os.path.join(audio_root, entry))
-
-
-def _validate_seltab_filemap_rhs(seltab_root, entry):
-    return len(entry) > 0 and \
-           os.path.isfile(os.path.join(seltab_root, entry) if seltab_root is not None else entry)
 
 
 __all__ = ['from_selection_table_map', 'from_top_level_dirs']
