@@ -155,9 +155,8 @@ class Audio2Spectral(tf.keras.layers.Layer):
             # Mel scale is requested, prepare the filterbank
             self.mel_filterbank, _ = Filters.mel_filterbanks2(
                 spec_settings.num_mels,
-                np.asarray(spec_settings.bandwidth_clip,
-                           dtype=self.dtype().as_numpy_dtype),
-                f, dtype=self.dtype().as_numpy_dtype)
+                np.asarray(spec_settings.bandwidth_clip, dtype=self.dtype),
+                f, dtype=self.dtype)
 
             # Clip to non-zero range & avoid unnecessary multiplications
             self.mel_filterbank = \
