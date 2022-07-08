@@ -514,7 +514,8 @@ class Process:
         data, _ = Audio.load(src_file, audio_settings.fs)
 
         # Add channel axis if it doesn't exist
-        data = np.expand_dims(data, axis=0)
+        if len(data.shape) < 2:
+            data = np.expand_dims(data, axis=0)
 
         all_clips = []
         all_clips_offsets = []
