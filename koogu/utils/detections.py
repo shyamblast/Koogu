@@ -404,8 +404,8 @@ def assess_annotations_and_detections_match(
 
         - per-class counts of true positives
         - per-class counts of detections (true + false positives)
-        - numerator for computing recall (not that given our definition of
-          'true positive' and 'recall', this value may not the same as the
+        - numerator for computing recall (note that given our definition of
+          'true positive' and 'recall', this value may not be the same as the
           per-class counts of true positives).
         - mask of ground-truth events that were "recalled"
         - mask of detections that were true positives
