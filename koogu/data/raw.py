@@ -242,7 +242,7 @@ class Convert:
         Convert time domain data to time-frequency domain.
         :param data: Either a 1-d or 2-d array. If 2-d, the first dimension is the batch dimension.
         :param fs: Sampling rate of the time-domain data.
-        :param spec_settings: The container returned by data.process_spec_settings().
+        :param spec_settings: The container returned by Settings.Spectral().
         :param eps: If not None, will override the eps value contained in spec_settings.
         :param return_f_axis: Include frequency axis values in the returned value.
         :param return_t_axis: Include frequency axis values in the returned value.
