@@ -3,7 +3,6 @@ import abc
 import numpy as np
 import json
 import logging
-import warnings
 
 from koogu.data import FilenameExtensions, AssetsExtraNames
 from koogu.utils.detections import assess_annotations_and_clips_match, \
@@ -209,6 +208,49 @@ class BaseMetric(metaclass=abc.ABCMeta):
         raise NotImplementedError(
             '_produce_result() method not implemented in derived class')
 
+    @classmethod
+    def extract_kwargs_for_postprocess_detections(cls, **kwargs):
+
+        # Post-processing function kwargs
+        pp_fn_kwargs = {}
+        if 'suppress_nonmax' in kwargs:
+            pp_fn_kwargs['suppress_nonmax'] = kwargs.pop('suppress_nonmax')
+        if 'squeeze_min_dur' in kwargs:
+            pp_fn_kwargs['squeeze_min_dur'] = kwargs.pop('squeeze_min_dur')
+
+        return pp_fn_kwargs, kwargs
+
+    @classmethod
+    def extract_kwargs_for_annotations_and_detections_match(cls, **kwargs):
+
+        # Match-making function kwargs
+        match_fn_kwargs = {}
+        if 'min_gt_coverage' in kwargs:
+            match_fn_kwargs['min_gt_coverage'] = kwargs.pop('min_gt_coverage')
+        if 'min_det_usage' in kwargs:
+            match_fn_kwargs['min_det_usage'] = kwargs.pop('min_det_usage')
+
+        return match_fn_kwargs, kwargs
+
+    @staticmethod
+    def extract_kwargs_for_annotations_and_clips_match(**kwargs):
+
+        # Match-making function kwargs. Any unspecified parameters would
+        # default to those of
+        # koogu.utils.detections.assess_annotations_and_clips_match().
+        match_fn_kwargs = {}
+        if 'min_annot_overlap_fraction' in kwargs:
+            match_fn_kwargs['min_annot_overlap_fraction'] = \
+                np.float16(kwargs.pop('min_annot_overlap_fraction'))
+        if 'keep_only_centralized_annots' in kwargs:
+            match_fn_kwargs['keep_only_centralized_annots'] = \
+                kwargs.pop('keep_only_centralized_annots')
+        if 'max_nonmatch_overlap_fraction' in kwargs:
+            match_fn_kwargs['max_nonmatch_overlap_fraction'] = \
+                np.float16(kwargs.pop('max_nonmatch_overlap_fraction'))
+
+        return match_fn_kwargs, kwargs
+
     def load_raw_detection_info(self, audio_file):
 
         # Derive result file path from audio_file
@@ -308,24 +350,16 @@ class PrecisionRecall(BaseMetric):
         if post_process_detections:
             self._pp = True
 
-            # Post-processing function kwargs
-            pp_fn_kwargs = {}
-            if 'suppress_nonmax' in kwargs:
-                pp_fn_kwargs['suppress_nonmax'] = kwargs.pop('suppress_nonmax')
-            if 'squeeze_min_dur' in kwargs:
-                pp_fn_kwargs['squeeze_min_dur'] = kwargs.pop('squeeze_min_dur')
+            pp_fn_kwargs, remaining_kwargs = \
+                self.extract_kwargs_for_postprocess_detections(**kwargs)
 
-            # Match-making function kwargs
-            match_fn_kwargs = {}
-            if 'min_gt_coverage' in kwargs:
-                match_fn_kwargs['min_gt_coverage'] = kwargs.pop(
-                    'min_gt_coverage')
-            if 'min_det_usage' in kwargs:
-                match_fn_kwargs['min_det_usage'] = kwargs.pop('min_det_usage')
+            match_fn_kwargs, remaining_kwargs = \
+                self.extract_kwargs_for_annotations_and_detections_match(
+                    **remaining_kwargs)
 
             # If 'negative class' was inadvertently specified, remove it
-            if 'negative_class_label' in kwargs:
-                kwargs.pop('negative_class_label')
+            if 'negative_class_label' in remaining_kwargs:
+                remaining_kwargs.pop('negative_class_label')
 
             def assessment_fn(a_times, a_classes, a_chs, audio_file, **akwargs):
                 return self.assess_from_processed_scores(
@@ -333,60 +367,19 @@ class PrecisionRecall(BaseMetric):
                     pp_fn_kwargs, match_fn_kwargs, **akwargs)
 
         else:
-            # Match-making function kwargs. Any unspecified parameters would
-            # default to those of
-            # koogu.utils.detections.assess_annotations_and_clips_match().
-            match_fn_kwargs = {}
-            if 'min_annot_overlap_fraction' in kwargs:
-                match_fn_kwargs['min_annot_overlap_fraction'] = \
-                    np.float16(kwargs.pop('min_annot_overlap_fraction'))
-                if 'positive_overlap_threshold' in kwargs:
-                    kwargs.pop('positive_overlap_threshold')
-                    warnings.showwarning(
-                        'Parameter \'positive_overlap_threshold\' is deprecated'
-                        + ' and will be removed in the future. Ignoring the ' +
-                        'parameter since \'min_annot_overlap_fraction\' is ' +
-                        'also specified.',
-                        DeprecationWarning, 'assessments.py', '')
-            elif 'positive_overlap_threshold' in kwargs:
-                match_fn_kwargs['min_annot_overlap_fraction'] = \
-                    np.float16(kwargs.pop('positive_overlap_threshold'))
-                warnings.showwarning(
-                    'Parameter \'positive_overlap_threshold\' is deprecated ' +
-                    'and will be removed in the future. Use ' +
-                    '\'min_annot_overlap_fraction\' instead.',
-                    DeprecationWarning, 'assessments.py', '')
-            if 'keep_only_centralized_annots' in kwargs:
-                match_fn_kwargs['keep_only_centralized_annots'] = \
-                    kwargs.pop('keep_only_centralized_annots')
-            if 'max_nonmatch_overlap_fraction' in kwargs:
-                match_fn_kwargs['max_nonmatch_overlap_fraction'] = \
-                    np.float16(kwargs.pop('max_nonmatch_overlap_fraction'))
-                if 'negative_overlap_threshold' in kwargs:
-                    kwargs.pop('negative_overlap_threshold')
-                    warnings.showwarning(
-                        'Parameter \'negative_overlap_threshold\' is deprecated'
-                        + ' and will be removed in the future. Ignoring the ' +
-                        'parameter since \'max_nonmatch_overlap_fraction\' is '
-                        + 'also specified.',
-                        DeprecationWarning, 'assessments.py', '')
-            elif 'negative_overlap_threshold' in kwargs:
-                match_fn_kwargs['max_nonmatch_overlap_fraction'] = \
-                    np.float16(kwargs.pop('negative_overlap_threshold'))
-                warnings.showwarning(
-                    'Parameter \'negative_overlap_threshold\' is deprecated ' +
-                    'and will be removed in the future. Use ' +
-                    '\'max_nonmatch_overlap_fraction\' instead.',
-                    DeprecationWarning, 'assessments.py', '')
+            match_fn_kwargs, remaining_kwargs = \
+                self.extract_kwargs_for_annotations_and_clips_match(**kwargs)
 
             # The post-processing counterpart handles nonmax-suppression within
             # lower-level functions. For this option, we do need to handle it
             # explicitly.
+            suppress_nonmax = remaining_kwargs.pop('suppress_nonmax', False)
+
             def assessment_fn(a_times, a_classes, a_chs, audio_file, **akwargs):
                 return self.assess_from_raw_scores(
                     a_times, a_classes, a_chs, audio_file,
                     match_fn_kwargs,
-                    suppress_nonmax=kwargs.pop('suppress_nonmax', False),
+                    suppress_nonmax=suppress_nonmax,
                     **akwargs)
 
         self._assessment_fn = assessment_fn
@@ -401,7 +394,7 @@ class PrecisionRecall(BaseMetric):
         super(PrecisionRecall, self).__init__(
             audio_annot_list, raw_results_root, annots_root,
             label_column_name=label_column_name,
-            **kwargs)
+            **remaining_kwargs)
 
     @property
     def thresholds(self):

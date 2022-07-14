@@ -271,10 +271,6 @@ def assess_annotations_and_clips_match(
     coverage = np.full((len(clip_offsets), num_classes), 0.0, dtype=np.float16)
     matched_annots_mask = np.full((annots_times.shape[0], ), False, dtype=bool)
 
-    annots_num_samps = (annots_times[:, 1] - annots_times[:, 0]) + 1
-    coverage_denom = np.where(clip_len >= annots_num_samps,
-                              annots_num_samps, clip_len)
-
     neg_clips_mask = None
     if negative_class_idx is not None:
         neg_clips_mask = np.full((len(clip_offsets), ), True, dtype=bool)
@@ -293,71 +289,15 @@ def assess_annotations_and_clips_match(
         if not np.any(class_annots_mask):
             continue
 
-        # Mx# grid of num common samples between each of the M clips and the #
-        # annotations from the current class
-        overlaps_samps = np.maximum(0, np.stack([
-                (np.minimum(annots_times[class_annots_mask, 1], clip_e) -
-                 np.maximum(annots_times[class_annots_mask, 0], clip_s)) + 1
-                for clip_s, clip_e in zip(clip_offsets,
-                                          clip_offsets + clip_len - 1)]))
+        class_annots_coverage, c_neg_clips_mask = \
+            _compute_clips_annots_coverage(clip_offsets, clip_len,
+                                           annots_times[class_annots_mask, :],
+                                           negative_class_idx,
+                                           max_nonmatch_overlap_fraction,
+                                           clip_central_extents, clip_centers)
 
-        # Invalidate neg_clips_mask entries where a clip has more than allowed
-        # overlap with one or more annotations. Note that for this purpose, the
-        # denominator is always clip_len, regardless of which is longer.
         if negative_class_idx is not None:
-            neg_clips_mask = np.logical_and(
-                neg_clips_mask,
-                np.all(
-                    (overlaps_samps / clip_len) <=
-                    max_nonmatch_overlap_fraction,
-                    axis=1))
-
-        # Compute "coverage" as:
-        #   (the number common samples between each of the M clips and the
-        #    annotations from the current class), divided by
-        #   (the longer one between annotation length or clip length)
-        class_annots_coverage = (
-            overlaps_samps /
-            np.expand_dims(coverage_denom[class_annots_mask], axis=0))
-
-        # If requested, for very short annotations, penalize measured "coverage"
-        # if they don't occur within the central 50% of a clip.
-        if keep_only_centralized_annots:
-            short_annot_l_mask = \
-                annots_num_samps[class_annots_mask] < (clip_len // 2)
-
-            for l_annot_idx, g_annot_idx in zip(
-                    np.where(short_annot_l_mask)[0],
-                    np.where(class_annots_mask)[0][short_annot_l_mask]):
-
-                # Short annot that neither lies completely within the central
-                # half of clips nor cuts across the clips' centers.
-                # This is a mask of the clips that satisfy the conditions.
-                penalize_mask = np.logical_not(
-                    np.logical_or(
-                        # Annot with both extents within clips' central halves
-                        np.logical_and(
-                            annots_times[g_annot_idx, 0] >=
-                            clip_central_extents[:, 0],
-                            annots_times[g_annot_idx, 1] <=
-                            clip_central_extents[:, 1]),
-                        # Annot cuts across the center points of clips
-                        np.logical_and(
-                            annots_times[g_annot_idx, 0] < clip_centers,
-                            annots_times[g_annot_idx, 1] > clip_centers)
-                    ))
-
-                # Apply penalty.
-                # The above mask will have True also for clips that didn't have
-                # any overlap. It's okay to apply penalty there since they will
-                # have zero "coverage" anyways.
-                class_annots_coverage[penalize_mask, l_annot_idx] *= (1 - (
-                    np.minimum(  # Distance from clip center to the nearest edge
-                        np.abs(clip_centers[penalize_mask] -
-                               annots_times[g_annot_idx, 0]),
-                        np.abs(clip_centers[penalize_mask] -
-                               annots_times[g_annot_idx, 1])
-                    ) / (clip_len // 2)))
+            neg_clips_mask = np.logical_and(neg_clips_mask, c_neg_clips_mask)
 
         # Update "matched" mask for curr annots that have enough "coverage"
         matched_annots_mask[class_annots_mask] = \
@@ -440,6 +380,90 @@ def assess_annotations_and_detections_match(
         tps[c_idx] = tp_mask[class_dets_mask].astype(np.uint).sum()
 
     return tps, tp_plus_fp, reca_numerator, recall_mask, tp_mask
+
+
+def _compute_clips_annots_coverage(clip_offsets, clip_len,
+                                   annots_times,
+                                   negative_class_idx=None,
+                                   max_nonmatch_overlap_fraction=0.0,
+                                   clip_central_extents=None,
+                                   clip_centers=None):
+    """
+    Ascertain coverage of annotations (start & end times specified in
+    'annots_times') by clips (specified by 'clip_offsets' & 'clip_len').
+    'clip_central_extents' and 'clip_centers' are derived values from clips and
+    must be pre-computed.
+
+    Returns:
+         NxM matrix (N clips, M annotations) describing the "coverage"
+         N-length mask of non-matched clips (if negative_class_idx isn't None)
+
+    :meta private:
+    """
+
+    annots_num_samps = (annots_times[:, 1] - annots_times[:, 0]) + 1
+    coverage_denom = np.where(clip_len >= annots_num_samps,
+                              annots_num_samps, clip_len)
+
+    # Mx# grid of num common samples between each of the M clips and the #
+    # annotations from the current class
+    overlaps_samps = np.maximum(0, np.stack([
+        (np.minimum(annots_times[:, 1], clip_e) -
+         np.maximum(annots_times[:, 0], clip_s)) + 1
+        for clip_s, clip_e in zip(clip_offsets, clip_offsets + clip_len - 1)]))
+
+    # Compute "coverage" as:
+    #   (the number common samples between each of the M clips and the
+    #    annotations from the current class), divided by
+    #   (the longer one between annotation length or clip length)
+    annots_coverage = (
+            overlaps_samps / np.expand_dims(coverage_denom, axis=0))
+
+    # If requested, for very short annotations, penalize measured "coverage"
+    # if they don't occur within the central 50% of a clip.
+    if clip_central_extents is not None and clip_centers is not None:
+        short_annot_l_mask = annots_num_samps < (clip_len // 2)
+
+        for l_annot_idx in np.where(short_annot_l_mask)[0]:
+            # Short annot that neither lies completely within the central
+            # half of clips nor cuts across the clips' centers.
+            # This is a mask of the clips that satisfy the conditions.
+            penalize_mask = np.logical_not(
+                np.logical_or(
+                    # Annot with both extents within clips' central halves
+                    np.logical_and(
+                        annots_times[l_annot_idx, 0] >=
+                        clip_central_extents[:, 0],
+                        annots_times[l_annot_idx, 1] <=
+                        clip_central_extents[:, 1]),
+                    # Annot cuts across the center points of clips
+                    np.logical_and(
+                        annots_times[l_annot_idx, 0] < clip_centers,
+                        annots_times[l_annot_idx, 1] > clip_centers)
+                ))
+
+            # Apply penalty.
+            # The above mask will have True also for clips that didn't have
+            # any overlap. It's okay to apply penalty there since they will
+            # have zero "coverage" anyways.
+            annots_coverage[penalize_mask, l_annot_idx] *= (1 - (
+                    np.minimum(  # Distance from clip center to the nearest edge
+                        np.abs(clip_centers[penalize_mask] -
+                               annots_times[l_annot_idx, 0]),
+                        np.abs(clip_centers[penalize_mask] -
+                               annots_times[l_annot_idx, 1])
+                    ) / (clip_len // 2)))
+
+    # Invalidate neg_clips_mask entries where a clip has more than allowed
+    # overlap with one or more annotations. Note that for this purpose, the
+    # denominator is always clip_len, regardless of which is longer.
+    neg_clips_mask = None
+    if negative_class_idx is not None:
+        neg_clips_mask = np.all(
+            (overlaps_samps / clip_len) <= max_nonmatch_overlap_fraction,
+            axis=1)
+
+    return annots_coverage, neg_clips_mask
 
 
 def _coverage(base_ext, items):
