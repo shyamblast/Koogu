@@ -1,6 +1,9 @@
 
 import numpy as np
-from collections import Generator
+try:
+    from collections.abc import Generator
+except ImportError:
+    from collections import Generator
 import csv
 from warnings import showwarning
 
