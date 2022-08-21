@@ -319,7 +319,7 @@ def _batch_process(audio_settings, class_list, input_generator,
 
             # If file is too short or too long, discard and continue to next
             file_dur = librosa.get_duration(filename=audio_file_fullpath)
-            if not (file_min_dur < file_dur <= file_max_dur):
+            if not (file_min_dur <= file_dur <= file_max_dur):
                 logger.warning('%s: duration = %f s. Ignoring.',
                                repr(audio_file_fullpath), file_dur)
                 continue
