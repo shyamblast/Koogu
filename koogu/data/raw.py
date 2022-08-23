@@ -184,7 +184,7 @@ class Audio:
 
             clips, clip_start_samples = to_clips(data)
             return clips, (None if clip_start_samples is None
-                           else (clip_start_samples + int(np.floor(offset * settings.fs))))
+                           else (clip_start_samples + int(np.round(offset * settings.fs))))
 
         else:   # Multiple channels
             process_channels = np.arange(data.shape[0]) if chosen_channels is None \
@@ -199,7 +199,7 @@ class Audio:
                 channels_clips[ch_idx], clip_start_samples = to_clips(data[ch])
 
             return np.stack(channels_clips), \
-                   (clip_start_samples + int(np.floor(offset * settings.fs)))
+                   (clip_start_samples + int(np.round(offset * settings.fs)))
 
     @staticmethod
     def buffer_to_clips(data, clip_len, clip_advance,
@@ -256,10 +256,10 @@ class Audio:
             fs = fd.samplerate
             n_channels = fd.channels
 
-            num_samps = -1 if duration is None else int(duration * fs)
+            num_samps = -1 if duration is None else int(np.round(duration * fs))
 
             if offset:  # Seek to the requested start sample
-                fd.seek(int(offset * fs))
+                fd.seek(int(np.round(offset * fs)))
 
             # Load required number of samples
             data = fd.read(frames=num_samps, dtype=dtype, always_2d=True)
