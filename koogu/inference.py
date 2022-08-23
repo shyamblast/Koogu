@@ -33,26 +33,18 @@ output_spec = [
     ['Begin Path',      ' ']]
 
 
-def _fetch_clips(audio_filepath, audio_settings, channels, spec_settings=None):
+def _fetch_clips(audio_filepath, audio_settings, channels):
     """
 
-    If spec_settings is not None, the clips will be converted to time-frequency representation.
     """
 
     _, file_dur, _ = Audio.get_info(audio_filepath)
     clips, clip_start_samples = Audio.get_file_clips(
         audio_settings, audio_filepath, chosen_channels=channels)
 
-    num_samples = clips.shape[-1]
-
-    if spec_settings is not None:
-        clips = np.stack([
-            Convert.audio2spectral(clips[ch, ...], audio_settings.fs, spec_settings)
-            for ch in range(clips.shape[0])])
-
     # return file duration, loaded clips, their starting samples, & num
     # samples per clip
-    return file_dur, clips, clip_start_samples, num_samples
+    return file_dur, clips, clip_start_samples
 
 
 def analyze_clips(trained_model, clips, batch_size=1, audio_filepath=None):
@@ -429,13 +421,13 @@ def recognize(model_dir, audio_root,
     total_time_taken = 0.
     last_file_relpath = 'WTF? Blooper!'
     num_fetch_threads = kwargs.get('num_fetch_threads', 1)
-    for audio_filepath, (curr_file_dur, clips, clip_start_samples, num_samples) in \
+    for audio_filepath, (curr_file_dur, clips, clip_start_samples) in \
             processed_items_generator_mp(num_fetch_threads, _fetch_clips, src_generator,
                                          audio_settings=audio_settings,
                                          channels=channels):
 
         # 'clips' container will be of shape [num channels, num clips, ...]
-        num_channels, num_clips = clips.shape[:2]
+        num_channels, num_clips, num_samples = clips.shape
 
         if num_clips == 0:
             logger.warning('{:s} yielded 0 clips'.format(repr(audio_filepath)))
