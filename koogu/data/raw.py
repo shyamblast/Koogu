@@ -2,7 +2,9 @@
 import numpy as np
 from scipy.signal import butter, sosfiltfilt, spectrogram, lfilter
 from scipy.signal.windows import hann
-import librosa
+import soundfile as sf
+import audioread
+import resampy
 import logging
 from koogu.utils.detections import assess_annotations_and_clips_match
 
@@ -80,48 +82,93 @@ class Settings:
 class Audio:
 
     @staticmethod
-    def load(in_filepath, desired_fs,
-             downmix_channels=False, offset=0.0, duration=None, dtype=np.float32):
+    def load(filepath, desired_fs=None,
+             offset=0.0, duration=None, channels=None, dtype=np.float32,
+             resample_type=None):
+        """
+        Load an audio from a file on disk using librosa's logic, which includes
+            - reading the file using `SoundFile` first, and falling back to
+              using `audioread` if the former failed;
+            - resampling (if requested) using the `resampy` and adjusting the
+              array-length of the resampled data.
+        Intended to be somewhat of a drop-in replacement for librosa.load().
+        My addition includes handling of channels - can choose which channels to
+        load and process. Also, the returned data is always 2d.
+        """
 
-        # Load audio from file
-        data, fs = librosa.load(in_filepath, sr=desired_fs, mono=downmix_channels, offset=offset, duration=duration)
+        try:
+            # First, attempt with SoundFile
+            data, file_fs = Audio.__soundfile_load(
+                filepath, offset, duration, channels, dtype)
 
-        assert fs == desired_fs, "load_audio_from_file() got {:f} Hz, expected {:f} Hz".format(fs, desired_fs)
+        except RuntimeError:
+            # SoundFile failed. Attempt loading with audioread now
+            logging.getLogger(__name__).warning(
+                f'SoundFile failed on {filepath}. Trying audioread instead...')
+            data, file_fs = Audio.__audioread_load(
+                filepath, offset, duration, channels, dtype)
 
-        return data.astype(dtype), fs
+        # Resample if and as requested
+        if desired_fs is not None and desired_fs != file_fs:
+            target_num_samples = int(
+                np.ceil(data.shape[-1] * (float(desired_fs) / file_fs)))
+
+            data = resampy.resample(data, file_fs, desired_fs,
+                                    filter=resample_type or 'kaiser_best',
+                                    axis=-1)
+
+            # fix length
+            if target_num_samples < data.shape[-1]:     # is longer?
+                data = data[:, :target_num_samples]     # crop!
+            elif target_num_samples > data.shape[-1]:   # is shorter?
+                data = np.pad(                          # pad zeros!
+                    data,
+                    [[0, 0], [0, target_num_samples - data.shape[-1]]],
+                    'constant')
+
+        return data, (desired_fs or file_fs)
 
     @staticmethod
-    def get_file_clips(settings, filepath, downmix_channels=False, chosen_channels=None,
-                       offset=0.0, duration=None,
-                       return_clip_indices=False, outtype=np.float32):
+    def get_info(filepath):
         """
-        Loads an audio file from disk, applies filtering (if set up) and then chunks the data stream into clips.
+        Query an audio file's sampling rate, duration, and num channels.
+        """
+
+        # Try SoundFile first. Fall back to audioread only if there was a
+        # runtime error. Will puke if any other type of error occurs.
+        try:
+            ainfo = sf.info(filepath)
+            return ainfo.samplerate, ainfo.duration, ainfo.channels
+        except RuntimeError:
+            with audioread.audio_open(filepath) as fd:
+                return fd.samplerate, fd.duration, fd.channels
+
+    @staticmethod
+    def get_file_clips(settings, filepath, chosen_channels=None,
+                       offset=0.0, duration=None,
+                       outtype=np.float32):
+        """
+        Loads an audio file from disk, applies filtering (if set up) and then
+        chunks the data stream into clips.
 
         :param settings: An instance of Settings.Audio
-        :param filepath:
-        :param downmix_channels: If True, multi-channel audio files will be downmixed to result in a single channel. If
-            set to True, 'chosen_channels' will have no effect.
-        :param chosen_channels: A list of 0-based channel indices (or a single index. Only the specified channels will
-            be processed and corresponding clips returned. If None, all available channels will be processed. Has no
-            effect when 'downmix_channels' is True.
+        :param filepath: Path to the audio file to read.
+        :param chosen_channels: A list of 0-based channel indices (or a single
+            index). Only the specified channels will be processed and
+            corresponding clips returned. If None, all available channels will
+            be processed.
         :param offset: start reading after this time (in seconds)
         :param duration: only load up to this much audio (in seconds)
-        :param return_clip_indices:
         :param outtype:
         :return:
-            If downmix_channels is True or if the audio file itself has only one channel, the returned clips container
-            (a numpy array) will be of shape [num clips, clip length]. Otherwise, it will be of shape
-            [num channels, num clips, clip length].
-            If return_clip_indices is True, the starting sample indices of each clip will also be returned. This will
-            be a 1-dimensional array regardless of how many channels are processed.
+            A 2-element tuple:
+              A clips container of shape [num channels, num clips, clip length],
+              A 1d array containing the starting sample indices of each clip.
         """
 
         # Fetch data from disk
         data, _ = Audio.load(filepath, settings.fs,
-                             downmix_channels=downmix_channels, offset=offset, duration=duration)
-
-        # Presently, librosa doesn't provide an interface to query the number of channels without loading the file.
-        # So the checks for validity of chosen_channels is deferred until after the file is loaded.
+                             offset=offset, duration=duration)
 
         def to_clips(x):    # local helper function: apply filter and convert to clips
             return Audio.buffer_to_clips(
@@ -129,18 +176,15 @@ class Audio:
                 settings.clip_length, settings.clip_advance,
                 normalize_clips=settings.normalize_clips,
                 consider_trailing_clip=settings.consider_trailing_clip,
-                return_clip_indices=return_clip_indices)
+                return_clip_indices=True)
 
-        if downmix_channels or len(data.shape) == 1:        # Single channel
+        if len(data.shape) == 1:        # Single channel (will never happen)
             if chosen_channels is not None:
                 logging.getLogger(__name__).warning('parameter \'chosen_channels\' will be ignored')
 
-            if return_clip_indices:
-                clips, clip_start_samples = to_clips(data)
-                return clips, (None if clip_start_samples is None
-                               else (clip_start_samples + int(np.floor(offset * settings.fs))))
-            else:
-                return to_clips(data)
+            clips, clip_start_samples = to_clips(data)
+            return clips, (None if clip_start_samples is None
+                           else (clip_start_samples + int(np.floor(offset * settings.fs))))
 
         else:   # Multiple channels
             process_channels = np.arange(data.shape[0]) if chosen_channels is None \
@@ -150,14 +194,12 @@ class Audio:
                 raise ValueError('One or more of chosen channels ({}) not available in audio file {:s}'.format(
                     chosen_channels, repr(filepath)))
 
-            if return_clip_indices:     # Need to handle collecting two return values from buffer_to_clips()
-                channels_clips = [None] * len(process_channels)
-                for ch_idx, ch in enumerate(process_channels):
-                    channels_clips[ch_idx], clip_start_samples = to_clips(data[ch])
+            channels_clips = [None] * len(process_channels)
+            for ch_idx, ch in enumerate(process_channels):
+                channels_clips[ch_idx], clip_start_samples = to_clips(data[ch])
 
-                return np.stack(channels_clips), (clip_start_samples + int(np.floor(offset * settings.fs)))
-            else:
-                return np.stack([to_clips(data[ch]) for ch in process_channels])
+            return np.stack(channels_clips), \
+                   (clip_start_samples + int(np.floor(offset * settings.fs)))
 
     @staticmethod
     def buffer_to_clips(data, clip_len, clip_advance,
@@ -204,6 +246,117 @@ class Audio:
 
         return (sliced_data, clip_start_samples) if return_clip_indices else sliced_data
 
+    @staticmethod
+    def __soundfile_load(filepath,
+                         offset=None, duration=None, channels=None,
+                         dtype=np.float32):
+
+        with sf.SoundFile(filepath) as fd:
+
+            fs = fd.samplerate
+            n_channels = fd.channels
+
+            num_samps = -1 if duration is None else int(duration * fs)
+
+            if offset:  # Seek to the requested start sample
+                fd.seek(int(offset * fs))
+
+            # Load required number of samples
+            data = fd.read(frames=num_samps, dtype=dtype, always_2d=True)
+
+        # keep only the requested channels
+        if channels is not None:
+            req_chs = Audio.__validate_channels(n_channels, channels, filepath)
+            data = data[:, req_chs]
+
+        # transpose to make 'channels' the first dimension
+        return data.T, fs
+
+    @staticmethod
+    def __audioread_load(filepath,
+                         offset=None, duration=None, channels=None,
+                         dtype=np.float32):
+
+        with audioread.audio_open(filepath) as fd:
+            fs = fd.samplerate
+
+            s_start = int(np.round((offset or 0) * fs))
+            s_end = int(np.round(fs * fd.duration)) if duration is None else \
+                (s_start + (int(np.round(fs * duration))))
+
+            # Gather samples
+            data = np.concatenate([
+                    pcm_buf
+                    for pcm_buf in Audio.__audioread_samp_gen(
+                        fd, s_start, s_end, channels, filepath)
+                ], axis=-1)
+
+        return Convert.pcm2float(data, dtype), fs
+
+    @staticmethod
+    def __audioread_samp_gen(fh, s_start, s_end, channels, filepath):
+        # audioread produces int16 samples
+        n_bytes = 2
+        fmt_str = '<i2'
+
+        n_channels = fh.channels
+        samp_bytes = n_bytes * n_channels
+
+        if channels is not None:
+            req_channels = Audio.__validate_channels(
+                n_channels, channels, filepath)
+            out_n_channels = len(req_channels)
+
+            def pull_chs(arr_2d):
+                return arr_2d[:, req_channels]
+        else:
+            out_n_channels = n_channels
+
+            def pull_chs(arr_2d):
+                return arr_2d
+
+        buf_end = 0   # a running pointer to 'end' of buffer
+        empty_retval = True
+        for buf in fh:
+            buf_start = buf_end
+            buf_end += int(len(buf) / samp_bytes)
+
+            if buf_end < s_start:
+                continue
+            if buf_start > s_end:
+                break
+
+            ret_samps = np.frombuffer(
+                buf[max(0, (s_start - buf_start) * samp_bytes):
+                    ((s_end - buf_start) * samp_bytes)],
+                fmt_str)
+
+            # transpose to make 'channels' the first dimension
+            yield pull_chs(ret_samps.reshape((-1, n_channels))).T
+
+            empty_retval = False    # at least one piece was returned
+
+        if empty_retval:
+            yield np.zeros((out_n_channels, 0), dtype=np.int16)
+
+    @staticmethod
+    def __validate_channels(num_available, requested_idxs, filepath=None):
+
+        if all([(ch in np.arange(num_available))
+                for ch in (
+                    requested_idxs if hasattr(requested_idxs, '__len__')
+                    else [requested_idxs])
+                ]):                # All requested channel(s) do exist in file
+
+            # force retval to be a 1d array
+            return np.array(requested_idxs, ndmin=1, copy=False)
+
+        else:
+            raise ValueError(
+                f'One or more requested channels ({requested_idxs}) unavailable'
+                + ('.' if filepath is None else f' in audio file "{filepath}".')
+            )
+
 
 class Convert:
 
@@ -224,7 +377,9 @@ class Convert:
 
     @staticmethod
     def pcm2float(data, dtype=np.float32):
-        """Convert PCM data from integer to float values in the rance [-1.0, 1.0)."""
+        """
+        Convert PCM data from integer to float values in the range [-1.0, 1.0).
+        """
 
         assert dtype in [np.float32, np.float64]
 
@@ -512,10 +667,6 @@ class Process:
 
         # Fetch data from disk
         data, _ = Audio.load(src_file, audio_settings.fs)
-
-        # Add channel axis if it doesn't exist
-        if len(data.shape) < 2:
-            data = np.expand_dims(data, axis=0)
 
         all_clips = []
         all_clips_offsets = []

@@ -10,10 +10,9 @@ import argparse
 import csv
 import warnings
 import numpy as np
-import librosa
 
 from koogu.data import FilenameExtensions, AssetsExtraNames
-from koogu.data.raw import Process, Settings
+from koogu.data.raw import Audio, Process, Settings
 from koogu.utils import instantiate_logging
 from koogu.utils.detections import SelectionTableReader, LabelHelper
 from koogu.utils.terminal import ArgparseConverters
@@ -318,7 +317,7 @@ def _batch_process(audio_settings, class_list, input_generator,
             audio_file_fullpath = os.path.join(audio_root, audio_file)
 
             # If file is too short or too long, discard and continue to next
-            file_dur = librosa.get_duration(filename=audio_file_fullpath)
+            _, file_dur, _ = Audio.get_info(audio_file_fullpath)
             if not (file_min_dur <= file_dur <= file_max_dur):
                 logger.warning('%s: duration = %f s. Ignoring.',
                                repr(audio_file_fullpath), file_dur)

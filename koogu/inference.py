@@ -7,7 +7,6 @@ import json
 import argparse
 import concurrent.futures
 import logging
-import librosa
 
 from koogu.data import FilenameExtensions, AssetsExtraNames
 from koogu.data.raw import Audio, Settings, Convert
@@ -40,14 +39,9 @@ def _fetch_clips(audio_filepath, audio_settings, channels, spec_settings=None):
     If spec_settings is not None, the clips will be converted to time-frequency representation.
     """
 
-    clips, clip_start_samples = Audio.get_file_clips(audio_settings, audio_filepath,
-                                                     downmix_channels=False,
-                                                     chosen_channels=channels,
-                                                     return_clip_indices=True)
-
-    # add the channel axis if it doesn't already exist
-    if len(clips.shape) < 3:
-        clips = np.expand_dims(clips, 0)
+    _, file_dur, _ = Audio.get_info(audio_filepath)
+    clips, clip_start_samples = Audio.get_file_clips(
+        audio_settings, audio_filepath, chosen_channels=channels)
 
     num_samples = clips.shape[-1]
 
@@ -56,8 +50,9 @@ def _fetch_clips(audio_filepath, audio_settings, channels, spec_settings=None):
             Convert.audio2spectral(clips[ch, ...], audio_settings.fs, spec_settings)
             for ch in range(clips.shape[0])])
 
-    # return file duration, loaded clips, their starting samples, & num samples per clip
-    return librosa.get_duration(filename=audio_filepath), clips, clip_start_samples, num_samples
+    # return file duration, loaded clips, their starting samples, & num
+    # samples per clip
+    return file_dur, clips, clip_start_samples, num_samples
 
 
 def analyze_clips(trained_model, clips, batch_size=1, audio_filepath=None):

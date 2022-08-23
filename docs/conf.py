@@ -174,7 +174,9 @@ autodoc_member_order = 'groupwise'
 autodoc_mock_imports = [
     #'numpy',
     'scipy',
-    'librosa',
+    'soundfile',
+    'audioread',
+    'resampy',
     'tensorflow',
 ]
 
