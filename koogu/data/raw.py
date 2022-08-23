@@ -144,22 +144,21 @@ class Audio:
                 return fd.samplerate, fd.duration, fd.channels
 
     @staticmethod
-    def get_file_clips(settings, filepath, chosen_channels=None,
+    def get_file_clips(settings, filepath, channels=None,
                        offset=0.0, duration=None,
-                       outtype=np.float32):
+                       dtype=np.float32):
         """
         Loads an audio file from disk, applies filtering (if set up) and then
         chunks the data stream into clips.
 
         :param settings: An instance of Settings.Audio
         :param filepath: Path to the audio file to read.
-        :param chosen_channels: A list of 0-based channel indices (or a single
-            index). Only the specified channels will be processed and
-            corresponding clips returned. If None, all available channels will
-            be processed.
+        :param channels: A list of 0-based channel indices (or a single index).
+            Only the specified channels will be processed and corresponding
+            clips returned. If None, all available channels will be processed.
         :param offset: start reading after this time (in seconds)
         :param duration: only load up to this much audio (in seconds)
-        :param outtype:
+        :param dtype:
         :return:
             A 2-element tuple:
               A clips container of shape [num channels, num clips, clip length],
@@ -168,49 +167,41 @@ class Audio:
 
         # Fetch data from disk
         data, _ = Audio.load(filepath, settings.fs,
-                             offset=offset, duration=duration)
+                             offset=offset, duration=duration, dtype=dtype)
 
-        def to_clips(x):    # local helper function: apply filter and convert to clips
-            return Audio.buffer_to_clips(
-                (sosfiltfilt(settings.filter_sos, x) if settings.filter_sos is not None else x).astype(outtype),
-                settings.clip_length, settings.clip_advance,
-                normalize_clips=settings.normalize_clips,
-                consider_trailing_clip=settings.consider_trailing_clip,
-                return_clip_indices=True)
+        process_channels = np.arange(data.shape[0]) if channels is None \
+            else np.asarray(channels if hasattr(channels, '__len__') else
+                            [channels])
 
-        if len(data.shape) == 1:        # Single channel (will never happen)
-            if chosen_channels is not None:
-                logging.getLogger(__name__).warning('parameter \'chosen_channels\' will be ignored')
+        if any([ch not in range(data.shape[0]) for ch in process_channels]):
+            raise ValueError(
+                f'One or more requested channels ({channels}) unavailable ' +
+                f'in audio file {filepath}')
 
-            clips, clip_start_samples = to_clips(data)
-            return clips, (None if clip_start_samples is None
-                           else (clip_start_samples + int(np.round(offset * settings.fs))))
+        channels_clips = [None] * len(process_channels)
+        for ch_idx, ch in enumerate(process_channels):
+            channels_clips[ch_idx], clip_start_samples = \
+                Audio.buffer_to_clips(
+                    (
+                        data[ch] if settings.filter_sos is None else
+                        sosfiltfilt(settings.filter_sos, data[ch]).astype(dtype)
+                    ),
+                    settings.clip_length, settings.clip_advance,
+                    normalize_clips=settings.normalize_clips,
+                    consider_trailing_clip=settings.consider_trailing_clip)
 
-        else:   # Multiple channels
-            process_channels = np.arange(data.shape[0]) if chosen_channels is None \
-                else np.asarray(chosen_channels if hasattr(chosen_channels, '__len__') else [chosen_channels])
-
-            if any([ch not in range(data.shape[0]) for ch in process_channels]):
-                raise ValueError('One or more of chosen channels ({}) not available in audio file {:s}'.format(
-                    chosen_channels, repr(filepath)))
-
-            channels_clips = [None] * len(process_channels)
-            for ch_idx, ch in enumerate(process_channels):
-                channels_clips[ch_idx], clip_start_samples = to_clips(data[ch])
-
-            return np.stack(channels_clips), \
-                   (clip_start_samples + int(np.round(offset * settings.fs)))
+        return np.stack(channels_clips), \
+               (clip_start_samples + int(np.round(offset * settings.fs)))
 
     @staticmethod
     def buffer_to_clips(data, clip_len, clip_advance,
                         normalize_clips=True,
-                        consider_trailing_clip=False,
-                        return_clip_indices=False):
+                        consider_trailing_clip=False):
 
         # If there aren't enough samples, nothing to do
         if data.shape[-1] < clip_len:
             retval = np.zeros((0, clip_len), dtype=data.dtype)
-            return (retval, None) if return_clip_indices else retval
+            return retval, None
 
         clip_overlap = clip_len - clip_advance  # derived value
 
@@ -244,7 +235,7 @@ class Audio:
             # Bring to range [-1.0, 1.0]
             sliced_data = sliced_data / np.maximum(np.abs(sliced_data).max(axis=1, keepdims=True), 1e-24)
 
-        return (sliced_data, clip_start_samples) if return_clip_indices else sliced_data
+        return sliced_data, clip_start_samples
 
     @staticmethod
     def __soundfile_load(filepath,
@@ -684,8 +675,7 @@ class Process:
             clips, clip_offsets = Audio.buffer_to_clips(
                 ch_data, audio_settings.clip_length, audio_settings.clip_advance,
                 normalize_clips=audio_settings.normalize_clips,
-                consider_trailing_clip=audio_settings.consider_trailing_clip,
-                return_clip_indices=True)
+                consider_trailing_clip=audio_settings.consider_trailing_clip)
 
             num_clips, num_samps = clips.shape
 
@@ -838,8 +828,7 @@ class Process:
                                                   len(data))],
                 audio_settings.clip_length, audio_settings.clip_advance,
                 normalize_clips=audio_settings.normalize_clips,
-                consider_trailing_clip=audio_settings.consider_trailing_clip,
-                return_clip_indices=True)
+                consider_trailing_clip=audio_settings.consider_trailing_clip)
 
             if short_clips.shape[0] > 0:
                 salvaged_clips.append(short_clips)

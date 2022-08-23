@@ -40,10 +40,9 @@ def _fetch_clips(audio_filepath, audio_settings, channels):
 
     _, file_dur, _ = Audio.get_info(audio_filepath)
     clips, clip_start_samples = Audio.get_file_clips(
-        audio_settings, audio_filepath, chosen_channels=channels)
+        audio_settings, audio_filepath, channels=channels)
 
-    # return file duration, loaded clips, their starting samples, & num
-    # samples per clip
+    # return file duration, loaded clips, & their starting samples
     return file_dur, clips, clip_start_samples
 
 
