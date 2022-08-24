@@ -416,20 +416,27 @@ def recognize(model_dir, audio_root,
         (clips, clip_start_samples, curr_file_dur, curr_file_ch_idxs) = \
             processed_res
 
-        # 'clips' container will be of shape [num channels, num clips, ...]
-        num_channels, num_clips, num_samples = clips.shape
-
-        if num_clips == 0:
+        if clip_start_samples is None:
             logger.warning('{:s} yielded 0 clips'.format(repr(audio_filepath)))
             continue
 
-        # Run the model on the audio file's contents, separately for each channel
-        # At first, concatenate every channels' clips. Analyze together. And, then split the detections back.
-        det_scores, time_taken = analyze_clips(classifier,
-                                               np.concatenate(np.split(clips, num_channels, axis=0), axis=1)[0],
-                                               kwargs.get('batch_size', 1),
-                                               None if not kwargs.get('show_progress', False) else audio_filepath)
-        det_scores = np.stack(np.split(det_scores, num_channels, axis=0), axis=0)
+        # 'clips container' will be a num_channels length list containing arrays
+        # of shape [num clips, num samples per clip]
+        num_samples = clips[0].shape[1]
+
+        # Run the model on the audio file's contents, for all channels.
+        # At first, concatenate every channels' clips. Analyze together. And,
+        # then split the detections back.
+        det_scores, time_taken = analyze_clips(
+            classifier,
+            np.concatenate(clips, axis=0),
+            kwargs.get('batch_size', 1),
+            None if not kwargs.get('show_progress', False) else audio_filepath)
+        det_scores = np.stack(
+            np.split(det_scores,
+                     np.cumsum([c.shape[0] for c in clips])[:-1],
+                     axis=0)
+            , axis=0)
 
         total_audio_dur += curr_file_dur
         total_time_taken += time_taken

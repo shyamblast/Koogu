@@ -165,49 +165,56 @@ class Audio:
         :param dtype: (optional) Output type.
         :return:
           A tuple containing -
-            - A ndarray of shape [num channels, num clips, clip length] of
-              extracted clips. Will always be 3d;
+            - A list (length = num channels) of numpy arrays each having shape
+              [num clips, clip length] of extracted clips in the respective
+              channels;
             - A 1d array containing the starting sample indices of each clip;
             - Loaded file's duration;
             - A 1d array of indices to the channels that were successfully
-              loaded (matches the order of channels along the first dimension in
-              the clips container).
+              loaded (matches the order of channels in the clips container).
+
+        When any error occurs, the 2nd item in the returned tuple will be None.
         """
+
+        ret_clips = None
 
         _, file_dur, n_channels = Audio.get_info(filepath)
 
-        # Is file long enough?
-        short_file = False
-        if file_dur < (settings.clip_length / settings.fs):
-            logging.getLogger(__name__).warning(f'File {filepath} is too short')
-            short_file = True
+        loggr = logging.getLogger(__name__)
 
         # Are any of requested channel(s) available?
-        val_chs = None
-        if channels is not None:
-            val_chs = Audio.__validate_channels(
+        if channels is not None:    # there was an explicit request
+            valid_channels = Audio.__validate_channels(
                 n_channels, channels, ignore_missing=True, filepath=filepath)
-            # Above function logs out a warning already
-            n_channels = len(val_chs)
+            # Above function logs out a warning about missing channels already
+            n_channels = len(valid_channels)
 
-        if n_channels == 0 or short_file:
+            if n_channels == 0:
+                loggr.warning(f'None of requested channels found in {filepath}')
+                ret_clips = []
+        else:
+            valid_channels = np.arange(n_channels)
+
+        # Is file long enough?
+        if file_dur < (settings.clip_length / settings.fs):
+            loggr.warning(f'File {filepath} is too short')
+
+            ret_clips = n_channels * [
+                np.zeros((0, settings.clip_length), dtype=dtype)]
+
+        if ret_clips is not None:
             # At least one failure. Return immediately
-            return (
-                np.zeros((n_channels, 0, settings.clip_length), dtype=dtype),
-                np.zeros((0, ), np.int),
-                file_dur,
-                [] if n_channels == 0 else (val_chs or np.arange(n_channels))
-            )
+            return ret_clips, None, file_dur, valid_channels
 
         # Fetch data from disk
         data, _ = Audio.load(filepath, settings.fs,
                              offset=offset, duration=duration, dtype=dtype,
-                             channels=val_chs)
+                             channels=valid_channels)
 
-        channels_clips = [None] * n_channels
+        ret_clips = [None] * n_channels
         clip_start_samples = None   # placeholder
         for ch_idx in range(n_channels):
-            channels_clips[ch_idx], clip_start_samples = \
+            ret_clips[ch_idx], clip_start_samples = \
                 Audio.buffer_to_clips(
                     (
                         data[ch_idx] if settings.filter_sos is None else
@@ -219,10 +226,10 @@ class Audio:
                     consider_trailing_clip=settings.consider_trailing_clip)
 
         return (
-            np.stack(channels_clips),
+            ret_clips,
             clip_start_samples + int(np.round(offset * settings.fs)),
             file_dur,
-            val_chs or np.arange(n_channels)
+            valid_channels
         )
 
     @staticmethod
