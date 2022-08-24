@@ -144,54 +144,86 @@ class Audio:
                 return fd.samplerate, fd.duration, fd.channels
 
     @staticmethod
-    def get_file_clips(settings, filepath, channels=None,
+    def get_file_clips(filepath, settings, channels=None,
                        offset=0.0, duration=None,
                        dtype=np.float32):
         """
         Loads an audio file from disk, applies filtering (if set up) and then
         chunks the data stream into clips.
 
-        :param settings: An instance of Settings.Audio
         :param filepath: Path to the audio file to read.
-        :param channels: A list of 0-based channel indices (or a single index).
-            Only the specified channels will be processed and corresponding
-            clips returned. If None, all available channels will be processed.
-        :param offset: start reading after this time (in seconds)
-        :param duration: only load up to this much audio (in seconds)
-        :param dtype:
+        :param settings: An instance of Settings.Audio.
+        :param channels: If None (default), all available channels will be
+          processed. Otherwise, must be a list of 0-based channel indices (or
+          a single index) and only the specified channels (if available) will be
+          processed. Any specified channel(s) missing in the audio file will be
+          ignored.
+        :param offset: If not None, will start reading the file's contents from
+          this point in time (in seconds) and forward.
+        :param duration: If not None, only loads audio corresponding to the
+          specified value (in seconds).
+        :param dtype: (optional) Output type.
         :return:
-            A 2-element tuple:
-              A clips container of shape [num channels, num clips, clip length],
-              A 1d array containing the starting sample indices of each clip.
+          A tuple containing -
+            - A ndarray of shape [num channels, num clips, clip length] of
+              extracted clips. Will always be 3d;
+            - A 1d array containing the starting sample indices of each clip;
+            - Loaded file's duration;
+            - A 1d array of indices to the channels that were successfully
+              loaded (matches the order of channels along the first dimension in
+              the clips container).
         """
+
+        _, file_dur, n_channels = Audio.get_info(filepath)
+
+        # Is file long enough?
+        short_file = False
+        if file_dur < (settings.clip_length / settings.fs):
+            logging.getLogger(__name__).warning(f'File {filepath} is too short')
+            short_file = True
+
+        # Are any of requested channel(s) available?
+        val_chs = None
+        if channels is not None:
+            val_chs = Audio.__validate_channels(
+                n_channels, channels, ignore_missing=True, filepath=filepath)
+            # Above function logs out a warning already
+            n_channels = len(val_chs)
+
+        if n_channels == 0 or short_file:
+            # At least one failure. Return immediately
+            return (
+                np.zeros((n_channels, 0, settings.clip_length), dtype=dtype),
+                np.zeros((0, ), np.int),
+                file_dur,
+                [] if n_channels == 0 else (val_chs or np.arange(n_channels))
+            )
 
         # Fetch data from disk
         data, _ = Audio.load(filepath, settings.fs,
-                             offset=offset, duration=duration, dtype=dtype)
+                             offset=offset, duration=duration, dtype=dtype,
+                             channels=val_chs)
 
-        process_channels = np.arange(data.shape[0]) if channels is None \
-            else np.asarray(channels if hasattr(channels, '__len__') else
-                            [channels])
-
-        if any([ch not in range(data.shape[0]) for ch in process_channels]):
-            raise ValueError(
-                f'One or more requested channels ({channels}) unavailable ' +
-                f'in audio file {filepath}')
-
-        channels_clips = [None] * len(process_channels)
-        for ch_idx, ch in enumerate(process_channels):
+        channels_clips = [None] * n_channels
+        clip_start_samples = None   # placeholder
+        for ch_idx in range(n_channels):
             channels_clips[ch_idx], clip_start_samples = \
                 Audio.buffer_to_clips(
                     (
-                        data[ch] if settings.filter_sos is None else
-                        sosfiltfilt(settings.filter_sos, data[ch]).astype(dtype)
+                        data[ch_idx] if settings.filter_sos is None else
+                        sosfiltfilt(settings.filter_sos,
+                                    data[ch_idx]).astype(dtype)
                     ),
                     settings.clip_length, settings.clip_advance,
                     normalize_clips=settings.normalize_clips,
                     consider_trailing_clip=settings.consider_trailing_clip)
 
-        return np.stack(channels_clips), \
-               (clip_start_samples + int(np.round(offset * settings.fs)))
+        return (
+            np.stack(channels_clips),
+            clip_start_samples + int(np.round(offset * settings.fs)),
+            file_dur,
+            val_chs or np.arange(n_channels)
+        )
 
     @staticmethod
     def buffer_to_clips(data, clip_len, clip_advance,
@@ -257,7 +289,8 @@ class Audio:
 
         # keep only the requested channels
         if channels is not None:
-            req_chs = Audio.__validate_channels(n_channels, channels, filepath)
+            req_chs = Audio.__validate_channels(n_channels, channels,
+                                                filepath=filepath)
             data = data[:, req_chs]
 
         # transpose to make 'channels' the first dimension
@@ -295,7 +328,7 @@ class Audio:
 
         if channels is not None:
             req_channels = Audio.__validate_channels(
-                n_channels, channels, filepath)
+                n_channels, channels, filepath=filepath)
             out_n_channels = len(req_channels)
 
             def pull_chs(arr_2d):
@@ -331,22 +364,37 @@ class Audio:
             yield np.zeros((out_n_channels, 0), dtype=np.int16)
 
     @staticmethod
-    def __validate_channels(num_available, requested_idxs, filepath=None):
+    def __validate_channels(num_available, requested_idxs,
+                            ignore_missing=False,
+                            filepath=None):
+        """
+        If ignore_missing is True, will return array of valid channels.
+          Otherwise, will raise ValueError.
+        filepath if not None, will be included in the raised error message.
 
-        if all([(ch in np.arange(num_available))
-                for ch in (
-                    requested_idxs if hasattr(requested_idxs, '__len__')
-                    else [requested_idxs])
-                ]):                # All requested channel(s) do exist in file
+        If no errors, will return an array of valid channel indices.
+        """
 
-            # force retval to be a 1d array
-            return np.array(requested_idxs, ndmin=1, copy=False)
+        # force (retval) to be a 1d array
+        req_chs = np.array(requested_idxs, ndmin=1, copy=False)
 
-        else:
-            raise ValueError(
-                f'One or more requested channels ({requested_idxs}) unavailable'
-                + ('.' if filepath is None else f' in audio file "{filepath}".')
-            )
+        valid_mask = req_chs < num_available
+        if np.all(valid_mask):
+            # All requested channel(s) do exist in file
+            return req_chs
+
+        msg = 'Channel(s) ({}) '.format(req_chs[np.logical_not(valid_mask)]) + \
+            'unavailable' + (
+                  '.' if filepath is None else f' in audio file "{filepath}".')
+
+        if ignore_missing:
+            logging.getLogger(__name__).warning(msg)
+
+            # return array containing only valid channels
+            return req_chs[valid_mask]
+
+        # Puke
+        raise ValueError(msg)
 
 
 class Convert:

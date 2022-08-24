@@ -33,19 +33,6 @@ output_spec = [
     ['Begin Path',      ' ']]
 
 
-def _fetch_clips(audio_filepath, audio_settings, channels):
-    """
-
-    """
-
-    _, file_dur, _ = Audio.get_info(audio_filepath)
-    clips, clip_start_samples = Audio.get_file_clips(
-        audio_settings, audio_filepath, channels=channels)
-
-    # return file duration, loaded clips, & their starting samples
-    return file_dur, clips, clip_start_samples
-
-
 def analyze_clips(trained_model, clips, batch_size=1, audio_filepath=None):
     """
     Apply a trained model to one or more audio clips and obtain scores.
@@ -420,10 +407,15 @@ def recognize(model_dir, audio_root,
     total_time_taken = 0.
     last_file_relpath = 'WTF? Blooper!'
     num_fetch_threads = kwargs.get('num_fetch_threads', 1)
-    for audio_filepath, (curr_file_dur, clips, clip_start_samples) in \
-            processed_items_generator_mp(num_fetch_threads, _fetch_clips, src_generator,
-                                         audio_settings=audio_settings,
+    for audio_filepath, processed_res in \
+            processed_items_generator_mp(num_fetch_threads,
+                                         Audio.get_file_clips, src_generator,
+                                         settings=audio_settings,
                                          channels=channels):
+
+        # Unpack processed item container
+        (clips, clip_start_samples, curr_file_dur, curr_file_ch_idxs) = \
+            processed_res
 
         # 'clips' container will be of shape [num channels, num clips, ...]
         num_channels, num_clips, num_samples = clips.shape
