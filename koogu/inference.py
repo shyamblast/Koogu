@@ -269,7 +269,7 @@ def recognize(model_dir, audio_root,
     :param channels: (int or list of ints) When audio files have multiple
         channels, set which channels to restrict processing to. If
         unspecified, all available channels will be processed. E.g., setting
-        to 1 saves the first channel, setting to [1, 3] saves the first and
+        to 0 saves the first channel, setting to [0, 2] saves the first and
         third channels.
     :param scale_scores: (bool) Enabling this will scale the raw scores before
         they are written out. Use of this setting is recommended only when the
@@ -392,11 +392,10 @@ def recognize(model_dir, audio_root,
     audio_settings = Settings.Audio(**audio_settings)
 
     # Prepare parameters for audio_loader
-    if 'channels' not in kwargs:                    # fetch all channels' clips independently
-        channels = None
-    else:                                           # fetch selected channel's clips
-        channels = (kwargs['channels'] - 1)  # convert indices to be 0-based
-        channels = np.sort(np.unique(channels).astype(np.uint32))
+    channels = None    # fetch all channels' clips if nothing specified
+    if kwargs.get('channels', None) is not None:    # something specified?
+        # fetch selected channel's clips
+        channels = np.sort(np.unique(kwargs['channels']).astype(np.uint32))
 
     #print('Starting to predict...')
 
@@ -435,14 +434,6 @@ def recognize(model_dir, audio_root,
         total_audio_dur += curr_file_dur
         total_time_taken += time_taken
 
-        # Determine the channel number(s) to write out in the outputs
-        if 'channels' not in kwargs:
-            channels_to_write = None
-        elif len(kwargs['channels']) == 0:
-            channels_to_write = np.arange(num_channels)
-        else:
-            channels_to_write = channels
-
         if audio_filepath == audio_root:  # Single file was specified
             audio_relpath = os.path.basename(audio_filepath)
             seltab_relpath = os.path.splitext(audio_relpath)[0]
@@ -459,14 +450,17 @@ def recognize(model_dir, audio_root,
         # Scale the scores, if enabled
         det_scores = scale_scores(det_scores)
 
-        if raw_output_executor is not None:  # Offload writing of raw results (if enabled)
+        if raw_output_executor is not None:
+            # Offload writing of raw results (if enabled)
             # Fire and forget. No need to wait for or fetch results.
-            raw_output_executor.submit(write_raw_detections,
-                                       os.path.join(raw_detections_dir, audio_relpath + FilenameExtensions.numpy),
-                                       audio_settings.fs,
-                                       det_scores.copy(), clip_start_samples.copy(),
-                                       num_samples,
-                                       channels_to_write)
+            raw_output_executor.submit(
+                write_raw_detections,
+                os.path.join(raw_detections_dir,
+                             audio_relpath + FilenameExtensions.numpy),
+                audio_settings.fs,
+                det_scores.copy(), clip_start_samples.copy(),
+                num_samples,
+                None if channels is None else curr_file_ch_idxs)
 
         if output_executor is not None:  # Offload writing of processed results (if enabled)
 
@@ -505,13 +499,17 @@ def recognize(model_dir, audio_root,
             # Send in data for only those valid classes in the mask.
             output_executor_future = output_executor.submit(
                 _combine_and_write,
-                seltab_file_h + tuple(), det_scores.copy(), clip_start_samples.copy(),
+                seltab_file_h + tuple(),
+                det_scores.copy(), clip_start_samples.copy(),
                 num_samples, audio_settings.fs,
                 class_names, class_freq_extents,
                 threshold=kwargs.get('threshold', None),
-                channel_IDs=channels_to_write,
-                offset_info=None if not combine_outputs
-                            else (sel_running_info[0], sel_running_info[1], os.path.basename(audio_relpath)),
+                channel_IDs=None if (
+                        channels is None and len(curr_file_ch_idxs) == 1
+                    ) else curr_file_ch_idxs + 1,
+                offset_info=None if not combine_outputs else (
+                    sel_running_info[0], sel_running_info[1],
+                    os.path.basename(audio_relpath)),
                 ignore_class=reject_class_idx,
                 suppress_nonmax=suppress_nonmax,
                 squeeze_min_dur=squeeze_min_dur)
@@ -611,9 +609,9 @@ if __name__ == '__main__':
     arg_group_in_ctrl.add_argument('--recursive', action='store_true',
                                    help='Process files also in subdirectories of <AUDIO_SOURCE>.')
     arg_group_in_ctrl.add_argument('--channels', metavar='#', nargs='+', type=ArgparseConverters.all_or_posint,
-                                   help='Channels to restrict processing to. List out the desired channel numbers, ' +
+                                   help='Channels to restrict processing to. List out the desired channel indices, ' +
                                         'separated with whitespaces. If unspecified, all available channels will be' +
-                                        'processed.')
+                                        'processed. Channel indices must be 0-based.')
     arg_group_in_ctrl.add_argument('--clip-advance', metavar='SEC', dest='clip_advance',
                                    type=ArgparseConverters.positive_float,
                                    help='When audio file\'s contents are broken up into clips, by default the amount ' +
@@ -714,7 +712,8 @@ if __name__ == '__main__':
     if args.combine_outputs is not None:
         optional_args['combine_outputs'] = args.combine_outputs
     if args.channels is not None:
-        optional_args['channels'] = args.channels
+        optional_args['channels'] = np.sort(
+            np.unique(args.channels).astype(np.uint32))
     if args.scale_scores is not None:
         optional_args['scale_scores'] = args.scale_scores
     if args.top:
