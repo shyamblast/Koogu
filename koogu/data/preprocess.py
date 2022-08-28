@@ -436,6 +436,14 @@ def _get_labels_counts_from_annot_file(annot_filepath, filespec):
 
 
 class GroundTruthDataAggregator:
+    """
+    Abstract base class, for implementing functionality to aggregate clips and
+    labels whilst loading individual channels from an audio file.
+    To accumulate, one must call accrue() for each channel, and subsequently
+    call serialize() to write the accumulated data to disk storage.
+
+    :meta private:
+    """
 
     gt_type = np.float16         # Type of ground-truth label ("coverage") array
     ch_type = np.uint8           # Type of array containing channel indices
@@ -489,6 +497,8 @@ class GroundTruthDataAggregatorNoAnnots(GroundTruthDataAggregator):
     """
     All accrued clips will be associated with the class corresponding to the
     single class index ( < `num_classes`) specified by `label`.
+
+    :meta private:
     """
 
     def __init__(self, output_filepath, num_classes,
@@ -546,6 +556,12 @@ class GroundTruthDataAggregatorNoAnnots(GroundTruthDataAggregator):
 
 
 class GroundTruthDataAggregatorWithAnnots(GroundTruthDataAggregator):
+    """
+    Accrued clips will be assigned a per-class "coverage" score based on their
+    temporal overlaps with available annotations.
+
+    :meta private:
+    """
 
     def __init__(self, output_filepath, num_classes,
                  audio_settings, annots_times, annots_labels, annots_channels,
