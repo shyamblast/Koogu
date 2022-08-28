@@ -298,11 +298,10 @@ def _single_threaded_single_file_preprocess(
 
     audio_file_fullpath = os.path.join(audio_root, audio_file)
 
-    # Derive destination paths. Create directories as necessary
+    # Derive destination paths
     rel_path, filename = os.path.split(audio_file)
     target_filename = filename + FilenameExtensions.numpy
     target_dir = os.path.join(dest_root, rel_path)
-    os.makedirs(target_dir, exist_ok=True)
 
     # Create the appropriate GroundTruthDataAggregator instance.
     if annots_times is None:  # invoked by from_top_level_dirs()
@@ -334,10 +333,21 @@ def _single_threaded_single_file_preprocess(
             **aggregator_kwargs,
             audio_filepath=audio_file)
 
-    return Audio.get_file_clips(
-        audio_file_fullpath, audio_settings,
-        **kwargs,
-        labels_accumulator=output_aggregator)
+    # Create destination directories as necessary
+    os.makedirs(target_dir, exist_ok=True)
+
+    try:
+        retval = Audio.get_file_clips(
+            audio_file_fullpath, audio_settings,
+            **kwargs,
+            labels_accumulator=output_aggregator)
+    except Exception as exc:
+        logging.getLogger(__name__).error(
+            f'Failure loading audio file {audio_file}: {repr(exc)}')
+        retval = np.zeros((len(label_helper.classes_list), ),
+                          dtype=GroundTruthDataAggregator.ret_counts_type)
+
+    return retval
 
 
 def annot_classes_and_counts(seltab_root, annot_files, label_column_name,
