@@ -116,7 +116,6 @@ def from_selection_table_map(audio_settings, audio_seltab_list,
         v_audio_seltab_list,
         audio_root, seltab_root,
         label_column_name or "Tags",
-        show_progress=kwargs.pop('show_progress', False),
         **ig_kwargs)
 
     # ---------- 2. LabelHelper ------------------------------------------------
@@ -203,8 +202,7 @@ def from_top_level_dirs(audio_settings, class_dirs,
         logger.info('  {:<55s} - {:>5d}'.format(class_name, count))
 
     input_generator = AudioFileList.from_directories(
-        audio_root, class_dirs, file_types,
-        show_progress=kwargs.pop('show_progress', False))
+        audio_root, class_dirs, file_types)
 
     # ---------- 2. LabelHelper ------------------------------------------------
     label_helper = LabelHelper(
@@ -228,6 +226,13 @@ def _batch_process(audio_settings, input_generator, label_helper,
                    **kwargs):
 
     logger = logging.getLogger(__name__)
+
+    if kwargs.pop('show_progress', False):
+        warnings.showwarning(
+            'The parameter \'show_progress\' is deprecated and will be ' +
+            'removed in a future release. Currently, the parameter is ignored' +
+            ' and has no effect.',
+            DeprecationWarning, __name__, '')
 
     t_start = datetime.now()
     logger.info('Started at: {}'.format(t_start))

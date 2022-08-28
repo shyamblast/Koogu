@@ -4,7 +4,6 @@ import logging
 import csv
 
 from koogu.utils.detections import SelectionTableReader
-from koogu.utils.terminal import ProgressBar
 
 
 def recursive_listing(root_dir, match_extensions=None):
@@ -54,22 +53,18 @@ class AudioFileList:
     default_audio_filetypes = ['.wav', '.WAV', '.flac', '.aif', '.mp3']
 
     @staticmethod
-    def from_directories(audio_root, class_dirs, filetypes=None, show_progress=False):
+    def from_directories(audio_root, class_dirs, filetypes=None):
 
-        match_extensions = filetypes if filetypes else AudioFileList.default_audio_filetypes
-
-        pbar = ProgressBar(len(class_dirs), prefix='Processing', length=60, show_start=True) if show_progress else None
+        match_extensions = filetypes if filetypes else \
+            AudioFileList.default_audio_filetypes
 
         for class_dir in class_dirs:
-            for file in recursive_listing(os.path.join(audio_root, class_dir), match_extensions):
+            for file in recursive_listing(os.path.join(audio_root, class_dir),
+                                          match_extensions):
                 yield os.path.join(class_dir, file), None, class_dir, None
-
-            if pbar is not None:
-                pbar.increment()
 
     @staticmethod
     def from_annotations(selmap, audio_root, seltab_root, label_column_name,
-                         show_progress=False,
                          ignore_zero_annot_files=True,
                          filetypes=None, added_ext=None):
         """
@@ -82,7 +77,6 @@ class AudioFileList:
         :param label_column_name: A string (e.g., "Tags") identifying the header
             of the column in the selection table file(s) from which class labels
             are to be extracted.
-        :param show_progress: Show progress bar during processing.
         :param ignore_zero_annot_files: Where the audio reference in selmap
             points to an audio file and the corresponding annot file contains
             zero annotations, a True value in this parameter will cause the
@@ -123,7 +117,8 @@ class AudioFileList:
         else:
             full_path = lambda x: os.path.join(seltab_root, x)
 
-        match_extensions = filetypes if filetypes else AudioFileList.default_audio_filetypes
+        match_extensions = filetypes if filetypes else \
+            AudioFileList.default_audio_filetypes
         if added_ext is not None:
             # Append the "added" extension, remove later when yielding
             if isinstance(match_extensions, str):
@@ -131,15 +126,13 @@ class AudioFileList:
             else:  # assuming now that it's a list/tuple of strings
                 match_extensions = [m + added_ext for m in match_extensions]
 
-        pbar = ProgressBar(len(selmap), prefix='Processing', length=60, show_start=True) if show_progress else None
-
         for (audio_path, seltab_path) in selmap:
 
             if os.path.isdir(os.path.join(audio_root, audio_path)):
                 # The selection table file applies to the directory's contents.
 
-                # Derive annot start & end times from in-file offsets and durations and yield each listed audio file
-                # individually.
+                # Derive annot start & end times from in-file offsets and
+                # durations and yield each listed audio file individually.
                 files_times_tags = [
                     [entry[2] if entry[4] is None else os.path.join(entry[4], entry[2]),
                      (entry[3], entry[3] + (entry[1] - entry[0])),
@@ -230,9 +223,6 @@ class AudioFileList:
                 else:
                     logger.warning(
                         f'No valid annotations found in {seltab_path:s}')
-
-            if pbar is not None:
-                pbar.increment()
 
 
 def get_valid_audio_annot_entries(audio_annot_list_or_csv,
