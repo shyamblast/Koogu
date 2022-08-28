@@ -106,12 +106,10 @@ def from_selection_table_map(audio_settings, audio_seltab_list,
 
     ig_kwargs = {}      # Undocumented settings
     if negative_class_label is not None:
-        # Deal with these only if there was a request to save non-match clips
-        if 'ignore_zero_annot_files' in kwargs:
-            ig_kwargs['ignore_zero_annot_files'] = \
-                kwargs.pop('ignore_zero_annot_files')
-        if 'filetypes' in kwargs:
-            ig_kwargs['filetypes'] = kwargs.pop('filetypes')
+        # Deal with this only if there was a request to save non-match clips
+        auf_types = kwargs.pop('filetypes', None)
+        if auf_types is not None:
+            ig_kwargs['filetypes'] = auf_types
     input_generator = AudioFileList.from_annotations(
         v_audio_seltab_list,
         audio_root, seltab_root,
@@ -291,6 +289,19 @@ def _single_threaded_single_file_preprocess(
     an audio file, break up the resulting time-domain data into fixed-length
     clips, optionally (if annotations are available) match clips to annotations,
     and write the clips to disk along with one-hot style ground-truth labels.
+
+    :param ignore_zero_annot_files: Parameter is only considered when processing
+        selmap pairs. Where the audio reference in selmap points to an audio
+        file and the corresponding annot file contains zero annotations, a True
+        value in this parameter (default) will cause the function to skip
+        processing of the audio file. When the audio reference in selmap points
+        to a directory instead, a True value in this parameter will cause the
+        function to skip processing of discovered audio files for which there
+        were no valid annotations. In either scenario, a False value would only
+        result in processing of audio files without valid annotations when the
+        ``label_helper`` has a defined negative_class_idx.
+
+    :meta private:
     """
 
     (audio_file, annots_times, annots_labels, annot_channels) = \
@@ -321,6 +332,13 @@ def _single_threaded_single_file_preprocess(
         valid_annots_idxs = [
             idx for idx, lbl in enumerate(annots_labels)
             if lbl in label_helper.labels_to_indices]
+
+        if len(valid_annots_idxs) == 0 and (
+                label_helper.negative_class_index is None or
+                kwargs.pop('ignore_zero_annot_files', True)):
+            # Nothing to save, so no need to even load the audio file
+            return np.zeros((len(label_helper.classes_list), ),
+                            dtype=GroundTruthDataAggregator.ret_counts_type)
 
         output_aggregator = GroundTruthDataAggregatorWithAnnots(
             os.path.join(target_dir, target_filename),

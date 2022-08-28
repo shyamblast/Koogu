@@ -81,13 +81,13 @@ class BaseMetric(metaclass=abc.ABCMeta):
             logger.warning('Empty list. Nothing to process')
 
         # Undocumented settings
+        self._ignore_zero_annot_files = kwargs.pop('ignore_zero_annot_files',
+                                                   False)
         self._ig_kwargs = {}
-        if not kwargs.pop('ignore_zero_annot_files', False):
-            self._ig_kwargs['ignore_zero_annot_files'] = False
-            if 'filetypes' in kwargs:
-                self._ig_kwargs['filetypes'] = kwargs.pop('filetypes')
-            # Need to look for files with added extension. Hidden setting.
-            self._ig_kwargs['added_ext'] = FilenameExtensions.numpy
+        if 'filetypes' in kwargs:
+            self._ig_kwargs['filetypes'] = kwargs.pop('filetypes')
+        # Need to look for files with added extension. Hidden setting.
+        self._ig_kwargs['added_ext'] = FilenameExtensions.numpy
 
         self._valid_class_mask = np.full(
             (len(self._label_helper.classes_list),), True, dtype=np.bool)
@@ -158,12 +158,13 @@ class BaseMetric(metaclass=abc.ABCMeta):
                 discard_non_valid_class_annots(
                     annots_times, annots_class_idxs, annots_channels)
 
-            self._assess_and_accumulate(
-                # Annotations info
-                annots_times, annots_class_idxs, annots_channels,
-                # Raw detections info (derivable from filename
-                audio_file,
-                **kwargs)
+            if len(annots_times) > 0 or (not self._ignore_zero_annot_files):
+                self._assess_and_accumulate(
+                    # Annotations info
+                    annots_times, annots_class_idxs, annots_channels,
+                    # Raw detections info (derivable from filename
+                    audio_file,
+                    **kwargs)
 
         result = self._produce_result(**kwargs)
 

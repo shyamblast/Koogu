@@ -65,7 +65,6 @@ class AudioFileList:
 
     @staticmethod
     def from_annotations(selmap, audio_root, seltab_root, label_column_name,
-                         ignore_zero_annot_files=True,
                          filetypes=None, added_ext=None):
         """
 
@@ -77,25 +76,12 @@ class AudioFileList:
         :param label_column_name: A string (e.g., "Tags") identifying the header
             of the column in the selection table file(s) from which class labels
             are to be extracted.
-        :param ignore_zero_annot_files: Where the audio reference in selmap
-            points to an audio file and the corresponding annot file contains
-            zero annotations, a True value in this parameter will cause the
-            function to skip the audio file, while a False value will cause
-            the function to yield zero-length arrays for times & tags.
-            When the audio reference in selmap points to a directory instead
-            a True value in this parameter will cause the function to yield
-            only those files for which there are annotations available, while
-            a False value will cause the function to return times & tags for
-            all files discovered in the directory (times & tags arrays will be
-            zero-length arrays for files for which there were no annotations).
-            Also see 'match_extensions'.
         :param filetypes: This parameter applies only when an audio reference
             in selmap points to a directory and 'ignore_zero_annot_files' is
             set to False.
         :param added_ext: This parameter applies only when an audio reference
-            in selmap points to a directory and 'ignore_zero_annot_files' is
-            set to False. Useful when looking for 'raw result' files, mostly
-            only during performance assessments.
+            in selmap points to a directory. Useful when looking for
+            'raw result' files, during performance assessments.
         """
 
         single_file_filespec = [('Begin Time (s)', float),
@@ -124,7 +110,7 @@ class AudioFileList:
             if isinstance(match_extensions, str):
                 match_extensions = match_extensions + added_ext
             else:  # assuming now that it's a list/tuple of strings
-                match_extensions = [m + added_ext for m in match_extensions]
+                match_extensions = [(m + added_ext) for m in match_extensions]
 
         for (audio_path, seltab_path) in selmap:
 
@@ -151,55 +137,87 @@ class AudioFileList:
                     logger.warning(
                         f'No valid annotations found in {seltab_path:s}')
 
-                    if not ignore_zero_annot_files:
-                        for file in recursive_listing(os.path.join(audio_root, audio_path), match_extensions):
-                            ret_path = os.path.join(audio_path, file)
-                            if added_ext is not None:
-                                ret_path = ret_path[:-len(added_ext)]
-                            yield ret_path, np.zeros((0, 2)), [], np.zeros((0, ), dtype=np.uint8)
+                    for file in recursive_listing(
+                            os.path.join(audio_root, audio_path),
+                            match_extensions):
+                        ret_path = os.path.join(audio_path, file)
+                        if added_ext is not None:
+                            ret_path = ret_path[:-len(added_ext)]
+                        yield ret_path, np.zeros((0, 2)), [], \
+                              np.zeros((0, ), dtype=np.uint8)
 
                 else:
 
                     all_entries_idxs = np.arange(len(files_times_tags))
-                    remaining_entries_mask = np.full((len(files_times_tags),), True)
+                    remaining_entries_mask = np.full((len(files_times_tags),),
+                                                     True)
 
-                    # First process entries corresponding to directory-listed files (if specified)
-                    if not ignore_zero_annot_files:
-                        for uniq_file in recursive_listing(os.path.join(audio_root, audio_path), match_extensions):
-                            if added_ext is not None:
-                                uniq_file = uniq_file[:-len(added_ext)]
-
-                            curr_file_items_idxs = np.asarray(
-                                [idx for idx in all_entries_idxs[remaining_entries_mask]
-                                 if files_times_tags[idx][0] == uniq_file])
-
-                            if len(curr_file_items_idxs) > 0:
-                                remaining_entries_mask[curr_file_items_idxs] = False    # Update for next iteration
-
-                                yield os.path.join(audio_path, uniq_file), \
-                                      np.asarray([files_times_tags[idx][1] for idx in curr_file_items_idxs]), \
-                                      [files_times_tags[idx][2] for idx in curr_file_items_idxs], \
-                                      np.asarray([(files_times_tags[idx][3] - 1)
-                                                  for idx in curr_file_items_idxs], dtype=np.uint8)
-                            else:
-                                yield os.path.join(audio_path, uniq_file), np.zeros((0, 2)), [], \
-                                      np.zeros((0, ), dtype=np.uint8)
-
-                    # Process all (remaining) entries
-                    for uniq_file in list(set([ftt[0] for ftt, v in zip(files_times_tags, remaining_entries_mask)
-                                               if v])):
+                    # First process entries corresponding to directory-listed
+                    # files
+                    for uniq_file in recursive_listing(
+                            os.path.join(audio_root, audio_path),
+                            match_extensions):
+                        if added_ext is not None:
+                            uniq_file = uniq_file[:-len(added_ext)]
 
                         curr_file_items_idxs = np.asarray(
-                            [idx for idx in all_entries_idxs[remaining_entries_mask]
+                            [idx
+                             for idx in all_entries_idxs[remaining_entries_mask]
                              if files_times_tags[idx][0] == uniq_file])
 
-                        remaining_entries_mask[curr_file_items_idxs] = False    # Update for next iteration
+                        if len(curr_file_items_idxs) > 0:
+                            # Update for next iteration
+                            remaining_entries_mask[curr_file_items_idxs] = False
 
-                        yield os.path.join(audio_path, uniq_file), \
-                              np.asarray([files_times_tags[idx][1] for idx in curr_file_items_idxs]), \
-                              [files_times_tags[idx][2] for idx in curr_file_items_idxs], \
-                              np.asarray([(files_times_tags[idx][3] - 1)
-                                          for idx in curr_file_items_idxs], dtype=np.uint8)
+                            yield os.path.join(audio_path, uniq_file), \
+                                np.asarray([files_times_tags[idx][1]
+                                            for idx in curr_file_items_idxs]), \
+                                [files_times_tags[idx][2]
+                                 for idx in curr_file_items_idxs], \
+                                np.asarray([(files_times_tags[idx][3] - 1)
+                                            for idx in curr_file_items_idxs],
+                                           dtype=np.uint8)
+                        else:
+                            yield os.path.join(audio_path, uniq_file), \
+                                  np.zeros((0, 2)), [], \
+                                  np.zeros((0, ), dtype=np.uint8)
+
+                    # Process all (remaining) entries
+                    for uniq_file in list(set([
+                            ftt[0]
+                            for ftt, v in zip(files_times_tags,
+                                              remaining_entries_mask)
+                            if v])):
+
+                        curr_file_items_idxs = np.asarray(
+                            [idx
+                             for idx in all_entries_idxs[remaining_entries_mask]
+                             if files_times_tags[idx][0] == uniq_file])
+
+                        # Update for next iteration
+                        remaining_entries_mask[curr_file_items_idxs] = False
+
+                        # Check if file even exists on disk
+                        if os.path.exists(
+                                os.path.join(audio_path, uniq_file) +
+                                ('' if added_ext is None else added_ext)):
+
+                            yield os.path.join(audio_path, uniq_file), \
+                                np.asarray([files_times_tags[idx][1]
+                                            for idx in curr_file_items_idxs]), \
+                                [files_times_tags[idx][2]
+                                 for idx in curr_file_items_idxs], \
+                                np.asarray([(files_times_tags[idx][3] - 1)
+                                            for idx in curr_file_items_idxs],
+                                           dtype=np.uint8)
+
+                        else:
+                            logger.error(
+                                'File {} corresponding to {} '.format(
+                                    uniq_file + ('' if added_ext is None
+                                                 else added_ext),
+                                    len(curr_file_items_idxs)
+                                ) + 'annotations could not be found.')
 
             else:
                 # Individual audio file
@@ -217,12 +235,13 @@ class AudioFileList:
                     yield audio_path, \
                           np.asarray([[tt[0], tt[1]] for tt in times_tags]), \
                           [tt[2] for tt in times_tags], \
-                          np.asarray([(tt[3] - 1) for tt in times_tags], dtype=np.uint8)
-                elif not ignore_zero_annot_files:
-                    yield audio_path, np.zeros((0, 2)), [], np.zeros((0, ), dtype=np.uint8)
+                          np.asarray([(tt[3] - 1) for tt in times_tags],
+                                     dtype=np.uint8)
                 else:
                     logger.warning(
                         f'No valid annotations found in {seltab_path:s}')
+                    yield audio_path, np.zeros((0, 2)), [], \
+                        np.zeros((0, ), dtype=np.uint8)
 
 
 def get_valid_audio_annot_entries(audio_annot_list_or_csv,
