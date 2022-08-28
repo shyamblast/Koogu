@@ -247,8 +247,9 @@ def _batch_process(audio_settings, input_generator, label_helper,
         os.makedirs(dest_root, exist_ok=True)
 
     # Invoke the parallel processor
-    total_per_class_clip_counts = np.zeros((len(label_helper.classes_list), ),
-                                           dtype=np.uint64)
+    total_per_class_clip_counts = np.zeros(
+        (len(label_helper.classes_list), ),
+        dtype=GroundTruthDataAggregator.ret_counts_type)
     for _, file_per_class_clip_counts in processed_items_generator_mp(
             kwargs.pop('num_threads', os.cpu_count() or 1),
             _single_threaded_single_file_preprocess,
@@ -410,7 +411,7 @@ class GroundTruthDataAggregator:
 
     gt_type = np.float16         # Type of ground-truth label ("coverage") array
     ch_type = np.uint8           # Type of array containing channel indices
-    ret_counts_type = np.uint64  # Type of per-class counts array
+    ret_counts_type = np.uint32  # Type of per-class counts array
 
     def __init__(self, output_filepath, num_classes):
 
