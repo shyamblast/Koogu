@@ -168,6 +168,7 @@ class SelectionTableReader(Generator):
         ...                                   fields_spec):
         ...     print(entry[0], entry[1], entry[2], entry[3])
 
+    :meta private:
     """
 
     def __init__(self, seltab_file, fields_spec, delimiter='\t'):
