@@ -3,6 +3,7 @@ import abc
 import numpy as np
 import json
 import logging
+import warnings
 
 from koogu.data import FilenameExtensions, AssetsExtraNames
 from koogu.utils.detections import assess_annotations_and_clips_match, \
@@ -102,13 +103,17 @@ class BaseMetric(metaclass=abc.ABCMeta):
                         f'Reject class {rj_class:s} not found in list of ' +
                         'classes. Setting will be ignored.')
 
-    def assess(self, show_progress=False, **kwargs):
+    def assess(self, **kwargs):
         """
         Perform the desired assessments.
-
-        :param show_progress: (default: False) If True, will show progress bars
-            during processing of each audio file.
         """
+
+        if kwargs.pop('show_progress', False):
+            warnings.showwarning(
+                'The parameter \'show_progress\' is deprecated and will be ' +
+                'removed in a future release. Currently, the parameter is ' +
+                'ignored and has no effect.',
+                DeprecationWarning, __name__, '')
 
         # kwargs will simply be passed as-is to the overridden internal methods.
 
@@ -116,7 +121,6 @@ class BaseMetric(metaclass=abc.ABCMeta):
             self._audio_annot_list,
             self._raw_results_root, self._annots_root,
             self._label_column_name,
-            show_progress=show_progress,
             **self._ig_kwargs)
 
         if not np.all(self._valid_class_mask):
