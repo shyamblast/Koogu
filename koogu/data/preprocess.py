@@ -393,16 +393,18 @@ def annot_classes_and_counts(seltab_root, annot_files, label_column_name,
     ]
 
     if seltab_root is None:
-        full_path = lambda x: x
+        def full_path(x): return x
     else:
-        full_path = lambda x: os.path.join(seltab_root, x)
+        def full_path(x): return os.path.join(seltab_root, x)
 
     futures_dict = dict()
     retval = dict()
-    with concurrent.futures.ProcessPoolExecutor(max_workers=num_workers) as executor:
+    with concurrent.futures.ProcessPoolExecutor(max_workers=num_workers) as \
+            executor:
         for is_valid, annot_file in zip(valid_entries_mask, annot_files):
             if not is_valid:
-                logger.error('File {:s} not found. Skipping entry...'.format(annot_file))
+                logger.error('File {:s} not found. Skipping entry...'.format(
+                    annot_file))
             else:
                 futures_dict[executor.submit(_get_labels_counts_from_annot_file,
                                              full_path(annot_file), filespec)] = annot_file
@@ -415,8 +417,9 @@ def annot_classes_and_counts(seltab_root, annot_files, label_column_name,
             try:
                 uniq_labels, label_counts = future.result()
             except Exception as ho_exc:
-                logger.error('Reading file {:s} generated an exception: {:s}'.format(
-                    repr(futures_dict[future]), repr(ho_exc)))
+                logger.error(
+                    'Reading file {:s} generated an exception: {:s}'.format(
+                        repr(futures_dict[future]), repr(ho_exc)))
             else:
                 for ul, lc in zip(uniq_labels, label_counts):
                     if ul in retval:

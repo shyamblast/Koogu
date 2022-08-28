@@ -99,9 +99,9 @@ class AudioFileList:
         logger = logging.getLogger(__name__)
 
         if seltab_root is None:
-            full_path = lambda x: x
+            def full_path(x): return x
         else:
-            full_path = lambda x: os.path.join(seltab_root, x)
+            def full_path(x): return os.path.join(seltab_root, x)
 
         match_extensions = filetypes if filetypes else \
             AudioFileList.default_audio_filetypes

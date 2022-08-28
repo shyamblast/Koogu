@@ -9,7 +9,7 @@ import concurrent.futures
 import logging
 
 from koogu.data import FilenameExtensions, AssetsExtraNames
-from koogu.data.raw import Audio, Settings, Convert
+from koogu.data.raw import Audio, Settings
 from koogu.model import TrainedModel
 from koogu.utils import processed_items_generator_mp
 from koogu.utils.detections import postprocess_detections
