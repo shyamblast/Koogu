@@ -13,8 +13,9 @@ import abc
 
 from koogu.data import FilenameExtensions, AssetsExtraNames
 from koogu.data.raw import Audio, Settings, Convert
-from koogu.utils import instantiate_logging, processed_items_generator_mp
-from koogu.utils.detections import SelectionTableReader, LabelHelper, \
+from koogu.utils import instantiate_logging, processed_items_generator_mp, \
+    annotations
+from koogu.utils.detections import LabelHelper, \
     assess_annotations_and_clips_match
 from koogu.utils.terminal import ArgparseConverters
 from koogu.utils.config import Config, ConfigError, datasection2dict, log_config
@@ -26,7 +27,7 @@ _program_name = 'preprocess'
 
 def from_selection_table_map(audio_settings, audio_seltab_list,
                              audio_root, seltab_root, output_root,
-                             label_column_name=None,
+                             annotation_handler=None,
                              desired_labels=None,
                              remap_labels_dict=None,
                              negative_class_label=None,
@@ -47,9 +48,9 @@ def from_selection_table_map(audio_settings, audio_seltab_list,
     :param seltab_root: The full paths of annotations files listed in
         ``audio_seltab_list`` are resolved using this as the base directory.
     :param output_root: "Prepared" data will be written to this directory.
-    :param label_column_name: A string identifying the header of the column in
-        the selection table file(s) from which class labels are to be extracted.
-        If None (default), will look for a column with the header "Tags".
+    :param annotation_handler: If not None, must be an annotation handler
+        instance. Defaults to
+        :class:`~koogu.utils.annotations.RavenAnnotationHandler`.
     :param desired_labels: The target set of class labels. If not None, must be
         a list of class labels. Any selections (read from the selection tables)
         having labels that are not in this list will be discarded. This list
@@ -76,11 +77,26 @@ def from_selection_table_map(audio_settings, audio_seltab_list,
     :return: A dictionary whose keys are annotation tags (either discovered from
         the set of annotations, or same as ``desired_labels`` if not None) and
         the values are the number of clips produced for the corresponding class.
+
+    .. seealso::
+        :mod:`koogu.utils.annotations`
     """
 
     logger = logging.getLogger(__name__)
 
     audio_settings_c = Settings.Audio(**audio_settings)
+
+    ah_kwargs = {}
+    if 'label_column_name' in kwargs:
+        ah_kwargs['label_column_name'] = kwargs.pop('label_column_name')
+        warnings.showwarning(
+            'The parameter \'label_column_name\' is deprecated and will be ' +
+            'removed in a future release. You should instead specify an ' +
+            'instance of one of the annotation handler classes in ' +
+            'koogu.utils.annotations.',
+            DeprecationWarning, __name__, '')
+    if annotation_handler is None:
+        annotation_handler = annotations.RavenAnnotationHandler(**ah_kwargs)
 
     # ---------- 1. Input generator --------------------------------------------
     # Discard invalid entries, if any
@@ -93,7 +109,7 @@ def from_selection_table_map(audio_settings, audio_seltab_list,
     classes_n_counts = annot_classes_and_counts(
         seltab_root,
         [e[-1] for e in v_audio_seltab_list],
-        label_column_name or "Tags",
+        annotation_handler,
         **({'num_threads': kwargs['num_threads']} if 'num_threads' in kwargs
            else {})
     )
@@ -113,7 +129,7 @@ def from_selection_table_map(audio_settings, audio_seltab_list,
     input_generator = AudioFileList.from_annotations(
         v_audio_seltab_list,
         audio_root, seltab_root,
-        label_column_name or "Tags",
+        annotation_handler,
         **ig_kwargs)
 
     # ---------- 2. LabelHelper ------------------------------------------------
@@ -239,8 +255,9 @@ def _batch_process(audio_settings, input_generator, label_helper,
     if os.path.exists(dest_root) and os.path.isdir(dest_root):
         warnings.showwarning(
             f'Output directory {dest_root} already exists. Contents may get ' +
-            'overwritten. Also, stale files within the directory could lead ' +
-            'corruption of training inputs.', Warning, _program_name, '')
+            'overwritten. CAUTION: Stale files within the directory could ' +
+            'lead to corruption of training inputs.',
+            Warning, _program_name, '')
     else:
         os.makedirs(dest_root, exist_ok=True)
 
@@ -361,14 +378,16 @@ def _single_threaded_single_file_preprocess(
             labels_accumulator=output_aggregator)
     except Exception as exc:
         logging.getLogger(__name__).error(
-            f'Failure loading audio file {audio_file}: {repr(exc)}')
+            f'Failure loading audio file {audio_file}: {repr(exc)}.' + (
+                '' if (annots_times is None or len(annots_times) == 0) else
+                f' Discarding {len(annots_times)} corresponding annotations.'))
         retval = np.zeros((len(label_helper.classes_list), ),
                           dtype=GroundTruthDataAggregator.ret_counts_type)
 
     return retval
 
 
-def annot_classes_and_counts(seltab_root, annot_files, label_column_name,
+def annot_classes_and_counts(seltab_root, annot_files, annotation_handler,
                              **kwargs):
     """
     Query the list of annot_files to determine the unique labels present and
@@ -379,11 +398,6 @@ def annot_classes_and_counts(seltab_root, annot_files, label_column_name,
     logger = logging.getLogger(__name__)
     num_workers = kwargs['num_threads'] if 'num_threads' in kwargs else \
         max(1, os.cpu_count() - 1)
-
-    filespec = [
-        (label_column_name, str),
-        ('Begin Time (s)', float),
-        ('End Time (s)', float)]
 
     # Discard invalid entries, if any
     valid_entries_mask = [
@@ -406,8 +420,9 @@ def annot_classes_and_counts(seltab_root, annot_files, label_column_name,
                 logger.error('File {:s} not found. Skipping entry...'.format(
                     annot_file))
             else:
-                futures_dict[executor.submit(_get_labels_counts_from_annot_file,
-                                             full_path(annot_file), filespec)] = annot_file
+                futures_dict[executor.submit(
+                    annotation_handler.load,
+                    full_path(annot_file))] = annot_file
 
         if len(futures_dict) == 0:
             logger.error('Nothing to process')
@@ -415,12 +430,14 @@ def annot_classes_and_counts(seltab_root, annot_files, label_column_name,
 
         for future in concurrent.futures.as_completed(futures_dict):
             try:
-                uniq_labels, label_counts = future.result()
+                _, all_tags, _, _ = future.result()
             except Exception as ho_exc:
                 logger.error(
                     'Reading file {:s} generated an exception: {:s}'.format(
                         repr(futures_dict[future]), repr(ho_exc)))
             else:
+                uniq_labels, label_counts = np.unique(all_tags,
+                                                      return_counts=True)
                 for ul, lc in zip(uniq_labels, label_counts):
                     if ul in retval:
                         retval[ul] += lc
@@ -428,14 +445,6 @@ def annot_classes_and_counts(seltab_root, annot_files, label_column_name,
                         retval[ul] = int(lc)
 
     return retval
-
-
-def _get_labels_counts_from_annot_file(annot_filepath, filespec):
-    """Helper function for annot_classes_and_counts()"""
-    labels = [entry[0]
-              for entry in SelectionTableReader(annot_filepath, filespec)
-              if all([e is not None for e in entry])]
-    return np.unique(labels, return_counts=True)
 
 
 class GroundTruthDataAggregator:

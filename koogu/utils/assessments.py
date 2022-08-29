@@ -6,6 +6,7 @@ import logging
 import warnings
 
 from koogu.data import FilenameExtensions, AssetsExtraNames
+from koogu.utils import annotations
 from koogu.utils.detections import assess_annotations_and_clips_match, \
     assess_annotations_and_detections_match, postprocess_detections, \
     nonmax_suppress_mask, LabelHelper
@@ -17,19 +18,19 @@ class BaseMetric(metaclass=abc.ABCMeta):
     Base class for implementing performance assessment logic.
 
     :param audio_annot_list: A list containing pairs (tuples or sub-lists) of
-        relative paths to audio files and the corresponding annotation
-        (selection table) files. Alternatively, you could also specify (path to)
-        a 2-column csv file containing these pairs of entries (in the same
-        order). Only use the csv option if the paths are simple (i.e., the
-        filenames do not contain commas or other special characters).
+        relative paths to audio files and the corresponding annotation files.
+        Alternatively, you could also specify (path to) a 2-column csv file
+        containing these pairs of entries (in the same order). Only use the csv
+        option if the paths are simple (i.e., the filenames do not contain
+        commas or other special characters).
     :param raw_results_root: The full paths of the raw result container files
         whose filenames will be derived from the audio files listed in
         ``audio_annot_list`` will be resolved using this as base directory.
     :param annots_root: The full paths of annotations files listed in
         ``audio_annot_list`` will be resolved using this as base directory.
-    :param label_column_name: A string identifying the header of the column in
-        the selection table file(s) from which class labels are to be extracted.
-        If None (default), will look for a column with the header "Tags".
+    :param annotation_handler: If not None, must be an annotation handler
+        instance. Defaults to
+        :class:`~koogu.utils.annotations.RavenAnnotationHandler`.
     :param reject_classes: Name (case sensitive) of the class (like 'Noise' or
         'Other') for which performance assessments are not to be computed. Can
         specify multiple classes for rejection, as a list.
@@ -45,7 +46,7 @@ class BaseMetric(metaclass=abc.ABCMeta):
 
     def __init__(self, audio_annot_list,
                  raw_results_root, annots_root,
-                 label_column_name=None,
+                 annotation_handler=None,
                  reject_classes=None,
                  remap_labels_dict=None,
                  negative_class_label=None,
@@ -71,7 +72,18 @@ class BaseMetric(metaclass=abc.ABCMeta):
 
         self._raw_results_root = raw_results_root
         self._annots_root = annots_root
-        self._label_column_name = label_column_name or "Tags"  # default: "Tags"
+        ah_kwargs = {}
+        if 'label_column_name' in kwargs:
+            ah_kwargs['label_column_name'] = kwargs.pop('label_column_name')
+            warnings.showwarning(
+                'The parameter \'label_column_name\' is deprecated and will ' +
+                'be removed in a future release. You should instead specify ' +
+                'an instance of one of the annotation handler classes in ' +
+                'koogu.utils.annotations.',
+                DeprecationWarning, __name__, '')
+        self._annotation_handler = \
+            annotation_handler if annotation_handler is not None else \
+            annotations.RavenAnnotationHandler(**ah_kwargs)
 
         # Discard invalid entries, if any
         self._audio_annot_list = get_valid_audio_annot_entries(
@@ -120,7 +132,7 @@ class BaseMetric(metaclass=abc.ABCMeta):
         input_generator = AudioFileList.from_annotations(
             self._audio_annot_list,
             self._raw_results_root, self._annots_root,
-            self._label_column_name,
+            self._annotation_handler,
             **self._ig_kwargs)
 
         if not np.all(self._valid_class_mask):
@@ -278,19 +290,19 @@ class PrecisionRecall(BaseMetric):
     Class for assessing precision-recall values.
 
     :param audio_annot_list: A list containing pairs (tuples or sub-lists) of
-        relative paths to audio files and the corresponding annotation
-        (Raven selection table) files. Alternatively, you could also specify
-        (path to) a 2-column csv file containing these pairs of entries (in the
-        same order). Only use the csv option if the paths are simple (i.e., the
-        filenames do not contain commas or other special characters).
+        relative paths to audio files and the corresponding annotation files.
+        Alternatively, you could also specify (path to) a 2-column csv file
+        containing these pairs of entries (in the same order). Only use the csv
+        option if the paths are simple (i.e., the filenames do not contain
+        commas or other special characters).
     :param raw_results_root: The full paths of the raw result container files
         whose filenames will be derived from the audio files listed in
         ``audio_annot_list`` will be resolved using this as base directory.
     :param annots_root: The full paths of annotations files listed in
         ``audio_annot_list`` will be resolved using this as base directory.
-    :param label_column_name: A string identifying the header of the column in
-        the selection table file(s) from which class labels are to be extracted.
-        If None (default), will look for a column with the header "Tags".
+    :param annotation_handler: If not None, must be an annotation handler
+        instance. Defaults to
+        :class:`~koogu.utils.annotations.RavenAnnotationHandler`.
     :param thresholds: If not None, must be either a scalar quantity or a list
         of non-decreasing values (float values in the range 0-1) at which
         precision and recall value(s) will be assessed. If None, will default
@@ -335,11 +347,14 @@ class PrecisionRecall(BaseMetric):
     return the per-class counts for the numerators and denominators of precision
     and recall. Otherwise, per-class and overall precision-recall values will be
     returned.
+
+    .. seealso::
+        :mod:`koogu.utils.annotations`
     """
 
     def __init__(self, audio_annot_list,
                  raw_results_root, annots_root,
-                 label_column_name=None,
+                 annotation_handler=None,
                  thresholds=None,
                  post_process_detections=False,
                  **kwargs):
@@ -398,7 +413,7 @@ class PrecisionRecall(BaseMetric):
 
         super(PrecisionRecall, self).__init__(
             audio_annot_list, raw_results_root, annots_root,
-            label_column_name=label_column_name,
+            annotation_handler=annotation_handler,
             **remaining_kwargs)
 
     @property

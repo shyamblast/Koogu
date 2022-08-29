@@ -3,8 +3,6 @@ import numpy as np
 import logging
 import csv
 
-from koogu.utils.detections import SelectionTableReader
-
 
 def recursive_listing(root_dir, match_extensions=None):
     """
@@ -64,7 +62,7 @@ class AudioFileList:
                 yield os.path.join(class_dir, file), None, class_dir, None
 
     @staticmethod
-    def from_annotations(selmap, audio_root, seltab_root, label_column_name,
+    def from_annotations(selmap, audio_root, seltab_root, annotation_handler,
                          filetypes=None, added_ext=None):
         """
 
@@ -73,28 +71,14 @@ class AudioFileList:
             'seltab_root'.
         :param audio_root: Root directory for all audio files.
         :param seltab_root: Root directory for all annotation files.
-        :param label_column_name: A string (e.g., "Tags") identifying the header
-            of the column in the selection table file(s) from which class labels
-            are to be extracted.
+        :param annotation_handler: An instance of one of the annotation handlers
+            from utils.annotations.
         :param filetypes: This parameter applies only when an audio reference
-            in selmap points to a directory and 'ignore_zero_annot_files' is
-            set to False.
+            in selmap points to a directory.
         :param added_ext: This parameter applies only when an audio reference
             in selmap points to a directory. Useful when looking for
             'raw result' files, during performance assessments.
         """
-
-        single_file_filespec = [('Begin Time (s)', float),
-                                ('End Time (s)', float),
-                                (label_column_name, str),
-                                ('Channel', int, 1)]
-        multi_file_filespec = [('Begin Time (s)', float),
-                               ('End Time (s)', float),
-                               ('Begin File', str),
-                               ('File Offset (s)', float),
-                               ('Relative Path', str),
-                               (label_column_name, str),
-                               ('Channel', int, 1)]
 
         logger = logging.getLogger(__name__)
 
@@ -114,134 +98,107 @@ class AudioFileList:
 
         for (audio_path, seltab_path) in selmap:
 
-            if os.path.isdir(os.path.join(audio_root, audio_path)):
-                # The selection table file applies to the directory's contents.
+            is_multi_file = os.path.isdir(os.path.join(audio_root, audio_path))
 
-                # Derive annot start & end times from in-file offsets and
-                # durations and yield each listed audio file individually.
-                files_times_tags = [
-                    [entry[2] if entry[4] is None else os.path.join(entry[4], entry[2]),
-                     (entry[3], entry[3] + (entry[1] - entry[0])),
-                     entry[5],
-                     entry[6] or 1]
-                    for entry in SelectionTableReader(full_path(seltab_path),
-                                                      multi_file_filespec)
-                    if ((entry[0] is not None) and
-                        (entry[1] is not None) and
-                        (entry[2] is not None) and
-                        (entry[3] is not None) and
-                        (entry[5] is not None))
-                ]
+            # Fetch annotations
+            try:
+                annots_times, annots_tags, annots_channels, annots_files = \
+                    annotation_handler.load(full_path(seltab_path),
+                                            multi_file=is_multi_file)
+            except (IndexError, ValueError) as exc:
+                logger.error(
+                    f'Failed loading {seltab_path} with exception {repr(exc)}' +
+                    '. Check file for invalid/empty entries.')
+                continue
+            except Exception as exc:
+                logger.error(
+                    f'Failed loading {seltab_path}: {repr(exc)}')
+                continue
 
-                if len(files_times_tags) == 0:
-                    logger.warning(
-                        f'No valid annotations found in {seltab_path:s}')
+            num_annots = len(annots_times)
+            if num_annots > 0:
+                # Convert to numpy arrays
+                annots_times = np.asarray(annots_times)
+                annots_channels = \
+                    np.asarray(annots_channels).astype(np.uint8)
+            else:
+                logger.warning(
+                    f'No valid annotations found in {seltab_path:s}')
+                annots_times = np.zeros((0, 2))
+                annots_tags = []
+                annots_channels = np.zeros((0, ), dtype=np.uint8)
 
-                    for file in recursive_listing(
-                            os.path.join(audio_root, audio_path),
-                            match_extensions):
-                        ret_path = os.path.join(audio_path, file)
-                        if added_ext is not None:
-                            ret_path = ret_path[:-len(added_ext)]
-                        yield ret_path, np.zeros((0, 2)), [], \
-                              np.zeros((0, ), dtype=np.uint8)
+            if not is_multi_file:
+                # Individual audio file; return everything at once
 
-                else:
-
-                    all_entries_idxs = np.arange(len(files_times_tags))
-                    remaining_entries_mask = np.full((len(files_times_tags),),
-                                                     True)
-
-                    # First process entries corresponding to directory-listed
-                    # files
-                    for uniq_file in recursive_listing(
-                            os.path.join(audio_root, audio_path),
-                            match_extensions):
-                        if added_ext is not None:
-                            uniq_file = uniq_file[:-len(added_ext)]
-
-                        curr_file_items_idxs = np.asarray(
-                            [idx
-                             for idx in all_entries_idxs[remaining_entries_mask]
-                             if files_times_tags[idx][0] == uniq_file])
-
-                        if len(curr_file_items_idxs) > 0:
-                            # Update for next iteration
-                            remaining_entries_mask[curr_file_items_idxs] = False
-
-                            yield os.path.join(audio_path, uniq_file), \
-                                np.asarray([files_times_tags[idx][1]
-                                            for idx in curr_file_items_idxs]), \
-                                [files_times_tags[idx][2]
-                                 for idx in curr_file_items_idxs], \
-                                np.asarray([(files_times_tags[idx][3] - 1)
-                                            for idx in curr_file_items_idxs],
-                                           dtype=np.uint8)
-                        else:
-                            yield os.path.join(audio_path, uniq_file), \
-                                  np.zeros((0, 2)), [], \
-                                  np.zeros((0, ), dtype=np.uint8)
-
-                    # Process all (remaining) entries
-                    for uniq_file in list(set([
-                            ftt[0]
-                            for ftt, v in zip(files_times_tags,
-                                              remaining_entries_mask)
-                            if v])):
-
-                        curr_file_items_idxs = np.asarray(
-                            [idx
-                             for idx in all_entries_idxs[remaining_entries_mask]
-                             if files_times_tags[idx][0] == uniq_file])
-
-                        # Update for next iteration
-                        remaining_entries_mask[curr_file_items_idxs] = False
-
-                        # Check if file even exists on disk
-                        if os.path.exists(
-                                os.path.join(audio_path, uniq_file) +
-                                ('' if added_ext is None else added_ext)):
-
-                            yield os.path.join(audio_path, uniq_file), \
-                                np.asarray([files_times_tags[idx][1]
-                                            for idx in curr_file_items_idxs]), \
-                                [files_times_tags[idx][2]
-                                 for idx in curr_file_items_idxs], \
-                                np.asarray([(files_times_tags[idx][3] - 1)
-                                            for idx in curr_file_items_idxs],
-                                           dtype=np.uint8)
-
-                        else:
-                            logger.error(
-                                'File {} corresponding to {} '.format(
-                                    uniq_file + ('' if added_ext is None
-                                                 else added_ext),
-                                    len(curr_file_items_idxs)
-                                ) + 'annotations could not be found.')
+                if len(annots_times) > 0:
+                    yield audio_path, annots_times, annots_tags, annots_channels
 
             else:
-                # Individual audio file
+                # The selection table file applied to the directory's contents.
+                # Yield each listed audio file individually.
 
-                times_tags = [
-                    (entry[0], entry[1], entry[2], entry[3] or 1)
-                    for entry in SelectionTableReader(full_path(seltab_path),
-                                                      single_file_filespec)
-                    if ((entry[0] is not None) and
-                        (entry[1] is not None) and
-                        (entry[2] is not None))
-                ]
+                all_entries_idxs = np.arange(num_annots)
+                remaining_entries_mask = np.full((num_annots, ), True)
 
-                if len(times_tags) > 0:
-                    yield audio_path, \
-                          np.asarray([[tt[0], tt[1]] for tt in times_tags]), \
-                          [tt[2] for tt in times_tags], \
-                          np.asarray([(tt[3] - 1) for tt in times_tags],
-                                     dtype=np.uint8)
-                else:
-                    logger.warning(
-                        f'No valid annotations found in {seltab_path:s}')
-                    yield audio_path, np.zeros((0, 2)), [], \
-                        np.zeros((0, ), dtype=np.uint8)
+                # First process annotations (if any) corresponding to
+                # directory-listed files
+                for dir_file in recursive_listing(
+                        os.path.join(audio_root, audio_path),
+                        match_extensions):
+                    dir_file_e = dir_file if added_ext is None else \
+                        dir_file[:-len(added_ext)]
+
+                    # Annotations matching dir_file
+                    dir_file_matches_mask = np.full((num_annots,), False)
+                    dir_file_matches_mask[[
+                        idx
+                        for idx in all_entries_idxs[remaining_entries_mask]
+                        if annots_files[idx] == dir_file_e]] = True
+
+                    # Update for next iteration
+                    remaining_entries_mask[dir_file_matches_mask] = False
+
+                    yield os.path.join(audio_path, dir_file_e), \
+                        annots_times[dir_file_matches_mask, :], \
+                        [annots_tags[idx]
+                         for idx in np.where(dir_file_matches_mask)[0]], \
+                        annots_channels[dir_file_matches_mask]
+
+                # Process any remaining entries
+                for uniq_file in list(set([     # get unique files
+                        af
+                        for af, v in zip(annots_files, remaining_entries_mask)
+                        if v])):
+
+                    # Annotations matching uniq_file
+                    uniq_file_matches_mask = np.full((num_annots,), False)
+                    uniq_file_matches_mask[[
+                        idx
+                        for idx in all_entries_idxs[remaining_entries_mask]
+                        if annots_files[idx] == uniq_file]] = True
+
+                    # Update for next iteration
+                    remaining_entries_mask[uniq_file_matches_mask] = False
+
+                    # Check if file even exists on disk
+                    ret_path = os.path.join(audio_path, uniq_file)
+                    if os.path.exists(ret_path + (
+                            '' if added_ext is None else added_ext)):
+
+                        yield ret_path, \
+                            annots_times[uniq_file_matches_mask, :], \
+                            [annots_tags[idx]
+                             for idx in np.where(uniq_file_matches_mask)[0]], \
+                            annots_channels[uniq_file_matches_mask]
+
+                    else:
+                        logger.error(
+                            'File {} corresponding to {} '.format(
+                                ret_path + (
+                                    '' if added_ext is None else added_ext),
+                                np.sum(uniq_file_matches_mask)
+                            ) + 'annotations could not be found.')
 
 
 def get_valid_audio_annot_entries(audio_annot_list_or_csv,
