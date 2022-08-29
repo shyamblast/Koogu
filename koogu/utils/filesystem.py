@@ -101,19 +101,11 @@ class AudioFileList:
             is_multi_file = os.path.isdir(os.path.join(audio_root, audio_path))
 
             # Fetch annotations
-            try:
-                annots_times, annots_tags, annots_channels, annots_files = \
-                    annotation_handler.load(full_path(seltab_path),
-                                            multi_file=is_multi_file)
-            except (IndexError, ValueError) as exc:
-                logger.error(
-                    f'Failed loading {seltab_path} with exception {repr(exc)}' +
-                    '. Check file for invalid/empty entries.')
-                continue
-            except Exception as exc:
-                logger.error(
-                    f'Failed loading {seltab_path}: {repr(exc)}')
-                continue
+            annots_times, annots_tags, annots_channels, annots_files, status = \
+                AudioFileList._safe_fetch_annotations(
+                    full_path(seltab_path), annotation_handler, is_multi_file)
+            if not status:
+                continue        # error message already logged. just skip
 
             num_annots = len(annots_times)
             if num_annots > 0:
@@ -200,6 +192,30 @@ class AudioFileList:
                                 np.sum(uniq_file_matches_mask)
                             ) + 'annotations could not be found.')
 
+    @staticmethod
+    def _safe_fetch_annotations(
+            filepath, annotation_handler, is_multi_file):
+
+        logger = logging.getLogger(__name__)
+
+        status = True
+        annots_times = annots_tags = annots_channels = annots_files = None
+
+        try:
+            annots_times, annots_tags, annots_channels, annots_files = \
+                annotation_handler.load(filepath, multi_file=is_multi_file)
+        except (IndexError, ValueError) as exc:
+            logger.error(
+                f'Failed loading "{filepath}", with exception {repr(exc)}. ' +
+                'Check file for invalid/empty entries.')
+            status = False
+        except Exception as exc:
+            logger.error(
+                f'Failed loading "{filepath}": {repr(exc)}')
+            status = False
+
+        return annots_times, annots_tags, annots_channels, annots_files, status
+
 
 def get_valid_audio_annot_entries(audio_annot_list_or_csv,
                                   audio_root, annot_root,
@@ -220,20 +236,36 @@ def get_valid_audio_annot_entries(audio_annot_list_or_csv,
     if logger is None:
         logger = logging.getLogger(__name__)
 
+    if plus_extn is None:
+        f_type = 'Audio'
+        def lhs_fullname(x): return x
+    else:
+        f_type = 'Raw scores'
+        def lhs_fullname(x): return x + plus_extn
+
+    if annot_root is None:
+        def rhs_fullpath(x): return x
+    else:
+        def rhs_fullpath(x): return os.path.join(annot_root, x)
+
     def validate_lhs(entry):
-        return len(entry) > 0 and (
+        retval = len(entry) > 0 and (
             os.path.isdir(os.path.join(audio_root, entry)) or
-            os.path.exists(os.path.join(
-                audio_root, entry if plus_extn is None else (entry + plus_extn)
-            ))
+            os.path.exists(os.path.join(audio_root, lhs_fullname(entry)))
         )
+        if not retval:
+            logger.error(
+                '{} file path "{}" is either invalid or unreachable'.
+                format(f_type, lhs_fullname(entry)))
+        return retval
 
     def validate_rhs(entry):
-        return len(entry) > 0 and (
-            os.path.isfile(
-                entry if annot_root is None else os.path.join(annot_root, entry)
-            )
-        )
+        retval = len(entry) > 0 and (os.path.isfile(rhs_fullpath(entry)))
+        if not retval:
+            logger.error(
+                'Annotation file path "{}" is either invalid or unreachable'.
+                format(entry))
+        return retval
 
     if isinstance(audio_annot_list_or_csv, (list, tuple)):
         audio_annot_list = audio_annot_list_or_csv
@@ -251,16 +283,10 @@ def get_valid_audio_annot_entries(audio_annot_list_or_csv,
             'Audio file & annotation pairs must either be specified as a list' +
             ' of pairs, or as a path to a csv file')
 
-    valid_entries_mask = [False] * len(audio_annot_list)
-    for e_idx, (lhs, rhs) in enumerate(audio_annot_list):
-        l_v = validate_lhs(lhs)
-        r_v = validate_rhs(rhs)
-        if l_v and r_v:
-            valid_entries_mask[e_idx] = True
-        else:
-            logger.error(
-                f'Validity of elements in entry ({lhs}, {rhs}) are ' +
-                f'({l_v}, {r_v}). Will discard entry.')
+    valid_entries_mask = [
+        (validate_lhs(lhs) and validate_rhs(rhs))
+        for (lhs, rhs) in audio_annot_list
+    ]
 
     # Discard invalid entries, if any
     return [entry

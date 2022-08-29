@@ -3,7 +3,6 @@ import os
 import sys
 import logging
 import json
-import concurrent.futures
 from datetime import datetime
 import argparse
 import csv
@@ -102,23 +101,24 @@ def from_selection_table_map(audio_settings, audio_seltab_list,
     # Discard invalid entries, if any
     v_audio_seltab_list = get_valid_audio_annot_entries(
             audio_seltab_list, audio_root, seltab_root, logger=logger)
+
+    if desired_labels is not None:
+        is_fixed_classes = True
+        classes_list = desired_labels
+    else:       # need to discover list of classes
+        is_fixed_classes = False
+        classes_list, invalid_mask = get_unique_labels_from_annotations(
+            seltab_root, [e[-1] for e in v_audio_seltab_list],
+            annotation_handler, num_threads=kwargs.get('num_threads', None))
+
+        if any(invalid_mask):   # remove any broken audio_seltab_list entries
+            v_audio_seltab_list = [
+                e for (e, iv) in zip(v_audio_seltab_list, invalid_mask)
+                if not iv]
+
     if len(v_audio_seltab_list) == 0:
         print('Nothing to process')
         return {}
-
-    classes_n_counts = annot_classes_and_counts(
-        seltab_root,
-        [e[-1] for e in v_audio_seltab_list],
-        annotation_handler,
-        **({'num_threads': kwargs['num_threads']} if 'num_threads' in kwargs
-           else {})
-    )
-
-    logger.info('  {:<55s} - {:>5s}'.format('Class', 'Annotations'))
-    logger.info('  {:<55s}   {:>5s}'.format('-----', '-----------'))
-    for class_name in sorted(classes_n_counts.keys()):
-        logger.info('  {:<55s} - {:>5d}'.format(class_name,
-                                                classes_n_counts[class_name]))
 
     ig_kwargs = {}      # Undocumented settings
     if negative_class_label is not None:
@@ -134,11 +134,10 @@ def from_selection_table_map(audio_settings, audio_seltab_list,
 
     # ---------- 2. LabelHelper ------------------------------------------------
     label_helper = LabelHelper(
-        desired_labels if desired_labels else [
-            lbl for lbl in classes_n_counts.keys()],
+        classes_list,
         remap_labels_dict=remap_labels_dict,
         negative_class_label=negative_class_label,
-        fixed_labels=(desired_labels is not None),
+        fixed_labels=is_fixed_classes,
         assessment_mode=False)
 
     # ---------- 3. Data aggregator --------------------------------------------
@@ -387,64 +386,55 @@ def _single_threaded_single_file_preprocess(
     return retval
 
 
-def annot_classes_and_counts(seltab_root, annot_files, annotation_handler,
-                             **kwargs):
+def get_unique_labels_from_annotations(
+        seltab_root, annot_files, annotation_handler,
+        num_threads=None, show_counts=False):
     """
-    Query the list of annot_files to determine the unique labels present and
-    their respective counts.
-    Returns a dictionary mapping unique labels to respective counts.
+    Query the list of annot_files to determine the unique labels present.
+    If `show_counts` is set to True, their respective counts will be printed.
+    Returns:
+        - a list of discovered unique labels
+        - a mask of invalid entries in `annot_files`
     """
-
-    logger = logging.getLogger(__name__)
-    num_workers = kwargs['num_threads'] if 'num_threads' in kwargs else \
-        max(1, os.cpu_count() - 1)
-
-    # Discard invalid entries, if any
-    valid_entries_mask = [
-        os.path.isfile(
-            af if seltab_root is None else os.path.join(seltab_root, af))
-        for af in annot_files
-    ]
 
     if seltab_root is None:
-        def full_path(x): return x
+        fp_to_af = {af: af
+                    for af in annot_files}
     else:
-        def full_path(x): return os.path.join(seltab_root, x)
+        fp_to_af = {os.path.join(seltab_root, af): af
+                    for af in annot_files}
 
-    futures_dict = dict()
-    retval = dict()
-    with concurrent.futures.ProcessPoolExecutor(max_workers=num_workers) as \
-            executor:
-        for is_valid, annot_file in zip(valid_entries_mask, annot_files):
-            if not is_valid:
-                logger.error('File {:s} not found. Skipping entry...'.format(
-                    annot_file))
-            else:
-                futures_dict[executor.submit(
-                    annotation_handler.load,
-                    full_path(annot_file))] = annot_file
+    classes_n_counts = {}
+    invalid_entries_map = {af: True
+                           for af in annot_files}
 
-        if len(futures_dict) == 0:
-            logger.error('Nothing to process')
-            return {}
+    for pr_fp, (_, tags, _, _, status) in processed_items_generator_mp(
+            num_threads or max(1, (os.cpu_count() or 1) - 1),
+            AudioFileList._safe_fetch_annotations,
+            (fp for fp in fp_to_af.keys()),
+            annotation_handler, False):
 
-        for future in concurrent.futures.as_completed(futures_dict):
-            try:
-                _, all_tags, _, _ = future.result()
-            except Exception as ho_exc:
-                logger.error(
-                    'Reading file {:s} generated an exception: {:s}'.format(
-                        repr(futures_dict[future]), repr(ho_exc)))
-            else:
-                uniq_labels, label_counts = np.unique(all_tags,
-                                                      return_counts=True)
-                for ul, lc in zip(uniq_labels, label_counts):
-                    if ul in retval:
-                        retval[ul] += lc
-                    else:
-                        retval[ul] = int(lc)
+        if status:
+            uniq_labels, label_counts = np.unique(tags, return_counts=True)
+            for ul, lc in zip(uniq_labels, label_counts):
+                if ul in classes_n_counts:
+                    classes_n_counts[ul] += lc
+                else:
+                    classes_n_counts[ul] = int(lc)
 
-    return retval
+            invalid_entries_map[fp_to_af[pr_fp]] = False
+
+    uniq_classes = sorted(classes_n_counts.keys())
+    if show_counts:
+        print('  {:<55s} - {:>5s}'.format('Class', 'Annotations'))
+        print('  {:<55s}   {:>5s}'.format('-----', '-----------'))
+        for class_name in uniq_classes:
+            print('  {:<55s} - {:>5d}'.format(class_name,
+                                              classes_n_counts[class_name]))
+
+    return \
+        uniq_classes, \
+        [invalid_entries_map[af] for af in annot_files]
 
 
 class GroundTruthDataAggregator:
