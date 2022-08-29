@@ -2,9 +2,10 @@
 import numpy as np
 from scipy.signal import butter, sosfiltfilt, spectrogram, lfilter
 from scipy.signal.windows import hann
-import librosa
+import soundfile as sf
+import audioread
+import resampy
 import logging
-from koogu.utils.detections import assess_annotations_and_clips_match
 
 
 class Settings:
@@ -80,95 +81,195 @@ class Settings:
 class Audio:
 
     @staticmethod
-    def load(in_filepath, desired_fs,
-             downmix_channels=False, offset=0.0, duration=None, dtype=np.float32):
+    def load(filepath, desired_fs=None,
+             offset=0.0, duration=None, channels=None, dtype=np.float32,
+             resample_type=None):
+        """
+        Load an audio from a file on disk using librosa's logic, which includes
+            - reading the file using `SoundFile` first, and falling back to
+              using `audioread` if the former failed;
+            - resampling (if requested) using the `resampy` and adjusting the
+              array-length of the resampled data.
+        Intended to be somewhat of a drop-in replacement for librosa.load().
+        My addition includes handling of channels - can choose which channels to
+        load and process. Also, the returned data is always 2d.
+        """
 
-        # Load audio from file
-        data, fs = librosa.load(in_filepath, sr=desired_fs, mono=downmix_channels, offset=offset, duration=duration)
+        try:
+            # First, attempt with SoundFile
+            data, file_fs = Audio.__soundfile_load(
+                filepath, offset, duration, channels, dtype)
 
-        assert fs == desired_fs, "load_audio_from_file() got {:f} Hz, expected {:f} Hz".format(fs, desired_fs)
+        except RuntimeError:
+            # SoundFile failed. Attempt loading with audioread now
+            logging.getLogger(__name__).warning(
+                f'SoundFile failed on {filepath}. Trying audioread instead...')
+            data, file_fs = Audio.__audioread_load(
+                filepath, offset, duration, channels, dtype)
 
-        return data.astype(dtype), fs
+        # Resample if and as requested
+        if desired_fs is not None and desired_fs != file_fs:
+            target_num_samples = int(
+                np.ceil(data.shape[-1] * (float(desired_fs) / file_fs)))
+
+            data = resampy.resample(data, file_fs, desired_fs,
+                                    filter=resample_type or 'kaiser_best',
+                                    axis=-1)
+
+            # fix length
+            if target_num_samples < data.shape[-1]:     # is longer?
+                data = data[:, :target_num_samples]     # crop!
+            elif target_num_samples > data.shape[-1]:   # is shorter?
+                data = np.pad(                          # pad zeros!
+                    data,
+                    [[0, 0], [0, target_num_samples - data.shape[-1]]],
+                    'constant')
+
+        return data, (desired_fs or file_fs)
 
     @staticmethod
-    def get_file_clips(settings, filepath, downmix_channels=False, chosen_channels=None,
-                       offset=0.0, duration=None,
-                       return_clip_indices=False, outtype=np.float32):
+    def get_info(filepath):
         """
-        Loads an audio file from disk, applies filtering (if set up) and then chunks the data stream into clips.
+        Query an audio file's sampling rate, duration, and num channels.
+        """
 
-        :param settings: An instance of Settings.Audio
-        :param filepath:
-        :param downmix_channels: If True, multi-channel audio files will be downmixed to result in a single channel. If
-            set to True, 'chosen_channels' will have no effect.
-        :param chosen_channels: A list of 0-based channel indices (or a single index. Only the specified channels will
-            be processed and corresponding clips returned. If None, all available channels will be processed. Has no
-            effect when 'downmix_channels' is True.
-        :param offset: start reading after this time (in seconds)
-        :param duration: only load up to this much audio (in seconds)
-        :param return_clip_indices:
-        :param outtype:
-        :return:
-            If downmix_channels is True or if the audio file itself has only one channel, the returned clips container
-            (a numpy array) will be of shape [num clips, clip length]. Otherwise, it will be of shape
-            [num channels, num clips, clip length].
-            If return_clip_indices is True, the starting sample indices of each clip will also be returned. This will
-            be a 1-dimensional array regardless of how many channels are processed.
+        # Try SoundFile first. Fall back to audioread only if there was a
+        # runtime error. Will puke if any other type of error occurs.
+        try:
+            ainfo = sf.info(filepath)
+            return ainfo.samplerate, ainfo.duration, ainfo.channels
+        except RuntimeError:
+            with audioread.audio_open(filepath) as fd:
+                return fd.samplerate, fd.duration, fd.channels
+
+    @staticmethod
+    def get_file_clips(filepath, settings, channels=None,
+                       offset=0.0, duration=None,
+                       dtype=np.float32,
+                       labels_accumulator=None,
+                       **kwargs):
         """
+        Loads an audio file from disk, applies filtering (if set up) and then
+        chunks the data stream into clips.
+
+        :param filepath: Path to the audio file to read.
+        :param settings: An instance of Settings.Audio.
+        :param channels: If None (default), all available channels will be
+          processed. Otherwise, must be a list of 0-based channel indices (or
+          a single index) and only the specified channels (if available) will be
+          processed. Any specified channel(s) missing in the audio file will be
+          ignored.
+        :param offset: If not None, will start reading the file's contents from
+          this point in time (in seconds) and forward.
+        :param duration: If not None, only loads audio corresponding to the
+          specified value (in seconds).
+        :param dtype: Output type (default: float32).
+        :param labels_accumulator: If not None, must be an instance of inherited
+          class of :class:`koogu.data.preprocess.GroundTruthDataAggregator`
+          which accumulates labels (or ground truth info), and writes it out to
+          disk storage along with clips and other info.
+        :return:
+          If ``labels_accumulator`` is specified, the return value of
+          :func:`serialize()` will be forwarded as is. Otherwise, the returned
+          value will be a tuple containing -
+            - A list (length = num channels) of numpy arrays each having shape
+              [num clips, clip length] of extracted clips in the respective
+              channels;
+            - A 1d array containing the starting sample indices of each clip;
+            - Loaded file's duration;
+            - A 1d array of indices to the channels that were successfully
+              loaded (matches the order of channels in the clips container).
+            When any error occurs, the second item in the tuple will be None.
+        """
+
+        ret_clips = None
+
+        _, file_dur, n_channels = Audio.get_info(filepath)
+
+        loggr = logging.getLogger(__name__)
+
+        # Are any of requested channel(s) available?
+        if channels is not None:    # there was an explicit request
+            valid_channels = Audio.__validate_channels(
+                n_channels, channels, ignore_missing=True, filepath=filepath)
+            # Above function logs out a warning about missing channels already
+            n_channels = len(valid_channels)
+
+            if n_channels == 0:
+                loggr.warning(f'None of requested channels found in {filepath}')
+                ret_clips = []
+        else:
+            valid_channels = np.arange(n_channels)
+
+        # Is file too long or too short
+        within_extents = (
+            (settings.clip_length / settings.fs) <= file_dur <=
+            kwargs.get('max_file_duration', np.inf))
+        if not within_extents:
+            loggr.warning(f'{filepath}: duration = {file_dur} s. Ignoring.')
+
+            ret_clips = n_channels * [
+                np.zeros((0, settings.clip_length), dtype=dtype)]
+
+        if ret_clips is not None:
+            # At least one failure. Return immediately
+            if labels_accumulator is not None:
+                return labels_accumulator.serialize()
+            else:
+                return ret_clips, None, file_dur, valid_channels
 
         # Fetch data from disk
         data, _ = Audio.load(filepath, settings.fs,
-                             downmix_channels=downmix_channels, offset=offset, duration=duration)
+                             offset=offset, duration=duration, dtype=dtype,
+                             channels=valid_channels)
 
-        # Presently, librosa doesn't provide an interface to query the number of channels without loading the file.
-        # So the checks for validity of chosen_channels is deferred until after the file is loaded.
+        ret_clips = [None] * n_channels
+        clip_start_samples = None   # placeholder
+        for ch_idx in range(n_channels):
 
-        def to_clips(x):    # local helper function: apply filter and convert to clips
-            return Audio.buffer_to_clips(
-                (sosfiltfilt(settings.filter_sos, x) if settings.filter_sos is not None else x).astype(outtype),
-                settings.clip_length, settings.clip_advance,
-                normalize_clips=settings.normalize_clips,
-                consider_trailing_clip=settings.consider_trailing_clip,
-                return_clip_indices=return_clip_indices)
+            if settings.filter_sos is not None:
+                data[ch_idx, :] = sosfiltfilt(settings.filter_sos, data[ch_idx])
 
-        if downmix_channels or len(data.shape) == 1:        # Single channel
-            if chosen_channels is not None:
-                logging.getLogger(__name__).warning('parameter \'chosen_channels\' will be ignored')
+            clips, clip_start_samples = \
+                Audio.buffer_to_clips(
+                    data[ch_idx].astype(dtype),
+                    settings.clip_length, settings.clip_advance,
+                    consider_trailing_clip=settings.consider_trailing_clip)
 
-            if return_clip_indices:
-                clips, clip_start_samples = to_clips(data)
-                return clips, (None if clip_start_samples is None
-                               else (clip_start_samples + int(np.floor(offset * settings.fs))))
+            # clips returned above are not normalized. If invoked from
+            # data.preprocess normalization will be applied later when
+            # labels_accumulator serializes accrued data. Otherwise (invoked
+            # from inference.recognize), normalize right away.
+
+            # Accumulate the per-channel elements
+            if labels_accumulator is not None:
+                labels_accumulator.accrue(
+                    ch_idx,
+                    clips,
+                    clip_start_samples + int(np.round(offset * settings.fs)),
+                    data[ch_idx])
             else:
-                return to_clips(data)
+                ret_clips[ch_idx] = clips if not settings.normalize_clips else \
+                    Audio.normalize(clips)
 
-        else:   # Multiple channels
-            process_channels = np.arange(data.shape[0]) if chosen_channels is None \
-                else np.asarray(chosen_channels if hasattr(chosen_channels, '__len__') else [chosen_channels])
-
-            if any([ch not in range(data.shape[0]) for ch in process_channels]):
-                raise ValueError('One or more of chosen channels ({}) not available in audio file {:s}'.format(
-                    chosen_channels, repr(filepath)))
-
-            if return_clip_indices:     # Need to handle collecting two return values from buffer_to_clips()
-                channels_clips = [None] * len(process_channels)
-                for ch_idx, ch in enumerate(process_channels):
-                    channels_clips[ch_idx], clip_start_samples = to_clips(data[ch])
-
-                return np.stack(channels_clips), (clip_start_samples + int(np.floor(offset * settings.fs)))
-            else:
-                return np.stack([to_clips(data[ch]) for ch in process_channels])
+        if labels_accumulator is not None:
+            return labels_accumulator.serialize(
+                normalize_clips=settings.normalize_clips)
+        else:
+            return (
+                ret_clips,
+                clip_start_samples + int(np.round(offset * settings.fs)),
+                file_dur,
+                valid_channels)
 
     @staticmethod
     def buffer_to_clips(data, clip_len, clip_advance,
-                        normalize_clips=True,
-                        consider_trailing_clip=False,
-                        return_clip_indices=False):
+                        consider_trailing_clip=False):
 
         # If there aren't enough samples, nothing to do
         if data.shape[-1] < clip_len:
             retval = np.zeros((0, clip_len), dtype=data.dtype)
-            return (retval, None) if return_clip_indices else retval
+            return retval, None
 
         clip_overlap = clip_len - clip_advance  # derived value
 
@@ -195,14 +296,146 @@ class Audio:
             sliced_data = np.lib.stride_tricks.as_strided(data, shape=shape, strides=strides, writeable=False)
             clip_start_samples = np.arange(0, len(data) - clip_len + 1, clip_advance, dtype=np.int)
 
-        # Normalize each clip, if not disabled
-        if normalize_clips:
-            # Remove DC
-            sliced_data = sliced_data - sliced_data.mean(axis=1, keepdims=True)
-            # Bring to range [-1.0, 1.0]
-            sliced_data = sliced_data / np.maximum(np.abs(sliced_data).max(axis=1, keepdims=True), 1e-24)
+        return sliced_data, clip_start_samples
 
-        return (sliced_data, clip_start_samples) if return_clip_indices else sliced_data
+    @staticmethod
+    def normalize(clips):
+        # Remove DC
+        clips = clips - clips.mean(axis=1, keepdims=True)
+
+        # Bring to range [-1.0, 1.0]
+        clips = clips / np.maximum(
+            np.abs(clips).max(axis=1, keepdims=True), 1e-24)
+        # considering a small quantity to avoid divide-by-zero
+
+        return clips
+
+    @staticmethod
+    def __soundfile_load(filepath,
+                         offset=None, duration=None, channels=None,
+                         dtype=np.float32):
+
+        with sf.SoundFile(filepath) as fd:
+
+            fs = fd.samplerate
+            n_channels = fd.channels
+
+            num_samps = -1 if duration is None else int(np.round(duration * fs))
+
+            if offset:  # Seek to the requested start sample
+                fd.seek(int(np.round(offset * fs)))
+
+            # Load required number of samples
+            data = fd.read(frames=num_samps, dtype=dtype, always_2d=True)
+
+        # keep only the requested channels
+        if channels is not None:
+            req_chs = Audio.__validate_channels(n_channels, channels,
+                                                filepath=filepath)
+            data = data[:, req_chs]
+
+        # transpose to make 'channels' the first dimension
+        return data.T, fs
+
+    @staticmethod
+    def __audioread_load(filepath,
+                         offset=None, duration=None, channels=None,
+                         dtype=np.float32):
+
+        with audioread.audio_open(filepath) as fd:
+            fs = fd.samplerate
+
+            s_start = int(np.round((offset or 0) * fs))
+            s_end = int(np.round(fs * fd.duration)) if duration is None else \
+                (s_start + (int(np.round(fs * duration))))
+
+            # Gather samples
+            data = np.concatenate([
+                    pcm_buf
+                    for pcm_buf in Audio.__audioread_samp_gen(
+                        fd, s_start, s_end, channels, filepath)
+                ], axis=-1)
+
+        return Convert.pcm2float(data, dtype), fs
+
+    @staticmethod
+    def __audioread_samp_gen(fh, s_start, s_end, channels, filepath):
+        # audioread produces int16 samples
+        n_bytes = 2
+        fmt_str = '<i2'
+
+        n_channels = fh.channels
+        samp_bytes = n_bytes * n_channels
+
+        if channels is not None:
+            req_channels = Audio.__validate_channels(
+                n_channels, channels, filepath=filepath)
+            out_n_channels = len(req_channels)
+
+            def pull_chs(arr_2d):
+                return arr_2d[:, req_channels]
+        else:
+            out_n_channels = n_channels
+
+            def pull_chs(arr_2d):
+                return arr_2d
+
+        buf_end = 0   # a running pointer to 'end' of buffer
+        empty_retval = True
+        for buf in fh:
+            buf_start = buf_end
+            buf_end += int(len(buf) / samp_bytes)
+
+            if buf_end < s_start:
+                continue
+            if buf_start > s_end:
+                break
+
+            ret_samps = np.frombuffer(
+                buf[max(0, (s_start - buf_start) * samp_bytes):
+                    ((s_end - buf_start) * samp_bytes)],
+                fmt_str)
+
+            # transpose to make 'channels' the first dimension
+            yield pull_chs(ret_samps.reshape((-1, n_channels))).T
+
+            empty_retval = False    # at least one piece was returned
+
+        if empty_retval:
+            yield np.zeros((out_n_channels, 0), dtype=np.int16)
+
+    @staticmethod
+    def __validate_channels(num_available, requested_idxs,
+                            ignore_missing=False,
+                            filepath=None):
+        """
+        If ignore_missing is True, will return array of valid channels.
+          Otherwise, will raise ValueError.
+        filepath if not None, will be included in the raised error message.
+
+        If no errors, will return an array of valid channel indices.
+        """
+
+        # force (retval) to be a 1d array
+        req_chs = np.array(requested_idxs, ndmin=1, copy=False)
+
+        valid_mask = req_chs < num_available
+        if np.all(valid_mask):
+            # All requested channel(s) do exist in file
+            return req_chs
+
+        msg = 'Channel(s) ({}) '.format(req_chs[np.logical_not(valid_mask)]) + \
+            'unavailable' + (
+                  '.' if filepath is None else f' in audio file "{filepath}".')
+
+        if ignore_missing:
+            logging.getLogger(__name__).warning(msg)
+
+            # return array containing only valid channels
+            return req_chs[valid_mask]
+
+        # Puke
+        raise ValueError(msg)
 
 
 class Convert:
@@ -224,7 +457,9 @@ class Convert:
 
     @staticmethod
     def pcm2float(data, dtype=np.float32):
-        """Convert PCM data from integer to float values in the rance [-1.0, 1.0)."""
+        """
+        Convert PCM data from integer to float values in the range [-1.0, 1.0).
+        """
 
         assert dtype in [np.float32, np.float64]
 
@@ -242,7 +477,7 @@ class Convert:
         Convert time domain data to time-frequency domain.
         :param data: Either a 1-d or 2-d array. If 2-d, the first dimension is the batch dimension.
         :param fs: Sampling rate of the time-domain data.
-        :param spec_settings: The container returned by data.process_spec_settings().
+        :param spec_settings: The container returned by Settings.Spectral().
         :param eps: If not None, will override the eps value contained in spec_settings.
         :param return_f_axis: Include frequency axis values in the returned value.
         :param return_t_axis: Include frequency axis values in the returned value.
@@ -454,264 +689,3 @@ class Filters:
         filter_sos = butter(filter_order, wn, btype=filter_type_str, output='sos')
 
         return filter_sos
-
-
-class Process:
-    """Abstract class providing algorithmic operations, combining some of the lower-level functionalities provided by
-    the sibling classes Audio and Convert."""
-
-    @staticmethod
-    def audio2clips(audio_settings, src_file, dst_file,
-                    num_classes, annots_times, annots_class_idxs, annots_channels,
-                    min_annot_overlap_fraction=1.0,
-                    negative_class_idx=None, max_nonmatch_overlap_fraction=0.0,
-                    keep_only_centralized_selections=False,
-                    attempt_salvage=False):
-        """
-        Apply pre-processing (resampling and filtering, as defined) to contents of an audio file, break up the resulting
-        time-domain data into fixed-length clips and write the clips to disk.
-        :param audio_settings: An instance of Settings.Audio.
-        :param src_file: Path to the source audio file.
-        :param dst_file: Path to the target '.npz' file.
-        :param num_classes: Number of classes in the target dataset. Used to create "one-hot" style ground-truth arrays
-            for each clip produced.
-        :param annots_times: If not None, must be a numpy array (shape Nx2) of start-end pairs defining annotations'
-            temporal extents within the source file. If None, then 'annot_class_idxs' must be a single index, and all
-            clips generated from the 'src_file' will be associated with the class corresponding to the single index.
-        :param annots_class_idxs: When 'annots_times' is not None, this must be an N-length list of zero-based indices
-            to the class corresponding to each annotation. When 'annot_times' is None, this must be a single idx value.
-        :param annots_channels: When 'annots_times' is not None, this must be an N-length list of zero-based indices
-            to the channels corresponding to each annotation. When 'annot_times' is None, this parameter is ignored.
-        :param min_annot_overlap_fraction: Lower threshold on how much overlap a
-            clip must have with an annotation.
-        :param negative_class_idx: If not None, clips that do not have enough overlap with any annotation will be saved
-            as clips of the non-target class whose index this parameter specifies.
-        :param max_nonmatch_overlap_fraction: A clip without enough overlap with
-            any annotations will be saved (as a negative class clip) only if its
-            overlap with all annotations is less than this amount. This
-            parameter is only used if negative_class_idx is not None.
-        :param keep_only_centralized_selections: (Optional) For very short annotations, consider only those overlapping
-            clips that have the annotation occurring within the central 50% extents of the clip.
-        :param attempt_salvage: (Optional) When enabled, if an annotation didn't have any matching clip due to the
-            automatic way of producing clips, attempt will be made to salvage a match by "forming" clips by expanding
-            outwards from the mid-epoch of the annotation.
-
-        :return: A 2-tuple. First value is the number of clips written. Second value is a list of the number of clips
-            written per class.
-        """
-
-        if annots_times is not None:
-            assert annots_times.shape[0] == len(annots_class_idxs)
-            assert annots_times.shape[0] == len(annots_channels)
-            assert (0.0 < min_annot_overlap_fraction <= 1.0)
-            assert negative_class_idx is None or \
-                   (0.0 <= max_nonmatch_overlap_fraction <
-                    min_annot_overlap_fraction)
-        else:
-            assert (not hasattr(annots_class_idxs, '__len__'))
-
-        # Fetch data from disk
-        data, _ = Audio.load(src_file, audio_settings.fs)
-
-        # Add channel axis if it doesn't exist
-        data = np.expand_dims(data, axis=0)
-
-        all_clips = []
-        all_clips_offsets = []
-        all_clips_channels = []
-        all_ground_truth = []
-        unmatched_annots_mask = None if annots_times is None \
-            else np.full((len(annots_class_idxs), ), False, dtype=np.bool)
-        for ch_idx, ch_data in enumerate(data):
-
-            # Apply filter
-            if audio_settings.filter_sos is not None:
-                ch_data = sosfiltfilt(audio_settings.filter_sos, ch_data).astype(np.float32)
-
-            # Break up into clips
-            clips, clip_offsets = Audio.buffer_to_clips(
-                ch_data, audio_settings.clip_length, audio_settings.clip_advance,
-                normalize_clips=audio_settings.normalize_clips,
-                consider_trailing_clip=audio_settings.consider_trailing_clip,
-                return_clip_indices=True)
-
-            num_clips, num_samps = clips.shape
-
-            if annots_times is not None:
-                # Annotation extents are available, only need to save relevant clips.
-
-                curr_ch_annots_mask = (annots_channels == ch_idx)
-                curr_ch_annots_class_idxs = annots_class_idxs[curr_ch_annots_mask]
-
-                curr_ch_annots_offsets = np.round(
-                    annots_times[curr_ch_annots_mask, :] * audio_settings.fs
-                ).astype(clip_offsets.dtype)
-
-                ch_clip_class_coverage, ch_matched_annots_mask = \
-                    assess_annotations_and_clips_match(
-                        clip_offsets, num_samps, num_classes,
-                        curr_ch_annots_offsets, curr_ch_annots_class_idxs,
-                        min_annot_overlap_fraction,
-                        keep_only_centralized_selections,
-                        negative_class_idx, max_nonmatch_overlap_fraction)
-
-                # Clips having satisfactory coverage with at least one annot
-                keep_clips_mask = np.any(
-                    ch_clip_class_coverage >= min_annot_overlap_fraction,
-                    axis=1)
-                # Add clips and info to collection
-                if np.any(keep_clips_mask):
-                    all_clips.append(clips[keep_clips_mask, :])
-                    all_clips_offsets.append(clip_offsets[keep_clips_mask])
-                    all_ground_truth.append(
-                        ch_clip_class_coverage[keep_clips_mask, :].astype(
-                            np.float16))
-                    all_clips_channels.append(
-                        np.full((keep_clips_mask.sum(), ), ch_idx,
-                                dtype=np.uint8))
-
-                # If requested, attempt to salvage any unmatched annotations
-                for_salvage_annot_idxs = np.where(
-                    np.logical_not(ch_matched_annots_mask))[0]
-
-                if attempt_salvage and len(for_salvage_annot_idxs) > 0:
-
-                    salvaged_clips, salvaged_clip_offsets = \
-                        Process._salvage_clips(
-                            ch_data, audio_settings, num_samps,
-                            curr_ch_annots_offsets[for_salvage_annot_idxs, :])
-
-                    if salvaged_clips.shape[0] > 0:
-                        salvaged_clip_class_coverage, s_matched_annots_mask = \
-                            assess_annotations_and_clips_match(
-                                salvaged_clip_offsets, num_samps, num_classes,
-                                curr_ch_annots_offsets,
-                                curr_ch_annots_class_idxs,
-                                min_annot_overlap_fraction,
-                                keep_only_centralized_selections, None)
-
-                        # Clips having satisfactory coverage with >= 1 annot
-                        keep_clips_mask = np.any(
-                            salvaged_clip_class_coverage >=
-                            min_annot_overlap_fraction, axis=1)
-                        # Add clips and info to collection
-                        if np.any(keep_clips_mask):
-                            all_clips.append(salvaged_clips[keep_clips_mask, :])
-                            all_clips_offsets.append(
-                                salvaged_clip_offsets[keep_clips_mask])
-                            all_ground_truth.append(
-                                salvaged_clip_class_coverage[
-                                    keep_clips_mask, :].astype(np.float16))
-                            all_clips_channels.append(
-                                np.full((keep_clips_mask.sum(), ), ch_idx,
-                                        dtype=np.uint8))
-
-                        # Update curr channel annots mask
-                        ch_matched_annots_mask[for_salvage_annot_idxs] = \
-                            s_matched_annots_mask[for_salvage_annot_idxs]
-
-                # Update overall mask
-                unmatched_annots_mask[
-                    np.where(curr_ch_annots_mask)[0][
-                        np.logical_not(ch_matched_annots_mask)]] = True
-
-            else:
-                curr_ground_truth = np.zeros((num_clips, num_classes), dtype=np.float16)
-                # Mark every clip as belonging to the single specified class
-                curr_ground_truth[:, annots_class_idxs] = 1.0
-
-                all_clips.append(clips)
-                all_clips_offsets.append(clip_offsets)
-                all_ground_truth.append(curr_ground_truth)
-                all_clips_channels.append(np.full((clips.shape[0], ), ch_idx, dtype=np.uint8))
-
-        # Offer a warning about unmatched annotations, if any
-        if unmatched_annots_mask is not None and np.any(unmatched_annots_mask):
-            logging.getLogger(__name__).warning('{:s}: {:d} annotations unmatched [{:s}]'.format(
-                src_file, sum(unmatched_annots_mask),
-                ', '.join([
-                    '{:f} - {:f} (ch-{:d})'.format(
-                        annots_times[annot_idx, 0], annots_times[annot_idx, 1], annots_channels[annot_idx] + 1)
-                    for annot_idx in np.where(unmatched_annots_mask)[0]
-                ])))
-
-        if len(all_clips) > 0:
-            all_ground_truth = Process._adjust_clip_annot_coverage(
-                np.concatenate(all_ground_truth),
-                min_annot_overlap_fraction)
-
-            # Save the clips & infos
-            np.savez_compressed(
-                dst_file,
-                fs=audio_settings.fs,
-                labels=all_ground_truth,
-                channels=np.concatenate(all_clips_channels),
-                clip_offsets=np.concatenate(all_clips_offsets),
-                clips=Convert.float2pcm(    # Convert to 16-bit PCM
-                    np.concatenate(all_clips), dtype=np.int16))
-
-            return \
-                all_ground_truth.shape[0], \
-                np.sum(all_ground_truth == 1.0, axis=0)
-        else:
-            return 0, np.zeros((num_classes, ), dtype=np.int)
-
-    @staticmethod
-    def _salvage_clips(data, audio_settings, clip_len,
-                       unmatched_annots_offsets):
-        """Internal function used by Process.audio2clips()"""
-
-        salvaged_clips = []
-        salvaged_clip_offsets = []
-        half_len = clip_len // 2
-
-        # Gather clips corresponding to all yet-unmatched annots
-        for annot_idx in range(unmatched_annots_offsets.shape[0]):
-            annot_num_samps = (unmatched_annots_offsets[annot_idx, 1] -
-                               unmatched_annots_offsets[annot_idx, 0]) + 1
-
-            if annot_num_samps < clip_len:
-                # If annotation is shorter than clip size, then we need to
-                # center the annotation within a clip
-                annot_start_samp = unmatched_annots_offsets[annot_idx, 0] + \
-                                   (annot_num_samps // 2) - half_len
-                annot_end_samp = annot_start_samp + clip_len - 1
-            else:
-                # otherwise, take full annotation extents
-                annot_start_samp, annot_end_samp = \
-                    unmatched_annots_offsets[annot_idx, :]
-
-            short_clips, short_clip_offsets = Audio.buffer_to_clips(
-                data[max(0, annot_start_samp):min(annot_end_samp + 1,
-                                                  len(data))],
-                audio_settings.clip_length, audio_settings.clip_advance,
-                normalize_clips=audio_settings.normalize_clips,
-                consider_trailing_clip=audio_settings.consider_trailing_clip,
-                return_clip_indices=True)
-
-            if short_clips.shape[0] > 0:
-                salvaged_clips.append(short_clips)
-                salvaged_clip_offsets.append(short_clip_offsets +
-                                             annot_start_samp)
-
-        if len(salvaged_clips) > 0:
-            return np.concatenate(salvaged_clips, axis=0), \
-                np.concatenate(salvaged_clip_offsets, axis=0)
-
-        else:
-            # Nothing could be salvaged, return empty containers
-            return np.zeros((0, clip_len), dtype=data.dtype), \
-                np.zeros((0,), dtype=np.int)
-
-    @staticmethod
-    def _adjust_clip_annot_coverage(coverage, upper_thld, lower_thld_frac=1/3):
-        # Adjust "coverage":
-        #  force values >= upper_thld to 1.0
-        #  retain remaining values >= (lower_thld_frac * upper_thld) as is
-        #  force all other small values to 0.0
-        return np.select(
-            [coverage >= upper_thld,
-             coverage >= upper_thld * lower_thld_frac],
-            [1.0, coverage],
-            default=0.0
-        )

@@ -13,7 +13,7 @@ copyright = '2022, Shyam Madhusudhana'
 author = 'Shyam Madhusudhana'
 
 # The first 2 components of software version
-version = '0.6.5'
+version = '0.7.0'
 # The full version, including alpha/beta/rc tags
 release = ''
 
@@ -174,7 +174,9 @@ autodoc_member_order = 'groupwise'
 autodoc_mock_imports = [
     #'numpy',
     'scipy',
-    'librosa',
+    'soundfile',
+    'audioread',
+    'resampy',
     'tensorflow',
 ]
 

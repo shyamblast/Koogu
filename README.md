@@ -26,10 +26,8 @@ pip install koogu
 #### TensorFlow
 `koogu` uses [`TensorFlow`](https://www.tensorflow.org/) as backend ML framework. Please ensure that either a
 CPU or a GPU version of `TensorFlow` is installed prior to installing `koogu`.
-#### librosa
-`koogu` uses `librosa` for reading audio files (only). Please refer to [its
-GitHub page](https://github.com/librosa/librosa) for details about its
-dependencies and how to they may be addressed.
+#### SoundFile, audioread, resampy
+`koogu` uses these packages for handling audio files. These dependencies will be automatically installed when installing `koogu`.
 #### Others
 Besides `TensorFlow`, all other dependencies will be automatically installed.
 

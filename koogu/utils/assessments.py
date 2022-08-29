@@ -6,6 +6,7 @@ import logging
 import warnings
 
 from koogu.data import FilenameExtensions, AssetsExtraNames
+from koogu.utils import annotations
 from koogu.utils.detections import assess_annotations_and_clips_match, \
     assess_annotations_and_detections_match, postprocess_detections, \
     nonmax_suppress_mask, LabelHelper
@@ -17,19 +18,19 @@ class BaseMetric(metaclass=abc.ABCMeta):
     Base class for implementing performance assessment logic.
 
     :param audio_annot_list: A list containing pairs (tuples or sub-lists) of
-        relative paths to audio files and the corresponding annotation
-        (selection table) files. Alternatively, you could also specify (path to)
-        a 2-column csv file containing these pairs of entries (in the same
-        order). Only use the csv option if the paths are simple (i.e., the
-        filenames do not contain commas or other special characters).
+        relative paths to audio files and the corresponding annotation files.
+        Alternatively, you could also specify (path to) a 2-column csv file
+        containing these pairs of entries (in the same order). Only use the csv
+        option if the paths are simple (i.e., the filenames do not contain
+        commas or other special characters).
     :param raw_results_root: The full paths of the raw result container files
         whose filenames will be derived from the audio files listed in
         ``audio_annot_list`` will be resolved using this as base directory.
     :param annots_root: The full paths of annotations files listed in
         ``audio_annot_list`` will be resolved using this as base directory.
-    :param label_column_name: A string identifying the header of the column in
-        the selection table file(s) from which class labels are to be extracted.
-        If None (default), will look for a column with the header "Tags".
+    :param annotation_handler: If not None, must be an annotation handler
+        instance. Defaults to
+        :class:`~koogu.utils.annotations.RavenAnnotationHandler`.
     :param reject_classes: Name (case sensitive) of the class (like 'Noise' or
         'Other') for which performance assessments are not to be computed. Can
         specify multiple classes for rejection, as a list.
@@ -45,7 +46,7 @@ class BaseMetric(metaclass=abc.ABCMeta):
 
     def __init__(self, audio_annot_list,
                  raw_results_root, annots_root,
-                 label_column_name=None,
+                 annotation_handler=None,
                  reject_classes=None,
                  remap_labels_dict=None,
                  negative_class_label=None,
@@ -71,7 +72,18 @@ class BaseMetric(metaclass=abc.ABCMeta):
 
         self._raw_results_root = raw_results_root
         self._annots_root = annots_root
-        self._label_column_name = label_column_name or "Tags"  # default: "Tags"
+        ah_kwargs = {}
+        if 'label_column_name' in kwargs:
+            ah_kwargs['label_column_name'] = kwargs.pop('label_column_name')
+            warnings.showwarning(
+                'The parameter \'label_column_name\' is deprecated and will ' +
+                'be removed in a future release. You should instead specify ' +
+                'an instance of one of the annotation handler classes in ' +
+                'koogu.utils.annotations.',
+                DeprecationWarning, __name__, '')
+        self._annotation_handler = \
+            annotation_handler if annotation_handler is not None else \
+            annotations.RavenAnnotationHandler(**ah_kwargs)
 
         # Discard invalid entries, if any
         self._audio_annot_list = get_valid_audio_annot_entries(
@@ -82,13 +94,13 @@ class BaseMetric(metaclass=abc.ABCMeta):
             logger.warning('Empty list. Nothing to process')
 
         # Undocumented settings
+        self._ignore_zero_annot_files = kwargs.pop('ignore_zero_annot_files',
+                                                   False)
         self._ig_kwargs = {}
-        if not kwargs.pop('ignore_zero_annot_files', False):
-            self._ig_kwargs['ignore_zero_annot_files'] = False
-            if 'filetypes' in kwargs:
-                self._ig_kwargs['filetypes'] = kwargs.pop('filetypes')
-            # Need to look for files with added extension. Hidden setting.
-            self._ig_kwargs['added_ext'] = FilenameExtensions.numpy
+        if 'filetypes' in kwargs:
+            self._ig_kwargs['filetypes'] = kwargs.pop('filetypes')
+        # Need to look for files with added extension. Hidden setting.
+        self._ig_kwargs['added_ext'] = FilenameExtensions.numpy
 
         self._valid_class_mask = np.full(
             (len(self._label_helper.classes_list),), True, dtype=np.bool)
@@ -103,21 +115,24 @@ class BaseMetric(metaclass=abc.ABCMeta):
                         f'Reject class {rj_class:s} not found in list of ' +
                         'classes. Setting will be ignored.')
 
-    def assess(self, show_progress=False, **kwargs):
+    def assess(self, **kwargs):
         """
         Perform the desired assessments.
-
-        :param show_progress: (default: False) If True, will show progress bars
-            during processing of each audio file.
         """
+
+        if kwargs.pop('show_progress', False):
+            warnings.showwarning(
+                'The parameter \'show_progress\' is deprecated and will be ' +
+                'removed in a future release. Currently, the parameter is ' +
+                'ignored and has no effect.',
+                DeprecationWarning, __name__, '')
 
         # kwargs will simply be passed as-is to the overridden internal methods.
 
         input_generator = AudioFileList.from_annotations(
             self._audio_annot_list,
             self._raw_results_root, self._annots_root,
-            self._label_column_name,
-            show_progress=show_progress,
+            self._annotation_handler,
             **self._ig_kwargs)
 
         if not np.all(self._valid_class_mask):
@@ -159,12 +174,13 @@ class BaseMetric(metaclass=abc.ABCMeta):
                 discard_non_valid_class_annots(
                     annots_times, annots_class_idxs, annots_channels)
 
-            self._assess_and_accumulate(
-                # Annotations info
-                annots_times, annots_class_idxs, annots_channels,
-                # Raw detections info (derivable from filename
-                audio_file,
-                **kwargs)
+            if len(annots_times) > 0 or (not self._ignore_zero_annot_files):
+                self._assess_and_accumulate(
+                    # Annotations info
+                    annots_times, annots_class_idxs, annots_channels,
+                    # Raw detections info (derivable from filename
+                    audio_file,
+                    **kwargs)
 
         result = self._produce_result(**kwargs)
 
@@ -209,6 +225,49 @@ class BaseMetric(metaclass=abc.ABCMeta):
         raise NotImplementedError(
             '_produce_result() method not implemented in derived class')
 
+    @classmethod
+    def extract_kwargs_for_postprocess_detections(cls, **kwargs):
+
+        # Post-processing function kwargs
+        pp_fn_kwargs = {}
+        if 'suppress_nonmax' in kwargs:
+            pp_fn_kwargs['suppress_nonmax'] = kwargs.pop('suppress_nonmax')
+        if 'squeeze_min_dur' in kwargs:
+            pp_fn_kwargs['squeeze_min_dur'] = kwargs.pop('squeeze_min_dur')
+
+        return pp_fn_kwargs, kwargs
+
+    @classmethod
+    def extract_kwargs_for_annotations_and_detections_match(cls, **kwargs):
+
+        # Match-making function kwargs
+        match_fn_kwargs = {}
+        if 'min_gt_coverage' in kwargs:
+            match_fn_kwargs['min_gt_coverage'] = kwargs.pop('min_gt_coverage')
+        if 'min_det_usage' in kwargs:
+            match_fn_kwargs['min_det_usage'] = kwargs.pop('min_det_usage')
+
+        return match_fn_kwargs, kwargs
+
+    @staticmethod
+    def extract_kwargs_for_annotations_and_clips_match(**kwargs):
+
+        # Match-making function kwargs. Any unspecified parameters would
+        # default to those of
+        # koogu.utils.detections.assess_annotations_and_clips_match().
+        match_fn_kwargs = {}
+        if 'min_annot_overlap_fraction' in kwargs:
+            match_fn_kwargs['min_annot_overlap_fraction'] = \
+                np.float16(kwargs.pop('min_annot_overlap_fraction'))
+        if 'keep_only_centralized_annots' in kwargs:
+            match_fn_kwargs['keep_only_centralized_annots'] = \
+                kwargs.pop('keep_only_centralized_annots')
+        if 'max_nonmatch_overlap_fraction' in kwargs:
+            match_fn_kwargs['max_nonmatch_overlap_fraction'] = \
+                np.float16(kwargs.pop('max_nonmatch_overlap_fraction'))
+
+        return match_fn_kwargs, kwargs
+
     def load_raw_detection_info(self, audio_file):
 
         # Derive result file path from audio_file
@@ -231,19 +290,19 @@ class PrecisionRecall(BaseMetric):
     Class for assessing precision-recall values.
 
     :param audio_annot_list: A list containing pairs (tuples or sub-lists) of
-        relative paths to audio files and the corresponding annotation
-        (Raven selection table) files. Alternatively, you could also specify
-        (path to) a 2-column csv file containing these pairs of entries (in the
-        same order). Only use the csv option if the paths are simple (i.e., the
-        filenames do not contain commas or other special characters).
+        relative paths to audio files and the corresponding annotation files.
+        Alternatively, you could also specify (path to) a 2-column csv file
+        containing these pairs of entries (in the same order). Only use the csv
+        option if the paths are simple (i.e., the filenames do not contain
+        commas or other special characters).
     :param raw_results_root: The full paths of the raw result container files
         whose filenames will be derived from the audio files listed in
         ``audio_annot_list`` will be resolved using this as base directory.
     :param annots_root: The full paths of annotations files listed in
         ``audio_annot_list`` will be resolved using this as base directory.
-    :param label_column_name: A string identifying the header of the column in
-        the selection table file(s) from which class labels are to be extracted.
-        If None (default), will look for a column with the header "Tags".
+    :param annotation_handler: If not None, must be an annotation handler
+        instance. Defaults to
+        :class:`~koogu.utils.annotations.RavenAnnotationHandler`.
     :param thresholds: If not None, must be either a scalar quantity or a list
         of non-decreasing values (float values in the range 0-1) at which
         precision and recall value(s) will be assessed. If None, will default
@@ -288,11 +347,14 @@ class PrecisionRecall(BaseMetric):
     return the per-class counts for the numerators and denominators of precision
     and recall. Otherwise, per-class and overall precision-recall values will be
     returned.
+
+    .. seealso::
+        :mod:`koogu.utils.annotations`
     """
 
     def __init__(self, audio_annot_list,
                  raw_results_root, annots_root,
-                 label_column_name=None,
+                 annotation_handler=None,
                  thresholds=None,
                  post_process_detections=False,
                  **kwargs):
@@ -308,24 +370,16 @@ class PrecisionRecall(BaseMetric):
         if post_process_detections:
             self._pp = True
 
-            # Post-processing function kwargs
-            pp_fn_kwargs = {}
-            if 'suppress_nonmax' in kwargs:
-                pp_fn_kwargs['suppress_nonmax'] = kwargs.pop('suppress_nonmax')
-            if 'squeeze_min_dur' in kwargs:
-                pp_fn_kwargs['squeeze_min_dur'] = kwargs.pop('squeeze_min_dur')
+            pp_fn_kwargs, remaining_kwargs = \
+                self.extract_kwargs_for_postprocess_detections(**kwargs)
 
-            # Match-making function kwargs
-            match_fn_kwargs = {}
-            if 'min_gt_coverage' in kwargs:
-                match_fn_kwargs['min_gt_coverage'] = kwargs.pop(
-                    'min_gt_coverage')
-            if 'min_det_usage' in kwargs:
-                match_fn_kwargs['min_det_usage'] = kwargs.pop('min_det_usage')
+            match_fn_kwargs, remaining_kwargs = \
+                self.extract_kwargs_for_annotations_and_detections_match(
+                    **remaining_kwargs)
 
             # If 'negative class' was inadvertently specified, remove it
-            if 'negative_class_label' in kwargs:
-                kwargs.pop('negative_class_label')
+            if 'negative_class_label' in remaining_kwargs:
+                remaining_kwargs.pop('negative_class_label')
 
             def assessment_fn(a_times, a_classes, a_chs, audio_file, **akwargs):
                 return self.assess_from_processed_scores(
@@ -333,60 +387,19 @@ class PrecisionRecall(BaseMetric):
                     pp_fn_kwargs, match_fn_kwargs, **akwargs)
 
         else:
-            # Match-making function kwargs. Any unspecified parameters would
-            # default to those of
-            # koogu.utils.detections.assess_annotations_and_clips_match().
-            match_fn_kwargs = {}
-            if 'min_annot_overlap_fraction' in kwargs:
-                match_fn_kwargs['min_annot_overlap_fraction'] = \
-                    np.float16(kwargs.pop('min_annot_overlap_fraction'))
-                if 'positive_overlap_threshold' in kwargs:
-                    kwargs.pop('positive_overlap_threshold')
-                    warnings.showwarning(
-                        'Parameter \'positive_overlap_threshold\' is deprecated'
-                        + ' and will be removed in the future. Ignoring the ' +
-                        'parameter since \'min_annot_overlap_fraction\' is ' +
-                        'also specified.',
-                        DeprecationWarning, 'assessments.py', '')
-            elif 'positive_overlap_threshold' in kwargs:
-                match_fn_kwargs['min_annot_overlap_fraction'] = \
-                    np.float16(kwargs.pop('positive_overlap_threshold'))
-                warnings.showwarning(
-                    'Parameter \'positive_overlap_threshold\' is deprecated ' +
-                    'and will be removed in the future. Use ' +
-                    '\'min_annot_overlap_fraction\' instead.',
-                    DeprecationWarning, 'assessments.py', '')
-            if 'keep_only_centralized_annots' in kwargs:
-                match_fn_kwargs['keep_only_centralized_annots'] = \
-                    kwargs.pop('keep_only_centralized_annots')
-            if 'max_nonmatch_overlap_fraction' in kwargs:
-                match_fn_kwargs['max_nonmatch_overlap_fraction'] = \
-                    np.float16(kwargs.pop('max_nonmatch_overlap_fraction'))
-                if 'negative_overlap_threshold' in kwargs:
-                    kwargs.pop('negative_overlap_threshold')
-                    warnings.showwarning(
-                        'Parameter \'negative_overlap_threshold\' is deprecated'
-                        + ' and will be removed in the future. Ignoring the ' +
-                        'parameter since \'max_nonmatch_overlap_fraction\' is '
-                        + 'also specified.',
-                        DeprecationWarning, 'assessments.py', '')
-            elif 'negative_overlap_threshold' in kwargs:
-                match_fn_kwargs['max_nonmatch_overlap_fraction'] = \
-                    np.float16(kwargs.pop('negative_overlap_threshold'))
-                warnings.showwarning(
-                    'Parameter \'negative_overlap_threshold\' is deprecated ' +
-                    'and will be removed in the future. Use ' +
-                    '\'max_nonmatch_overlap_fraction\' instead.',
-                    DeprecationWarning, 'assessments.py', '')
+            match_fn_kwargs, remaining_kwargs = \
+                self.extract_kwargs_for_annotations_and_clips_match(**kwargs)
 
             # The post-processing counterpart handles nonmax-suppression within
             # lower-level functions. For this option, we do need to handle it
             # explicitly.
+            suppress_nonmax = remaining_kwargs.pop('suppress_nonmax', False)
+
             def assessment_fn(a_times, a_classes, a_chs, audio_file, **akwargs):
                 return self.assess_from_raw_scores(
                     a_times, a_classes, a_chs, audio_file,
                     match_fn_kwargs,
-                    suppress_nonmax=kwargs.pop('suppress_nonmax', False),
+                    suppress_nonmax=suppress_nonmax,
                     **akwargs)
 
         self._assessment_fn = assessment_fn
@@ -400,8 +413,8 @@ class PrecisionRecall(BaseMetric):
 
         super(PrecisionRecall, self).__init__(
             audio_annot_list, raw_results_root, annots_root,
-            label_column_name=label_column_name,
-            **kwargs)
+            annotation_handler=annotation_handler,
+            **remaining_kwargs)
 
     @property
     def thresholds(self):

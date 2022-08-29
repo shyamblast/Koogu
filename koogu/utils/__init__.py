@@ -54,21 +54,29 @@ class Dotdict(dict):
     __delattr__ = dict.__delitem__
 
 
-def processed_items_generator_mp(num_workers, processer_fn, raw_items, *processer_fn_args, **processer_fn_kwargs):
+def processed_items_generator_mp(num_workers, processer_fn, raw_items,
+                                 *processer_fn_args, **processer_fn_kwargs):
     """
-    A generator for processing a sequence of inputs in a parallel fashion. :param processer_fn: is invoked on each item
-    in :param raw_items:. This function 'yields' the results of one such invocation while other queued-up invocation
-    run in the background.
+    A generator for processing a sequence of inputs in a parallel fashion.
+    :param processer_fn: is invoked on each item in :param raw_items:. This
+    function 'yields' the results of one such invocation while other queued-up
+    invocations run in the background.
 
-    :param num_worker: The number of worker processes to spawn for parallel processing.
+    :param num_workers: The number of worker processes to spawn for parallel
+        processing.
     :param processer_fn: A function handle.
-    :param raw_items: An iterable (list, tuple, iterator) whose elements iteratively become input to processer_fn.
-    :param processer_fn_args: Other non-keyword arguments passed as-is to processer_fn.
-    :param processer_fn_kwargs: Other keyword arguments passed as-is to processer_fn.
+    :param raw_items: An iterable (list, tuple, iterator) whose elements
+        iteratively become input to processer_fn.
+    :param processer_fn_args: Other non-keyword arguments passed as-is to
+        processer_fn.
+    :param processer_fn_kwargs: Other keyword arguments passed as-is to
+        processer_fn.
     :return:
-        Yields the tuple ('raw item', 'processing result') where 'raw item' is the element in :param raw_items: that was
-        last processed and 'processing result' is the result of applying :param processer_fn: to the element. Note that
-        'processing result' may be None (if :param processer_fn: does not return anything) or a tuple by itself (if
+        Yields the tuple ('raw item', 'processing result') where 'raw item' is
+        the element in :param raw_items: that was last processed and
+        'processing result' is the result of applying :param processer_fn: to
+        the element. Note that 'processing result' may be None (if
+        :param processer_fn: does not return anything) or a tuple by itself (if
         :param processer_fn: returned a tuple).
     """
 
@@ -84,12 +92,15 @@ def processed_items_generator_mp(num_workers, processer_fn, raw_items, *processe
     logger = logging.getLogger(__name__)
 
     futures_queue = queue.Queue(num_workers)
-    with concurrent.futures.ProcessPoolExecutor(max_workers=num_workers) as executor:
+    with concurrent.futures.ProcessPoolExecutor(max_workers=num_workers) \
+            as executor:
 
         # Add first num_workers items to the queue
         for idx, raw_item in enumerate(raw_items):
             futures_queue.put((raw_item,
-                               executor.submit(processer_fn, raw_item, *processer_fn_args, **processer_fn_kwargs)))
+                               executor.submit(processer_fn, raw_item,
+                                               *processer_fn_args,
+                                               **processer_fn_kwargs)))
             if idx == num_workers - 1:
                 break
 
@@ -100,14 +111,22 @@ def processed_items_generator_mp(num_workers, processer_fn, raw_items, *processe
             try:
                 head_results = head_future.result()
             except Exception as exc:
-                logger.error('Processing item {} generated an exception: {:s}'.format(head_raw_item, repr(exc)))
+                # If item is list-like, use its first element as ID
+                item_id = head_raw_item[0] if (
+                        isinstance(head_raw_item, (list, tuple)) and
+                        len(head_raw_item) > 0) else head_raw_item
+                logger.error(f'Processing {item_id} generated an exception: ' +
+                             repr(exc))
                 yield_curr_result = False
 
             # Add another item to queue (if available).
-            # Using a loop here just to avoid having to use a try-except block around next(raw_items).
+            # Using a loop here just to avoid having to use a try-except block
+            # around next(raw_items).
             for raw_item in raw_items:
                 futures_queue.put((raw_item,
-                                   executor.submit(processer_fn, raw_item, *processer_fn_args, **processer_fn_kwargs)))
+                                   executor.submit(processer_fn, raw_item,
+                                                   *processer_fn_args,
+                                                   **processer_fn_kwargs)))
                 break
 
             if yield_curr_result:

@@ -47,7 +47,9 @@ setup(
     install_requires=[
         'numpy',
         'scipy',
-        'librosa',
+        'soundfile',
+        'audioread',
+        'resampy',
         #'tensorflow-gpu>=2.4'
     ],
     classifiers=[
