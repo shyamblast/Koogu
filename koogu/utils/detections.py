@@ -4,8 +4,8 @@ try:
     from collections.abc import Generator
 except ImportError:
     from collections import Generator
-import csv
 from warnings import showwarning
+from koogu.data.annotations.raven import Reader as RavenReader
 
 
 def _squeeze_streak(starts, scores, num_samples, group_size):
@@ -172,34 +172,22 @@ class SelectionTableReader(Generator):
     """
 
     def __init__(self, seltab_file, fields_spec, delimiter='\t'):
+        showwarning(
+            'This interface is deprecated and will be removed in a future ' +
+            'release. You should instead use ' +
+            'koogu.data.annotations.Raven.get_annotations_from_file() which ' +
+            'provides the same functionality.',
+            DeprecationWarning, __name__ + '.' + self.__class__.__name__, '')
 
-        self._delimiter = delimiter
-        self._conversion_spec = [None] * len(fields_spec)
-
-        self._seltab_file_h = open(seltab_file, 'r', newline='')
-        self._csv_reader = csv.reader(self._seltab_file_h, delimiter=delimiter)
-
-        col_headers = next(self._csv_reader)
-
-        for f_idx, field_spec in enumerate(fields_spec):
-            if field_spec[0] in col_headers:
-                self._conversion_spec[f_idx] = (col_headers.index(field_spec[0]),
-                                                field_spec[1],
-                                                field_spec[2] if len(field_spec) > 2 else None)
-
-    @staticmethod
-    def _convert(entry, out_type, default_val):
-        return out_type(entry) if entry != '' else default_val
+        self._annots_itr = RavenReader.get_annotations_from_file(
+            seltab_file, fields_spec, delimiter)
 
     # internal function
-    def send(self, ignored_arg):
+    def send(self, _):
         """
         :meta private:
         """
-        entry = next(self._csv_reader)
-        return tuple([SelectionTableReader._convert(entry[c_spec[0]], c_spec[1], c_spec[2])
-                      if c_spec is not None else None
-                      for c_spec in self._conversion_spec])
+        return next(self._annots_itr)
 
     # internal function
     def throw(self, type=None, value=None, traceback=None):
@@ -209,7 +197,7 @@ class SelectionTableReader(Generator):
         raise StopIteration
 
     def __del__(self):
-        self._seltab_file_h.close()
+        pass
 
 
 def assess_annotations_and_clips_match(

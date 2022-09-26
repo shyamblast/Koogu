@@ -10,10 +10,9 @@ import warnings
 import numpy as np
 import abc
 
-from koogu.data import FilenameExtensions, AssetsExtraNames
+from koogu.data import FilenameExtensions, AssetsExtraNames, annotations
 from koogu.data.raw import Audio, Settings, Convert
-from koogu.utils import instantiate_logging, processed_items_generator_mp, \
-    annotations
+from koogu.utils import instantiate_logging, processed_items_generator_mp
 from koogu.utils.detections import LabelHelper, \
     assess_annotations_and_clips_match
 from koogu.utils.terminal import ArgparseConverters
@@ -26,7 +25,7 @@ _program_name = 'preprocess'
 
 def from_selection_table_map(audio_settings, audio_seltab_list,
                              audio_root, seltab_root, output_root,
-                             annotation_handler=None,
+                             annotation_reader=None,
                              desired_labels=None,
                              remap_labels_dict=None,
                              negative_class_label=None,
@@ -47,9 +46,9 @@ def from_selection_table_map(audio_settings, audio_seltab_list,
     :param seltab_root: The full paths of annotations files listed in
         ``audio_seltab_list`` are resolved using this as the base directory.
     :param output_root: "Prepared" data will be written to this directory.
-    :param annotation_handler: If not None, must be an annotation handler
-        instance. Defaults to
-        :class:`~koogu.utils.annotations.RavenAnnotationHandler`.
+    :param annotation_reader: If not None, must be an annotation reader instance
+        from :mod:`~koogu.data.annotations`. Defaults to Raven
+        :class:`~koogu.data.annotations.Raven.Reader`.
     :param desired_labels: The target set of class labels. If not None, must be
         a list of class labels. Any selections (read from the selection tables)
         having labels that are not in this list will be discarded. This list
@@ -91,11 +90,11 @@ def from_selection_table_map(audio_settings, audio_seltab_list,
         warnings.showwarning(
             'The parameter \'label_column_name\' is deprecated and will be ' +
             'removed in a future release. You should instead specify an ' +
-            'instance of one of the annotation handler classes in ' +
-            'koogu.utils.annotations.',
+            'instance of one of the annotation reader classes from ' +
+            'koogu.data.annotations.',
             DeprecationWarning, __name__, '')
-    if annotation_handler is None:
-        annotation_handler = annotations.RavenAnnotationHandler(**ah_kwargs)
+    if annotation_reader is None:
+        annotation_reader = annotations.Raven.Reader(**ah_kwargs)
 
     # ---------- 1. Input generator --------------------------------------------
     # Discard invalid entries, if any
@@ -109,7 +108,7 @@ def from_selection_table_map(audio_settings, audio_seltab_list,
         is_fixed_classes = False
         classes_list, invalid_mask = get_unique_labels_from_annotations(
             seltab_root, [e[-1] for e in v_audio_seltab_list],
-            annotation_handler, num_threads=kwargs.get('num_threads', None))
+            annotation_reader, num_threads=kwargs.get('num_threads', None))
 
         if any(invalid_mask):   # remove any broken audio_seltab_list entries
             v_audio_seltab_list = [
@@ -129,7 +128,7 @@ def from_selection_table_map(audio_settings, audio_seltab_list,
     input_generator = AudioFileList.from_annotations(
         v_audio_seltab_list,
         audio_root, seltab_root,
-        annotation_handler,
+        annotation_reader,
         **ig_kwargs)
 
     # ---------- 2. LabelHelper ------------------------------------------------
@@ -387,7 +386,7 @@ def _single_threaded_single_file_preprocess(
 
 
 def get_unique_labels_from_annotations(
-        seltab_root, annot_files, annotation_handler,
+        seltab_root, annot_files, annotation_reader,
         num_threads=None, show_counts=False):
     """
     Query the list of annot_files to determine the unique labels present.
@@ -412,7 +411,7 @@ def get_unique_labels_from_annotations(
             num_threads or max(1, (os.cpu_count() or 1) - 1),
             AudioFileList._safe_fetch_annotations,
             (fp for fp in fp_to_af.keys()),
-            annotation_handler, False):
+            annotation_reader, False):
 
         if status:
             uniq_labels, label_counts = np.unique(tags, return_counts=True)
