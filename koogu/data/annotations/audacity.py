@@ -15,6 +15,13 @@ class Reader(BaseAnnotationReader):
     def __init__(self, fetch_frequencies=False):
         super(Reader, self).__init__(fetch_frequencies)
 
+        if fetch_frequencies:
+            self._accum_fn = self._add_with_freq
+            self._updat_fn = self._filter_freq_update
+        else:
+            self._accum_fn = self._add_no_freq
+            self._updat_fn = self._filter_no_update
+
     def _fetch(self, filepath, **kwargs):
         """
         Load annotations from ``filepath``.
@@ -34,19 +41,30 @@ class Reader(BaseAnnotationReader):
         :meta private:
         """
 
-        lal = _LastAnnotLink(self.default_float())
+        # An ephemeral container. It's contents (the 0-th item) will be
+        # created, updated and re-created within the below map-filter logic.
+        item = ([None])
 
-        if self._fetch_frequencies:
-            accum_fn = lal.add_with_freq
-            updat_fn = lal.filter_freq_update
-        else:
-            accum_fn = lal.add_no_freq
-            updat_fn = lal.filter_no_update
+        default_float = self.default_float()
+        default_freq = (default_float, default_float)
 
         with open(filepath, 'r', newline='') as file_h:
-            lines_iterator = csv.reader(file_h, delimiter='\t')
 
-            annots = list(map(accum_fn, filter(updat_fn, lines_iterator)))
+            annots = list(
+                # map() creates new content in `item` (its 0-th element), and
+                # filter() updates, as appropriate, the frequency content within
+                # the `item`.
+                # In combo, map-filter create a conditionally self-updating
+                # iterator, whose values will be collected in the surrounding
+                # list().
+                map(
+                    lambda l: self._accum_fn(item, l, default_freq),
+                    filter(
+                        lambda l: self._updat_fn(item, l, default_float),
+                        csv.reader(file_h, delimiter='\t')
+                    )
+                )
+            )
 
         # Channel indices (4th return item) must be zero since channel-specific
         # annotations aren't (yet) supported in Audacity.
@@ -58,38 +76,37 @@ class Reader(BaseAnnotationReader):
             [0] * len(annots), \
             None
 
-
-class _LastAnnotLink:
-
-    def __init__(self, default_float):
-        self._last_annot = None
-        self._default_float = default_float
-        self._default_freq = (default_float, default_float)
-
-    def add_no_freq(self, fields):
-        self._last_annot = [
+    @classmethod
+    def _add_no_freq(cls, last_annot, fields, _):
+        # Create new list and return its reference
+        last_annot[0] = [
             (float(fields[0]), float(fields[1])),
             fields[2]
         ]
-        return self._last_annot
+        return last_annot[0]
 
-    def add_with_freq(self, fields):
-        self._last_annot = [
+    @classmethod
+    def _add_with_freq(cls, last_annot, fields, default_freq):
+        # Create new list and return its reference
+        last_annot[0] = [
             (float(fields[0]), float(fields[1])),
             fields[2],
-            self._default_freq
+            default_freq
         ]
-        return self._last_annot
+        return last_annot[0]
 
-    def filter_no_update(self, fields):
+    @classmethod
+    def _filter_no_update(cls, last_annot, fields, _):
         return fields[0] != '\\'
 
-    def filter_freq_update(self, fields):
+    @classmethod
+    def _filter_freq_update(cls, last_annot, fields, default_float):
         if fields[0] == '\\':
-            self._last_annot[2] = (
-                self._default_float if fields[1].startswith('-')
+            # Update the freq elements in the referenced list
+            last_annot[0][2] = (
+                default_float if fields[1].startswith('-')
                 else float(fields[1]),
-                self._default_float if fields[2].startswith('-')
+                default_float if fields[2].startswith('-')
                 else float(fields[2])
             )
 
