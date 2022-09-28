@@ -1,5 +1,5 @@
 import csv
-from koogu.data.annotations import BaseAnnotationReader
+from koogu.data.annotations import BaseAnnotationReader, BaseAnnotationWriter
 
 
 class Reader(BaseAnnotationReader):
@@ -113,3 +113,45 @@ class Reader(BaseAnnotationReader):
             return False
 
         return True
+
+
+class Writer(BaseAnnotationWriter):
+    """
+    Writer class for writing annotations/detections to Audacity format files.
+
+    :param write_frequencies: Boolean (default: False) directing whether to
+        include bounding (lower and higher) frequency info in the outputs.
+    """
+
+    def __init__(self, write_frequencies=False, **kwargs):
+
+        super(Writer, self).__init__(write_frequencies)
+
+    def _write(self, out_file, times, labels, frequencies=None, **kwargs):
+        """
+        Write out annotations/detections to Audacity format file.
+
+        :param out_file: Output filepath.
+        :param times: A 2-element tuple with each being an N-length list of
+            start and end times.
+        :param labels: An N-length list of annotation/detection labels.
+        :param frequencies: A 2-element tuple with each being an N-length list
+            of low and high frequencies.
+
+        :return: Number of annotations/detections written.
+        """
+
+        num_rows = len(times)
+
+        basic_fmt = '{0[0]:.6f}\t{0[1]:.6f}\t{1:s}\n'
+        freq_fmt = '\\\t{0[0]:.6f}\t{0[1]:.6f}\n'
+        with open(out_file, 'w') as out_fh:
+            if self._write_frequencies and frequencies is not None:
+                for (time, label, freq) in zip(times, labels, frequencies):
+                    out_fh.write(basic_fmt.format(time, label))
+                    out_fh.write(freq_fmt.format(freq))
+            else:
+                for (time, label) in zip(times, labels):
+                    out_fh.write(basic_fmt.format(time, label))
+
+        return num_rows

@@ -74,20 +74,60 @@ class BaseAnnotationReader(metaclass=abc.ABCMeta):
         return math.nan
 
 
-# class BaseAnnotationWriter(metaclass=abc.ABCMeta):
-#
-#     @abc.abstractmethod
-#     def __call__(self, file, times, labels, frequencies=None, **kwargs):
-#         raise NotImplementedError(
-#             '__call__() method not implemented in derived class')
+class BaseAnnotationWriter(metaclass=abc.ABCMeta):
+    """
+    Base class for writing annotations/detections to storage.
+
+    Within Koogu, the method :meth:`__call__` (and others in chain) will be
+    invoked from parallel threads of execution. Exercise caution if an
+    implementation of this class needs to use and alter any member variables.
+
+    :meta private:
+    """
+
+    def __init__(self, write_frequencies=False):
+        """
+        :param write_frequencies: (boolean; default: False) If True, will also
+            write out annotations' frequency bounds. Based on the implementation
+            appropriate defaults (blank spaces, NaNs, negative values, etc.)
+            will be written when missing frequency values. If False, frequency
+            values, even if provided, will not be written out, and relevant
+            structural constructs will not be created in the output file.
+        """
+
+        self._write_frequencies = write_frequencies
+
+    def __call__(self, destination, times, labels, *args, **kwargs):
+        """
+        Write out annotations/detections to destination.
+
+        :param destination: Identifier of the target where
+            annotations/detections will be written to (e.g., path to an
+            annotation file).
+        :param times: A 2-element tuple with each being an N-length list of
+            start and end times.
+        :param labels: An N-length list of annotation/detection labels.
+        :param frequencies: A 2-element tuple with each being an N-length list
+            of low and high frequencies.
+
+        :return: Number of annotations/detections written.
+        """
+        self._write(destination, times, labels, *args, **kwargs)
+
+    @abc.abstractmethod
+    def _write(self, destination, times, labels, frequencies=None, **kwargs):
+        raise NotImplementedError(
+            '_write() method not implemented in derived class')
 
 
+# TODO: revert to using non-CamelCase naming
 from . import raven as Raven
 from . import sonicvisualiser as SonicVisualiser
 from . import audacity as Audacity
 
 __all__ = [
     'BaseAnnotationReader',
+    'BaseAnnotationWriter',
     'Raven',
     'SonicVisualiser',
     'Audacity'

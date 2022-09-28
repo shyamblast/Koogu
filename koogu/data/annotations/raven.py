@@ -1,7 +1,8 @@
 import csv
 import abc
+import io
 from functools import lru_cache
-from koogu.data.annotations import BaseAnnotationReader
+from koogu.data.annotations import BaseAnnotationReader, BaseAnnotationWriter
 
 
 class Reader(BaseAnnotationReader):
@@ -241,20 +242,18 @@ class Reader(BaseAnnotationReader):
 class _ReadWriteSpecs(metaclass=abc.ABCMeta):
     # RHS tuples' contents:
     #       Column name, data type, default or None, output formatting specifier
-    selnum = ('Selection', int, None, '{:d}')
-    chlnum = ('Channel', int, 1, '{:d}')        # To default to 1
-    sttime = ('Begin Time (s)', float, None, '{:.6f}')
-    entime = ('End Time (s)', float, None, '{:.6f}')
-    lofreq = (('Low Freq (Hz)', 'Low Frequency (Hz)'), float,
-              BaseAnnotationReader.default_float(),
-              '{:.2f}')
-    hifreq = (('High Freq (Hz)', 'High Frequency (Hz)'), float,
-              BaseAnnotationReader.default_float(),
-              '{:.2f}')
-    clabel = ('Tags', None, None, '{:s}')
-    bgfile = ('Begin File', None, None, '{:s}')
-    foffst = ('File Offset (s)', float, None, '{:.6f}')
-    dscore = ('Score', float, None, '{:.2f}')
+    selnum = ('Selection', int, None, 'd')
+    chlnum = ('Channel', int, 1, 'd')        # To default to 1
+    sttime = ('Begin Time (s)', float, None, '.6f')
+    entime = ('End Time (s)', float, None, '.6f')
+    lofreq = (('Low Freq (Hz)', 'Low Frequency (Hz)'),
+              float, BaseAnnotationReader.default_float(), '.2f')
+    hifreq = (('High Freq (Hz)', 'High Frequency (Hz)'),
+              float, BaseAnnotationReader.default_float(), '.2f')
+    clabel = ('Tags', None, None, 's')
+    bgfile = ('Begin File', None, None, 's')
+    foffst = ('File Offset (s)', float, None, '.6f')
+    dscore = ('Score', float, None, '.2f')
 
 
 class _ReadOrchestrator:
@@ -400,3 +399,236 @@ class _SelectionTableReader:
         # Return an iterator that will eventually process all remaining lines in
         # file.
         return map(reader.convert_selection, lines_iterator)
+
+
+class Writer(BaseAnnotationWriter):
+    """
+    Writer class for writing annotations/detections to Raven selection table
+    format files.
+
+    :param write_frequencies: Boolean (default: False) directing whether to
+        include the "Low Freq (Hz)" and "High Freq (Hz)" fields in the outputs.
+    :param extra_fields_spec: Optional list of 2-element tuples identifying any
+        additional fields to add to the output and their respective formats.
+        E.g., [('Model used', 's')] will add an extra field named "Model used"
+              and set the values in the fields to be formatted as strings.
+    :param add_selection_number: Boolean (default: True) directing whether to
+        include the "Selection" field.
+    :param add_channel: Boolean (default: True) directing whether to include the
+        "Channel" field.
+    :param add_score: Boolean (default: False) directing whether to include the
+        "Scores" field. Use when saving detections.
+    """
+
+    def __init__(self, write_frequencies=False, extra_fields_spec=None,
+                 **kwargs):
+
+        super(Writer, self).__init__(write_frequencies)
+
+        self._add_selnum = kwargs.get('add_selection_number', True)
+        self._add_channel = kwargs.get('add_channel', True)
+        self._add_score = kwargs.get('add_score', False)
+
+        self._extra_fields_spec = []
+        if extra_fields_spec is not None:
+            for field in extra_fields_spec:
+                if isinstance(field, (list, tuple)):
+                    # Assume field format exists
+                    self._extra_fields_spec.append((field[0], field[1]))
+                else:
+                    # Only field name given, use default formatting
+                    self._extra_fields_spec.append((field, ''))
+
+    def _write(self, out_file, times, labels,
+               frequencies=None, channels=None, scores=None,
+               file_offset=None, begin_file=None, selection_num_offset=0,
+               new_file=True,  # 'False' condition used only in multi-file case
+               extra_fields_values_dict=None, **kwargs):
+        """
+        Write out annotations/detections to Raven selection table file.
+
+        :param out_file: Can be a path string or an open file handle (with write
+            access). The latter case is useful when combining outputs from
+            multiple audio files into a single selection table file.
+        :param times: A 2-element tuple with each being an N-length list of
+            start and end times.
+        :param labels: An N-length list of annotation/detection labels.
+        :param frequencies: A 2-element tuple with each being an N-length list
+            of low and high frequencies.
+        :param channels: An N-length list of channel numbers.
+        :param scores: An N-length list of detection scores.
+        :param file_offset: If specified (must be a scalar value), values in
+            `times` will be shifted accordingly, and the "File Offset (s)"
+            field will be added. (useful when combining outputs)
+        :param begin_file: If specified (must be a single filename string), the
+            "Begin File" field will be added. (useful when combining outputs)
+        :param selection_num_offset: If specified (must be a positive integet),
+            the selection numbers of to-be-written annotations will be advanced
+            by this amount. (useful when combining outputs)
+        :param new_file: Considered only when `out_file` is already an open
+            file handle. If True, will add the header row to the output file.
+            (useful when combining outputs)
+        :param extra_fields_values_dict: A dictionary containing N-length lists
+            of corresponding values for each item in the `extra_fields_spec`
+            that was passed to the constructor. The keys in the dict must match
+            the field names from `extra_fields_spec`.
+
+        :return: Number of annotations/detections written.
+        """
+
+        num_rows = len(times)
+
+        # Validate extra fields
+        extra_fields_values = []    # Copy in the order of _extra_fields_spec
+        if extra_fields_values_dict is None:
+            # Set everything (if any) to false
+            extra_fields_validity = [False for _ in self._extra_fields_spec]
+        else:
+            extra_fields_validity = []
+            for ef_name, _ in self._extra_fields_spec:
+                if ef_name in extra_fields_values_dict:
+                    extra_fields_values.append(
+                        extra_fields_values_dict[ef_name])
+                    extra_fields_validity.append(True)
+                else:
+                    extra_fields_values.append((None for _ in times))
+                    extra_fields_validity.append(False)
+
+        header, fmt_str = self._get_header_and_fmt_str(
+            file_offset is not None, begin_file is not None,
+            channels is not None,
+            frequencies is not None,
+            scores is not None,
+            *extra_fields_validity)
+
+        with _FileOrPath(out_file, header, new_file) as out_fh:
+
+            for line_items in zip(
+                range(selection_num_offset + 1,
+                      selection_num_offset + num_rows + 1),
+                channels or (None for _ in times),
+                times if file_offset is None else map(
+                    lambda t: (t[0] + file_offset, t[1] + file_offset), times),
+                frequencies or (None for _ in times),
+                labels,
+                scores or (None for _ in times),
+                ((t[0] for t in times) if file_offset is not None
+                 else (None for _ in times)),
+                (begin_file for _ in times) or (None for _ in times),
+                *extra_fields_values
+            ):
+                out_fh.write(fmt_str.format(*line_items))
+
+        return num_rows
+
+    @lru_cache(maxsize=16)
+    def _get_header_and_fmt_str(self,
+                                file_offset_available, begin_file_available,
+                                channel_available,
+                                freqs_available,
+                                scores_available,
+                                *extra_fields_validity):
+
+        header = []
+        formatter = []
+
+        next_idx = 0        # Selection
+        if self._add_selnum:
+            header.append(_ReadWriteSpecs.selnum[0])
+            formatter.append(f'{{{next_idx}:{_ReadWriteSpecs.selnum[-1]}}}')
+
+        next_idx = 1        # Channel
+        if self._add_channel:
+            header.append(_ReadWriteSpecs.chlnum[0])
+            formatter.append(f'{{{next_idx}:{_ReadWriteSpecs.chlnum[-1]}}}'
+                             if channel_available else
+                             f'{_ReadWriteSpecs.chlnum[2]}')
+
+        next_idx = 2        # Begin Time (s)
+        header.append(_ReadWriteSpecs.sttime[0])
+        formatter.append(f'{{{next_idx}[0]:{_ReadWriteSpecs.sttime[-1]}}}')
+        # next_idx = 2      # End Time (s)
+        header.append(_ReadWriteSpecs.entime[0])
+        formatter.append(f'{{{next_idx}[1]:{_ReadWriteSpecs.entime[-1]}}}')
+
+        if self._write_frequencies:
+            next_idx = 3    # Low Freq (Hz)
+            header.append(_ReadWriteSpecs.lofreq[0][0])
+            formatter.append(f'{{{next_idx}[0]:{_ReadWriteSpecs.lofreq[-1]}}}'
+                             if freqs_available else '')
+            # next_idx = 3  # High Freq (Hz)
+            header.append(_ReadWriteSpecs.hifreq[0][0])
+            formatter.append(f'{{{next_idx}[1]:{_ReadWriteSpecs.hifreq[-1]}}}'
+                             if freqs_available else '')
+
+        next_idx = 4        # Tags
+        header.append(_ReadWriteSpecs.clabel[0])
+        formatter.append(f'{{{next_idx}:{_ReadWriteSpecs.clabel[-1]}}}')
+
+        next_idx = 5        # Score
+        if self._add_score:
+            header.append(_ReadWriteSpecs.dscore[0])
+            formatter.append(f'{{{next_idx}:{_ReadWriteSpecs.dscore[-1]}}}'
+                             if scores_available else '')
+
+        if file_offset_available:
+            next_idx = 6    # File Offset (s)
+            header.append(_ReadWriteSpecs.foffst[0])
+            formatter.append(f'{{{next_idx}:{_ReadWriteSpecs.foffst[-1]}}}')
+        if begin_file_available:
+            next_idx = 7    # Begin File
+            header.append(_ReadWriteSpecs.bgfile[0])
+            formatter.append(f'{{{next_idx}:{_ReadWriteSpecs.bgfile[-1]}}}')
+
+        next_idx = 8
+        for (field_name, field_fmt), field_validity in zip(
+                self._extra_fields_spec, extra_fields_validity):
+            header.append(field_name)
+            formatter.append(f'{{{next_idx}:{field_fmt}}}'
+                             if field_validity else '')
+
+            next_idx += 1
+
+        return '\t'.join(header) + '\n', '\t'.join(formatter) + '\n'
+
+
+class _FileOrPath:
+    """
+    Convenient 'context' interface for writing to new file or continue writing
+    to an existing one.
+      - If `file` was already a file object, nothing to do. If `new_file` was
+        True, only then header will be written out.
+      - If `file` was a path string, open the file and add the header
+        (regardless of what `new_file` was).
+    """
+    def __init__(self, file, header, new_file):
+        self._path_or_file = file
+
+        if isinstance(file, io.TextIOBase) and hasattr(file, 'write'):
+            # Was a file handle already
+            if file.closed:
+                raise ValueError(
+                    'File already closed. Cannot write selections.')
+
+            self._must_open = False
+            # Don't add header if this weren't the first time writing
+            self._header = header if new_file else None
+
+        else:
+            self._must_open = True
+            self._header = header
+
+    def __enter__(self):
+        if self._must_open:
+            self._path_or_file = open(self._path_or_file, 'w')
+
+        if self._header is not None:
+            self._path_or_file.write(self._header)
+
+        return self._path_or_file
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if self._must_open:
+            temp = self._path_or_file.name
+            self._path_or_file.close()
+            self._path_or_file = temp   # Restore value?
