@@ -104,11 +104,11 @@ class BaseAnnotationWriter(metaclass=abc.ABCMeta):
         :param destination: Identifier of the target where
             annotations/detections will be written to (e.g., path to an
             annotation file).
-        :param times: A 2-element tuple with each being an N-length list of
-            start and end times.
+        :param times: An N-length list of 2-element list/tuple of start and end
+            times.
         :param labels: An N-length list of annotation/detection labels.
-        :param frequencies: A 2-element tuple with each being an N-length list
-            of low and high frequencies.
+        :param frequencies: An N-length list of 2-element list/tuple of low and
+            high frequencies.
 
         :return: Number of annotations/detections written.
         """

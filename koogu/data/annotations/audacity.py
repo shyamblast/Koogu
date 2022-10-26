@@ -132,11 +132,11 @@ class Writer(BaseAnnotationWriter):
         Write out annotations/detections to Audacity format file.
 
         :param out_file: Output filepath.
-        :param times: A 2-element tuple with each being an N-length list of
-            start and end times.
+        :param times: An N-length list of 2-element list/tuple of start and end
+            times.
         :param labels: An N-length list of annotation/detection labels.
-        :param frequencies: A 2-element tuple with each being an N-length list
-            of low and high frequencies.
+        :param frequencies: An N-length list of 2-element list/tuple of low and
+            high frequencies.
 
         :return: Number of annotations/detections written.
         """

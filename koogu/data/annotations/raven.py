@@ -411,7 +411,7 @@ class Writer(BaseAnnotationWriter):
     :param extra_fields_spec: Optional list of 2-element tuples identifying any
         additional fields to add to the output and their respective formats.
         E.g., [('Model used', 's')] will add an extra field named "Model used"
-              and set the values in the fields to be formatted as strings.
+        and set the values in the fields to be formatted as strings.
     :param add_selection_number: Boolean (default: True) directing whether to
         include the "Selection" field.
     :param add_channel: Boolean (default: True) directing whether to include the
@@ -450,11 +450,11 @@ class Writer(BaseAnnotationWriter):
         :param out_file: Can be a path string or an open file handle (with write
             access). The latter case is useful when combining outputs from
             multiple audio files into a single selection table file.
-        :param times: A 2-element tuple with each being an N-length list of
-            start and end times.
+        :param times: An N-length list of 2-element list/tuple of start and end
+            times.
         :param labels: An N-length list of annotation/detection labels.
-        :param frequencies: A 2-element tuple with each being an N-length list
-            of low and high frequencies.
+        :param frequencies: An N-length list of 2-element list/tuple of low and
+            high frequencies.
         :param channels: An N-length list of channel numbers.
         :param scores: An N-length list of detection scores.
         :param file_offset: If specified (must be a scalar value), values in
@@ -462,12 +462,12 @@ class Writer(BaseAnnotationWriter):
             field will be added. (useful when combining outputs)
         :param begin_file: If specified (must be a single filename string), the
             "Begin File" field will be added. (useful when combining outputs)
-        :param selection_num_offset: If specified (must be a positive integet),
+        :param selection_num_offset: If specified (must be a positive integer),
             the selection numbers of to-be-written annotations will be advanced
             by this amount. (useful when combining outputs)
-        :param new_file: Considered only when `out_file` is already an open
-            file handle. If True, will add the header row to the output file.
-            (useful when combining outputs)
+        :param new_file: If True, will add the header row to the output file
+            (useful when combining outputs). Also dictates the file mode to open
+            the output file with when `out_file` is a path string.
         :param extra_fields_values_dict: A dictionary containing N-length lists
             of corresponding values for each item in the `extra_fields_spec`
             that was passed to the constructor. The keys in the dict must match
@@ -501,17 +501,20 @@ class Writer(BaseAnnotationWriter):
             scores is not None,
             *extra_fields_validity)
 
-        with _FileOrPath(out_file, header, new_file) as out_fh:
+        with _FileOrPath(out_file, 'w' if new_file else 'a') as out_fh:
+
+            if new_file:        # Add header if it was a new file
+                out_fh.write(header)
 
             for line_items in zip(
                 range(selection_num_offset + 1,
                       selection_num_offset + num_rows + 1),
-                channels or (None for _ in times),
+                (None for _ in times) if channels is None else channels,
                 times if file_offset is None else map(
                     lambda t: (t[0] + file_offset, t[1] + file_offset), times),
-                frequencies or (None for _ in times),
+                (None for _ in times) if frequencies is None else frequencies,
                 labels,
-                scores or (None for _ in times),
+                (None for _ in times) if scores is None else scores,
                 ((t[0] for t in times) if file_offset is not None
                  else (None for _ in times)),
                 (begin_file for _ in times) or (None for _ in times),
@@ -596,34 +599,27 @@ class _FileOrPath:
     """
     Convenient 'context' interface for writing to new file or continue writing
     to an existing one.
-      - If `file` was already a file object, nothing to do. If `new_file` was
-        True, only then header will be written out.
-      - If `file` was a path string, open the file and add the header
-        (regardless of what `new_file` was).
+      - If `file` was already a file object, nothing to do.
+      - If `file` was a path string, open the file with the chosen `open_mode`
+        (must be one of 'w' or 'a').
     """
-    def __init__(self, file, header, new_file):
+    def __init__(self, file, open_mode):
         self._path_or_file = file
 
         if isinstance(file, io.TextIOBase) and hasattr(file, 'write'):
             # Was a file handle already
             if file.closed:
-                raise ValueError(
-                    'File already closed. Cannot write selections.')
+                raise ValueError('File already closed. Cannot write further.')
 
             self._must_open = False
-            # Don't add header if this weren't the first time writing
-            self._header = header if new_file else None
-
+            self._open_mode = None
         else:
             self._must_open = True
-            self._header = header
+            self._open_mode = open_mode
 
     def __enter__(self):
         if self._must_open:
-            self._path_or_file = open(self._path_or_file, 'w')
-
-        if self._header is not None:
-            self._path_or_file.write(self._header)
+            self._path_or_file = open(self._path_or_file, self._open_mode)
 
         return self._path_or_file
 
