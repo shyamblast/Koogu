@@ -1,5 +1,4 @@
 import os
-import numpy as np
 import concurrent.futures
 import queue
 import logging
@@ -32,26 +31,6 @@ def log_platform_info():
             platform.python_version(),
             tf.__version__,
             'with' if tf.test.is_built_with_cuda() else 'no'))
-
-
-def first_true(nd_bool_mask, axis, invalid_val=-1):
-    """Get the index of the first True value in the numpy ndarray 'nd_bool_mask' along the given 'axis'.
-    Based on - https://stackoverflow.com/a/47269413"""
-    return np.where(nd_bool_mask.any(axis=axis), nd_bool_mask.argmax(axis=axis), invalid_val)
-
-
-def last_true(nd_bool_mask, axis, invalid_val=-1):
-    """Get the index of the last True value in the numpy ndarray 'nd_bool_mask' along the given 'axis'.
-    Based on - https://stackoverflow.com/a/47269413"""
-    val = nd_bool_mask.shape[axis] - np.flip(nd_bool_mask, axis=axis).argmax(axis=axis) - 1
-    return np.where(nd_bool_mask.any(axis=axis), val, invalid_val)
-
-
-class Dotdict(dict):
-    """dot.notation access to dictionary attributes"""
-    __getattr__ = dict.get
-    __setattr__ = dict.__setitem__
-    __delattr__ = dict.__delitem__
 
 
 def processed_items_generator_mp(num_workers, processer_fn, raw_items,
@@ -131,4 +110,3 @@ def processed_items_generator_mp(num_workers, processer_fn, raw_items,
 
             if yield_curr_result:
                 yield head_raw_item, head_results
-
