@@ -4,10 +4,11 @@ import json
 import numpy as np
 import tensorflow as tf
 import logging
+from functools import reduce
 
 from koogu.data import AssetsExtraNames, FilenameExtensions
 from koogu.data.raw import Convert
-from koogu.data.tf_transformations import Audio2Spectral
+from koogu.data.tf_transformations import NormalizeAudio, Audio2Spectral
 from koogu.utils.filesystem import recursive_listing
 
 
@@ -613,28 +614,27 @@ class SpectralDataFeeder(DataFeeder):
     """
     def __init__(self, data_dir, fs, spec_settings, **kwargs):
 
-        self._normalize = kwargs.pop('normalize_clips', True)
+        normalize = kwargs.pop('normalize_clips', True)
 
         super(SpectralDataFeeder, self).__init__(data_dir, **kwargs)
 
-        self._transformation = Audio2Spectral(fs, spec_settings)
+        self._transformation = []
+        if normalize:
+            self._transformation.append(NormalizeAudio())
+        self._transformation.append(Audio2Spectral(fs, spec_settings))
 
         # Update to what the transformed output shape would be
-        self._shape = self._transformation.compute_output_shape(
-            [1] + self._in_shape)[1:]
+        self._shape = reduce(
+            lambda shp, lyr: lyr.compute_output_shape([1] + shp)[1:],
+            [self._in_shape] + self._transformation)
 
     def transform(self, clip, label, is_training, **kwargs):
 
         output = clip
 
-        # Normalize the waveforms
-        if self._normalize:
-            output = output - tf.reduce_mean(output, axis=-1, keepdims=True)
-            output = output / tf.reduce_max(tf.abs(output),
-                                            axis=-1, keepdims=True)
-
-        # Convert to spectrogram
-        output = self._transformation(output)
+        # Normalize (if applicable) and convert to spectrogram
+        output = reduce(lambda inp, lyr: lyr(inp),
+                        [output] + self._transformation)
 
         return output, label
 
