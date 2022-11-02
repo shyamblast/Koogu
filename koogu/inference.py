@@ -12,7 +12,8 @@ from koogu.data import FilenameExtensions, AssetsExtraNames
 from koogu.data.raw import Audio, Settings
 from koogu.data.annotations import Raven
 from koogu.model import TrainedModel
-from koogu.utils import processed_items_generator_mp
+from koogu.utils import processed_items_generator_mp, \
+    processed_items_generator_mp_ordered
 from koogu.utils.detections import postprocess_detections
 from koogu.utils.terminal import ProgressBar, ArgparseConverters
 from koogu.utils.filesystem import recursive_listing, AudioFileList
@@ -278,6 +279,7 @@ def recognize(model_dir, audio_root,
         def scale_scores(scores): return scores
 
     output_executor = None
+    combine_outputs = False  # Also controls multi-threaded processor type
     if output_dir:
         reject_class_idx = None
         if kwargs.get('reject_class', None) is not None:
@@ -310,6 +312,8 @@ def recognize(model_dir, audio_root,
         squeeze_min_dur = kwargs.get('squeeze_detections', None)
         suppress_nonmax = kwargs.get('suppress_nonmax', False)
 
+        combine_outputs = kwargs.get('combine_outputs', False)
+
         os.makedirs(output_dir, exist_ok=True)
         output_executor = concurrent.futures.ProcessPoolExecutor(max_workers=1)
         output_executor_future = None
@@ -338,8 +342,6 @@ def recognize(model_dir, audio_root,
                 if (any((f.endswith(e) for e in filetypes)) and
                     os.path.isfile(os.path.join(audio_root, f))))
 
-        combine_outputs = kwargs.get('combine_outputs', False)
-
     logger = logging.getLogger(__name__)
 
     if output_dir and squeeze_min_dur is not None and squeeze_min_dur > audio_settings['clip_length']:
@@ -355,6 +357,11 @@ def recognize(model_dir, audio_root,
         # fetch selected channel's clips
         channels = np.sort(np.unique(kwargs['channels']).astype(np.uint32))
 
+    # Choose whether to use ordered or unordered processor
+    processed_items_generator = \
+        processed_items_generator_mp_ordered if combine_outputs else \
+        processed_items_generator_mp
+
     selmap = None    # To store src rel path, seltab file relpath, analysis time
     sel_running_info = None  # To store last sel num, time offset for next file
     last_file_dur = 0.
@@ -362,11 +369,11 @@ def recognize(model_dir, audio_root,
     total_time_taken = 0.
     last_file_relpath = 'WTF? Blooper!'
     num_fetch_threads = kwargs.get('num_fetch_threads', 1)
-    for audio_filepath, processed_res in \
-            processed_items_generator_mp(num_fetch_threads,
-                                         Audio.get_file_clips, src_generator,
-                                         settings=audio_settings,
-                                         channels=channels):
+    for audio_filepath, processed_res in processed_items_generator(
+            num_fetch_threads,
+            Audio.get_file_clips, src_generator,
+            settings=audio_settings,
+            channels=channels):
 
         # Unpack processed item container
         (clips, clip_start_samples, curr_file_dur, curr_file_ch_idxs) = \
