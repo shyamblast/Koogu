@@ -72,7 +72,7 @@ class AudioFileList:
         :param audio_root: Root directory for all audio files.
         :param seltab_root: Root directory for all annotation files.
         :param annotation_handler: An instance of one of the annotation handlers
-            from utils.annotations.
+            from data.annotations.
         :param filetypes: This parameter applies only when an audio reference
             in selmap points to a directory.
         :param added_ext: This parameter applies only when an audio reference

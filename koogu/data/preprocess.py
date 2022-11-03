@@ -77,7 +77,7 @@ def from_selection_table_map(audio_settings, audio_seltab_list,
         the values are the number of clips produced for the corresponding class.
 
     .. seealso::
-        :mod:`koogu.utils.annotations`
+        :mod:`koogu.data.annotations`
     """
 
     logger = logging.getLogger(__name__)

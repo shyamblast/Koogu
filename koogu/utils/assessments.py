@@ -348,7 +348,7 @@ class PrecisionRecall(BaseMetric):
     returned.
 
     .. seealso::
-        :mod:`koogu.utils.annotations`
+        :mod:`koogu.data.annotations`
     """
 
     def __init__(self, audio_annot_list,
