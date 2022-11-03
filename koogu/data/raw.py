@@ -190,16 +190,25 @@ class Audio:
 
         # Are any of requested channel(s) available?
         if channels is not None:    # there was an explicit request
-            valid_channels = Audio.__validate_channels(
-                n_channels, channels, ignore_missing=True, filepath=filepath)
-            # Above function logs out a warning about missing channels already
-            n_channels = len(valid_channels)
+            return_channels, invalid_ch_mask = \
+                Audio.__validate_channels(n_channels, channels)
 
-            if n_channels == 0:
-                loggr.warning(f'None of requested channels found in {filepath}')
-                ret_clips = []
+            req_channels = return_channels   # For passing to Audio.load()
+            n_channels = len(return_channels)
+
+            # Log out a warning about missing channels, if any
+            if np.any(invalid_ch_mask):
+                if n_channels == 0:
+                    msg = f'None of requested channels found in {filepath}'
+                    ret_clips = []  # so we return immediately (see below)
+                else:
+                    msg = Audio.__missing_channels_msg(
+                        channels, invalid_ch_mask, filepath)
+                loggr.warning(msg)
+
         else:
-            valid_channels = np.arange(n_channels)
+            req_channels = None   # For passing to Audio.load()
+            return_channels = np.arange(n_channels)
 
         # Is file too long or too short
         within_extents = (
@@ -216,12 +225,12 @@ class Audio:
             if labels_accumulator is not None:
                 return labels_accumulator.serialize()
             else:
-                return ret_clips, None, file_dur, valid_channels
+                return ret_clips, None, file_dur, return_channels
 
         # Fetch data from disk
         data, _ = Audio.load(filepath, settings.fs,
                              offset=offset, duration=duration, dtype=dtype,
-                             channels=valid_channels)
+                             channels=req_channels)
 
         ret_clips = [None] * n_channels
         clip_start_samples = None   # placeholder
@@ -260,7 +269,7 @@ class Audio:
                 ret_clips,
                 clip_start_samples + int(np.round(offset * settings.fs)),
                 file_dur,
-                valid_channels)
+                return_channels)
 
     @staticmethod
     def buffer_to_clips(data, clip_len, clip_advance,
@@ -315,10 +324,20 @@ class Audio:
                          offset=None, duration=None, channels=None,
                          dtype=np.float32):
 
+        req_chs = None
+
         with sf.SoundFile(filepath) as fd:
 
             fs = fd.samplerate
             n_channels = fd.channels
+
+            if channels is not None:    # Check validity of requested channels
+                req_chs, invalid_ch_mask = \
+                    Audio.__validate_channels(n_channels, channels)
+
+                if np.any(invalid_ch_mask):   # Puke!
+                    raise ValueError(Audio.__missing_channels_msg(
+                        channels, invalid_ch_mask, filepath))
 
             num_samps = -1 if duration is None else int(np.round(duration * fs))
 
@@ -329,9 +348,7 @@ class Audio:
             data = fd.read(frames=num_samps, dtype=dtype, always_2d=True)
 
         # keep only the requested channels
-        if channels is not None:
-            req_chs = Audio.__validate_channels(n_channels, channels,
-                                                filepath=filepath)
+        if req_chs is not None:
             data = data[:, req_chs]
 
         # transpose to make 'channels' the first dimension
@@ -368,8 +385,13 @@ class Audio:
         samp_bytes = n_bytes * n_channels
 
         if channels is not None:
-            req_channels = Audio.__validate_channels(
-                n_channels, channels, filepath=filepath)
+            req_channels, invalid_ch_mask = \
+                Audio.__validate_channels(n_channels, channels)
+
+            if np.any(invalid_ch_mask):   # Puke!
+                raise ValueError(Audio.__missing_channels_msg(
+                    channels, invalid_ch_mask, filepath))
+
             out_n_channels = len(req_channels)
 
             def pull_chs(arr_2d):
@@ -405,37 +427,27 @@ class Audio:
             yield np.zeros((out_n_channels, 0), dtype=np.int16)
 
     @staticmethod
-    def __validate_channels(num_available, requested_idxs,
-                            ignore_missing=False,
-                            filepath=None):
+    def __validate_channels(num_available, requested_idxs):
         """
-        If ignore_missing is True, will return array of valid channels.
-          Otherwise, will raise ValueError.
-        filepath if not None, will be included in the raised error message.
+        Will return a numpy array of available channels and a mask of
+        unavailable channels.
 
-        If no errors, will return an array of valid channel indices.
+        See companion function __missing_channels_msg() for generating
+        appropriate error/warning message.
         """
 
         # force (retval) to be a 1d array
         req_chs = np.array(requested_idxs, ndmin=1, copy=False)
 
         valid_mask = req_chs < num_available
-        if np.all(valid_mask):
-            # All requested channel(s) do exist in file
-            return req_chs
 
-        msg = 'Channel(s) ({}) '.format(req_chs[np.logical_not(valid_mask)]) + \
-            'unavailable' + (
-                  '.' if filepath is None else f' in audio file "{filepath}".')
+        return req_chs[valid_mask], np.logical_not(valid_mask)
 
-        if ignore_missing:
-            logging.getLogger(__name__).warning(msg)
+    @staticmethod
+    def __missing_channels_msg(requested_idxs, invalid_mask, filepath):
 
-            # return array containing only valid channels
-            return req_chs[valid_mask]
-
-        # Puke
-        raise ValueError(msg)
+        return 'Channel(s) ({}) unavailable in audio file "{}".'.format(
+            [ch for ch, m in zip(requested_idxs, invalid_mask) if m], filepath)
 
 
 class Convert:
