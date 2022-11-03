@@ -9,11 +9,11 @@ sys.path.insert(0, os.path.abspath('..'))
 # -- Project information -----------------------------------------------------
 
 project = 'Koogu'
-copyright = '2022, Shyam Madhusudhana'
+copyright = '2020–present, Shyam Madhusudhana'
 author = 'Shyam Madhusudhana'
 
 # The first 2 components of software version
-version = '0.7.0'
+version = '0.7.1'
 # The full version, including alpha/beta/rc tags
 release = ''
 
