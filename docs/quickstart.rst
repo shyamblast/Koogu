@@ -88,6 +88,10 @@ parameter ``negative_class_label``).
    :lineno-match:
 
 .. seealso::
+   Koogu supports annotations in different popular formats, besides the default RavenPro format.
+   See :mod:`koogu.data.annotations` for a list of supported formats.
+
+.. seealso::
    If your project does not have annotations, but you have audio files corresponding
    to each species/call type organized under separate directories, you can
    pre-process the data using :func:`~koogu.data.preprocess.from_top_level_dirs`

@@ -92,13 +92,13 @@ be invoked.
 _<sup>†</sup>_ Koogu currently supports annotations in
   [Raven Lite](https://ravensoundsoftware.com/software/raven-lite/) /
   [RavenPro](https://ravensoundsoftware.com/software/raven-pro/) selection table
-  format, which is basically a simple tab-delimited text file providing (at a
-  minimum) the start-time, end-time and label for each event/call. By default,
+  (default), [Audacity](https://www.audacityteam.org/) and 
+  [SonicVisualizer](https://www.sonicvisualiser.org/) formats. In the Raven format, by default,
   values in the _Tags_ column (if it exists) will be used as class labels. You
   could also force to look for class labels in a different column by specifying
   the name of the corresponding column.
 
-The two functions under ___prepare___ support a few customizations. Resampled
+The two functions under ___preprocess___ support a few customizations. Resampled
 and broken up waveforms and the respective class label info are stored under
 *prepared_audio_dir* in compressed `numpy` format. The return value
 *clip_counts* is a dictionary indicating the number of clips written for each

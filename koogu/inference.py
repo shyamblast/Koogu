@@ -10,27 +10,16 @@ import logging
 
 from koogu.data import FilenameExtensions, AssetsExtraNames
 from koogu.data.raw import Audio, Settings
+from koogu.data.annotations import Raven
 from koogu.model import TrainedModel
-from koogu.utils import processed_items_generator_mp
+from koogu.utils import processed_items_generator_mp, \
+    processed_items_generator_mp_ordered
 from koogu.utils.detections import postprocess_detections
 from koogu.utils.terminal import ProgressBar, ArgparseConverters
 from koogu.utils.filesystem import recursive_listing, AudioFileList
 
 _program_name = 'predict'
 _selection_table_file_suffix = '.selections.txt'
-
-output_spec = [
-    ['Selection',       '{:d}'],
-    ['Channel',         '{:d}'],
-    ['Begin Time (s)',  '{:.6f}'],
-    ['End Time (s)',    '{:.6f}'],
-    ['Low Frequency (Hz)',  '{:.2f}'],
-    ['High Frequency (Hz)', '{:.2f}'],
-    ['Begin File',      '{:s}'],
-    ['File Offset (s)', '{:.6f}'],
-    ['Score',           '{:.2f}'],
-    ['Tags',            '{}'],
-    ['Begin Path',      ' ']]
 
 
 def analyze_clips(trained_model, clips, batch_size=1, audio_filepath=None):
@@ -53,7 +42,9 @@ def analyze_clips(trained_model, clips, batch_size=1, audio_filepath=None):
     """
 
     pbar = None if audio_filepath is None else \
-        ProgressBar(clips.shape[0], prefix='{:>59s}'.format(audio_filepath[-59:]), length=10, show_start=True)
+        ProgressBar(clips.shape[0],
+                    prefix='{:>59s}'.format(audio_filepath[-59:]),
+                    length=10, show_start=True)
 
     batch_start_idxs = np.arange(0, clips.shape[0], batch_size)
     batch_end_idxs = np.minimum(batch_start_idxs + batch_size, clips.shape[0])
@@ -71,7 +62,8 @@ def analyze_clips(trained_model, clips, batch_size=1, audio_filepath=None):
     return np.concatenate(det_scores, axis=0), predict_time
 
 
-def _combine_and_write(outfile_h, det_scores, clip_start_samples, num_samples, fs,
+def _combine_and_write(raven_writer, out_file_info,
+                       det_scores, clip_start_samples, num_samples, fs,
                        class_names, class_frequencies,
                        threshold=None,
                        channel_IDs=None,
@@ -80,59 +72,48 @@ def _combine_and_write(outfile_h, det_scores, clip_start_samples, num_samples, f
                        suppress_nonmax=False,
                        squeeze_min_dur=None):
 
-    valid_cols_mask = np.concatenate([
-        [True],                                                     # Sel num
-        [False] if channel_IDs is None else [True],                 # Channel
-        [True, True],                                               # Start and end times
-        [True, True],                                               # Start and end freq
-        [False, False] if offset_info is None else [True, True],    # Filename & offset
-        [True, True],                                               # Score and label
-        [True]                                                      # Bogus
-    ]).astype(np.bool)
-
-    # Fields in output selection table. No need of fields describing offsets of detections
-    output_header = '\t'.join([h[0] for idx, h in enumerate(output_spec) if valid_cols_mask[idx]]) + '\n'
-    output_fmt_str = '\t'.join([h[1] for idx, h in enumerate(output_spec) if valid_cols_mask[idx]]) + '\n'
-
     num_channels, num_clips, num_classes = det_scores.shape
 
     if num_clips == 0:
-        # Write the header only and return immediately
-        if outfile_h[1] == 'w':
-            with open(outfile_h[0], outfile_h[1]) as seltab_file:
-                seltab_file.write(output_header)
+        # Write the header only (if creating a new file) and return immediately
+        if out_file_info[1]:
+            raven_writer(out_file_info[0], [], [])
         return 0
 
-    # Mask out the ignore_class(es), so that we don't waste time post-processing those results
+    # Mask out the ignore_class(es), so that we don't waste time post-processing
+    # those results
     write_class_mask = np.full((num_classes, ), True)
     if ignore_class is not None:
         if hasattr(ignore_class, '__len__'):
             write_class_mask[np.asarray([c for c in ignore_class])] = False
         else:
             write_class_mask[ignore_class] = False
-    class_idx_remapper = np.asarray(np.where(write_class_mask)).ravel()
+    class_idx_remapper = np.where(write_class_mask)[0]
 
-    # First, combine detections within each channel and gather per-channel combined results
+    # First, combine detections within each channel and gather per-channel
+    # combined results
     channel_combined_det_times = [None] * num_channels
     channel_combined_det_scores = [None] * num_channels
     channel_combined_det_labels = [None] * num_channels
     num_combined_dets_per_channel = np.zeros((num_channels,), np.uint32)
     min_det_len = None if squeeze_min_dur is None else int(squeeze_min_dur * fs)
     for ch in range(num_channels):
-        channel_combined_det_times[ch], channel_combined_det_scores[ch], channel_combined_det_labels[ch] = \
+        channel_combined_det_times[ch], \
+            channel_combined_det_scores[ch], \
+            channel_combined_det_labels[ch] = \
             postprocess_detections(det_scores[ch, ...][:, write_class_mask],
                                    clip_start_samples, num_samples,
                                    threshold=threshold,
                                    suppress_nonmax=suppress_nonmax,
                                    squeeze_min_samps=min_det_len)
 
-        num_combined_dets_per_channel[ch] = channel_combined_det_scores[ch].shape[0]
+        num_combined_dets_per_channel[ch] = \
+            channel_combined_det_scores[ch].shape[0]
 
-    if int(num_combined_dets_per_channel.sum()) == 0:   # No detections available
-        # Write the header only and return immediately
-        if outfile_h[1] == 'w':
-            with open(outfile_h[0], outfile_h[1]) as seltab_file:
-                seltab_file.write(output_header)
+    if int(num_combined_dets_per_channel.sum()) == 0:  # No detections available
+        # Write the header only (if creating a new file) and return immediately
+        if out_file_info[1]:
+            raven_writer(out_file_info[0], [], [])
         return 0
 
     # Flatten
@@ -140,8 +121,9 @@ def _combine_and_write(outfile_h, det_scores, clip_start_samples, num_samples, f
     combined_det_scores = np.concatenate(channel_combined_det_scores)
     combined_det_labels = np.concatenate(channel_combined_det_labels)
     if channel_IDs is not None:
-        combined_det_channels = np.concatenate([np.full((num_combined_dets_per_channel[ch],), channel_IDs[ch])
-                                                for ch in range(num_channels)])
+        combined_det_channels = np.concatenate([
+            np.full((num_combined_dets_per_channel[ch],), channel_IDs[ch])
+            for ch in range(num_channels)])
 
     # Remap class IDs to make good for the gaps from ignore_class
     combined_det_labels = class_idx_remapper[combined_det_labels]
@@ -162,59 +144,25 @@ def _combine_and_write(outfile_h, det_scores, clip_start_samples, num_samples, f
     else:
         def freq_output(_): return class_frequencies    # same for all
 
-    if offset_info is not None:     # Apply the offsets
-        o_sel, o_time, o_file = offset_info
-
-        if channel_IDs is None:
-            def writer(file_h, d_idx):
-                l_freq = freq_output(combined_det_labels[d_idx])
-                file_h.write(output_fmt_str.format(
-                    o_sel + d_idx + 1,
-                    o_time + combined_det_times[d_idx, 0], o_time + combined_det_times[d_idx, 1],
-                    l_freq[0], l_freq[1],
-                    o_file, combined_det_times[d_idx, 0],
-                    combined_det_scores[d_idx], class_names[combined_det_labels[d_idx]]))
-        else:
-            def writer(file_h, d_idx):
-                l_freq = freq_output(combined_det_labels[d_idx])
-                file_h.write(output_fmt_str.format(
-                    o_sel + d_idx + 1,
-                    combined_det_channels[d_idx],
-                    o_time + combined_det_times[d_idx, 0], o_time + combined_det_times[d_idx, 1],
-                    l_freq[0], l_freq[1],
-                    o_file, combined_det_times[d_idx, 0],
-                    combined_det_scores[d_idx], class_names[combined_det_labels[d_idx]]))
-
-    else:       # Fields for indicating offset info are either meaningless or not needed in the output
-        if channel_IDs is None:
-            def writer(file_h, d_idx):
-                l_freq = freq_output(combined_det_labels[d_idx])
-                file_h.write(output_fmt_str.format(
-                    d_idx + 1,
-                    combined_det_times[d_idx, 0], combined_det_times[d_idx, 1],
-                    l_freq[0], l_freq[1],
-                    combined_det_scores[d_idx], class_names[combined_det_labels[d_idx]]))
-        else:
-            def writer(file_h, d_idx):
-                l_freq = freq_output(combined_det_labels[d_idx])
-                file_h.write(output_fmt_str.format(
-                    d_idx + 1,
-                    combined_det_channels[d_idx],
-                    combined_det_times[d_idx, 0], combined_det_times[d_idx, 1],
-                    l_freq[0], l_freq[1],
-                    combined_det_scores[d_idx], class_names[combined_det_labels[d_idx]]))
-
-    # Finally, write out the outputs
-    with open(outfile_h[0], outfile_h[1]) as seltab_file:
-        if outfile_h[1] == 'w':
-            seltab_file.write(output_header)
-        for d_idx in range(combined_det_scores.shape[0]):
-            writer(seltab_file, d_idx)
+    # Dump!
+    raven_writer(
+        out_file_info[0],
+        combined_det_times,
+        [class_names[cd_idx] for cd_idx in combined_det_labels],
+        frequencies=[freq_output(cd_idx) for cd_idx in combined_det_labels],
+        channels=None if channel_IDs is None else combined_det_channels,
+        scores=combined_det_scores,
+        selection_num_offset=0 if offset_info is None else offset_info[0],
+        file_offset=None if offset_info is None else offset_info[1],
+        begin_file=None if offset_info is None else offset_info[2],
+        new_file=out_file_info[1]
+    )
 
     return combined_det_scores.shape[0]
 
 
-def write_raw_detections(file_path, fs, det_scores, clip_start_samples, num_samples, channel_IDs):
+def write_raw_detections(file_path, fs, det_scores,
+                         clip_start_samples, num_samples, channel_IDs):
 
     os.makedirs(os.path.split(file_path)[0], exist_ok=True)
 
@@ -231,8 +179,8 @@ def write_raw_detections(file_path, fs, det_scores, clip_start_samples, num_samp
 
 
 def recognize(model_dir, audio_root,
-         output_dir=None, raw_detections_dir=None,
-         **kwargs):
+              output_dir=None, raw_detections_dir=None,
+              **kwargs):
     """
     Batch-process audio files using a trained model.
 
@@ -305,7 +253,8 @@ def recognize(model_dir, audio_root,
     class_names = classifier.class_names
     audio_settings = classifier.audio_settings
     spec_settings = None if classifier.spec_settings is None \
-        else Settings.Spectral(audio_settings['desired_fs'], **classifier.spec_settings)
+        else Settings.Spectral(audio_settings['desired_fs'],
+                               **classifier.spec_settings)
 
     # Override clip_advance, if requested
     if 'clip_advance' in kwargs:
@@ -316,22 +265,27 @@ def recognize(model_dir, audio_root,
         os.makedirs(raw_detections_dir, exist_ok=True)
         # Write out the list of class names
         json.dump(class_names,
-                  open(os.path.join(raw_detections_dir, AssetsExtraNames.classes_list), 'w'))
-        raw_output_executor = concurrent.futures.ProcessPoolExecutor(max_workers=1)
+                  open(os.path.join(raw_detections_dir,
+                                    AssetsExtraNames.classes_list), 'w'))
+        raw_output_executor = concurrent.futures.ProcessPoolExecutor(
+            max_workers=1)
 
     # Set up function to scale scores, if enabled
     if kwargs.get('scale_scores', False):
         frac = 1.0 / float(len(class_names))
-        def scale_scores(scores): return np.maximum(0.0, (scores - frac) / (1.0 - frac))
+        def scale_scores(scores): return \
+            np.maximum(0.0, (scores - frac) / (1.0 - frac))
     else:
         def scale_scores(scores): return scores
 
     output_executor = None
+    combine_outputs = False  # Also controls multi-threaded processor type
     if output_dir:
         reject_class_idx = None
         if kwargs.get('reject_class', None) is not None:
             reject_classes = kwargs['reject_class']
-            reject_classes = [reject_classes] if isinstance(reject_classes, str) else reject_classes
+            reject_classes = [reject_classes] \
+                if isinstance(reject_classes, str) else reject_classes
             reject_class_idx = []
             for rj_class in reject_classes:
                 if rj_class in class_names:
@@ -345,7 +299,7 @@ def recognize(model_dir, audio_root,
             default_freq_extents = spec_settings.bandwidth_clip
         else:
             default_freq_extents = [0, audio_settings['desired_fs'] / 2]
-        if 'frequency_extents' not in kwargs:  # none specified, set the same for all classes
+        if 'frequency_extents' not in kwargs:  # unspecified, set same for all
             class_freq_extents = default_freq_extents
         else:
             # Assign defaults for missing classes
@@ -358,9 +312,12 @@ def recognize(model_dir, audio_root,
         squeeze_min_dur = kwargs.get('squeeze_detections', None)
         suppress_nonmax = kwargs.get('suppress_nonmax', False)
 
+        combine_outputs = kwargs.get('combine_outputs', False)
+
         os.makedirs(output_dir, exist_ok=True)
         output_executor = concurrent.futures.ProcessPoolExecutor(max_workers=1)
         output_executor_future = None
+        raven_writer = Raven.Writer(write_frequencies=True, add_score=True)
 
     if not os.path.isdir(audio_root):     # Single file input
         src_generator = [audio_root]  # turn it into a list
@@ -370,17 +327,20 @@ def recognize(model_dir, audio_root,
 
     else:
         # Prepare the input file generator
-        filetypes = kwargs.get('filetypes', AudioFileList.default_audio_filetypes)
+        filetypes = kwargs.get('filetypes',
+                               AudioFileList.default_audio_filetypes)
         if kwargs.get('recursive', False):
-            src_generator = (os.path.join(audio_root, f)
-                             for f in recursive_listing(audio_root, match_extensions=filetypes))
+            src_generator = (
+                os.path.join(audio_root, f)
+                for f in recursive_listing(audio_root,
+                                           match_extensions=filetypes))
         else:
             # Only get the top-level files
-            src_generator = (os.path.join(audio_root, f) for f in os.listdir(audio_root)
-                             if (any((f.endswith(e) for e in filetypes)) and
-                                 os.path.isfile(os.path.join(audio_root, f))))
-
-        combine_outputs = kwargs.get('combine_outputs', False)
+            src_generator = (
+                os.path.join(audio_root, f)
+                for f in os.listdir(audio_root)
+                if (any((f.endswith(e) for e in filetypes)) and
+                    os.path.isfile(os.path.join(audio_root, f))))
 
     logger = logging.getLogger(__name__)
 
@@ -397,20 +357,23 @@ def recognize(model_dir, audio_root,
         # fetch selected channel's clips
         channels = np.sort(np.unique(kwargs['channels']).astype(np.uint32))
 
-    #print('Starting to predict...')
+    # Choose whether to use ordered or unordered processor
+    processed_items_generator = \
+        processed_items_generator_mp_ordered if combine_outputs else \
+        processed_items_generator_mp
 
-    selmap = None       # Will contain src rel path, seltab file relpath, analysis time
-    sel_running_info = None  # Will contain running info -> last sel num, time offset for next file
+    selmap = None    # To store src rel path, seltab file relpath, analysis time
+    sel_running_info = None  # To store last sel num, time offset for next file
     last_file_dur = 0.
     total_audio_dur = 0.
     total_time_taken = 0.
     last_file_relpath = 'WTF? Blooper!'
     num_fetch_threads = kwargs.get('num_fetch_threads', 1)
-    for audio_filepath, processed_res in \
-            processed_items_generator_mp(num_fetch_threads,
-                                         Audio.get_file_clips, src_generator,
-                                         settings=audio_settings,
-                                         channels=channels):
+    for audio_filepath, processed_res in processed_items_generator(
+            num_fetch_threads,
+            Audio.get_file_clips, src_generator,
+            settings=audio_settings,
+            channels=channels):
 
         # Unpack processed item container
         (clips, clip_start_samples, curr_file_dur, curr_file_ch_idxs) = \
@@ -448,10 +411,9 @@ def recognize(model_dir, audio_root,
             audio_relpath = os.path.relpath(audio_filepath, start=audio_root)
             subdirs = os.path.split(audio_relpath)[0]
             # Seltab filename based on dir (if combining results) or filename
-            if subdirs == '':
-                seltab_relpath = ('results' if combine_outputs else os.path.splitext(audio_relpath)[0])
-            else:
-                seltab_relpath = (subdirs if combine_outputs else os.path.splitext(audio_relpath)[0])
+            seltab_relpath = (
+                ('results' if subdirs == '' else subdirs) if combine_outputs
+                else os.path.splitext(audio_relpath)[0])
         seltab_relpath += _selection_table_file_suffix
 
         # Scale the scores, if enabled
@@ -469,7 +431,8 @@ def recognize(model_dir, audio_root,
                 num_samples,
                 None if channels is None else curr_file_ch_idxs)
 
-        if output_executor is not None:  # Offload writing of processed results (if enabled)
+        # Offload writing of processed results (if enabled)
+        if output_executor is not None:
 
             # First, wait for the previous writing to finish (if any)
             if output_executor_future is not None:
@@ -484,7 +447,8 @@ def recognize(model_dir, audio_root,
                 sel_running_info[1] += last_file_dur
 
                 if selmap[1] != seltab_relpath:
-                    # About to start a new seltab file. Write out logs about previous seltab file
+                    # About to start a new seltab file. Write out logs about
+                    # previous seltab file
                     logger.info('{:s} -> {:s}: {:d} detections, {:.3f}s processing time'.format(
                         selmap[0], selmap[1], sel_running_info[0], selmap[2]))
 
@@ -492,23 +456,27 @@ def recognize(model_dir, audio_root,
                 # First time here, or output seltab file is to be changed.
                 # Open new seltab file and (re-)init counters.
 
-                os.makedirs(os.path.join(output_dir, os.path.split(seltab_relpath)[0]), exist_ok=True)
-                seltab_file_h = (os.path.join(output_dir, seltab_relpath), 'w')
-                selmap = [os.path.split(audio_relpath)[0] if combine_outputs else audio_relpath,
-                          seltab_relpath, time_taken]
+                os.makedirs(
+                    os.path.join(output_dir, os.path.split(seltab_relpath)[0]),
+                    exist_ok=True)
+                out_file_info = (os.path.join(output_dir, seltab_relpath), True)
+                selmap = [
+                    os.path.split(audio_relpath)[0] if combine_outputs
+                    else audio_relpath,
+                    seltab_relpath, time_taken]
                 sel_running_info = [0, 0.]  # sel num offset, file time offset
 
             else:
-                seltab_file_h = (os.path.join(output_dir, selmap[1]), 'a')
+                # False here causes 'appending' to existing file
+                out_file_info = (os.path.join(output_dir, selmap[1]), False)
                 selmap[2] += time_taken
 
             # Offload writing of recognition results to a separate thread.
             # Send in data for only those valid classes in the mask.
             output_executor_future = output_executor.submit(
                 _combine_and_write,
-                seltab_file_h + tuple(),
-                det_scores.copy(), clip_start_samples.copy(),
-                num_samples, audio_settings.fs,
+                raven_writer, out_file_info + tuple(), det_scores.copy(),
+                clip_start_samples.copy(), num_samples, audio_settings.fs,
                 class_names, class_freq_extents,
                 threshold=kwargs.get('threshold', None),
                 channel_IDs=None if (

@@ -1,6 +1,7 @@
 import os
 import json
 import tensorflow as tf
+from functools import reduce
 
 from koogu.data import AssetsExtraNames
 
@@ -48,7 +49,13 @@ class TrainedModel:
                     tf.TensorSpec(shape=[None] + transformation_info[0],
                                   dtype=tf.float32)])
                 def with_transformation(self, inputs):
-                    outputs = transformation_info[1](inputs)
+                    if isinstance(transformation_info[1], (list, tuple)):
+                        # Apply list's layers successively
+                        outputs = reduce(lambda inp, lyr: lyr(inp),
+                                         [inputs] + transformation_info[1])
+                    else:
+                        outputs = transformation_info[1](inputs)
+
                     return {'scores': self.model(outputs)}
 
             model_with_signatures = MyModule(classifier)

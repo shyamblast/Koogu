@@ -668,3 +668,32 @@ class Spec2Img(tf.keras.layers.Layer):
 
         base_config = super(Spec2Img, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))
+
+
+class NormalizeAudio(tf.keras.layers.Layer):
+    """
+    Layer for applying normalization to audio. Normalization (means subtraction
+    followed by scaling to the range [-1.0, 1.0]) is applied by determining the
+    mean and range along the last axis of the inputs.
+    """
+
+    def __init__(self, **kwargs):
+        super(NormalizeAudio, self).__init__(trainable=False, **kwargs)
+
+    @tf.function
+    def call(self, inputs):
+
+        # Subtract mean
+        outputs = inputs - tf.reduce_mean(inputs, axis=-1, keepdims=True)
+
+        # Divide by max amplitude
+        outputs = outputs / tf.reduce_max(tf.abs(outputs),
+                                          axis=-1, keepdims=True)
+
+        return outputs
+
+    def compute_output_shape(self, input_shape):
+        return input_shape
+
+    def get_config(self):
+        return super(NormalizeAudio, self).get_config()

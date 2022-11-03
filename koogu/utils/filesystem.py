@@ -72,7 +72,7 @@ class AudioFileList:
         :param audio_root: Root directory for all audio files.
         :param seltab_root: Root directory for all annotation files.
         :param annotation_handler: An instance of one of the annotation handlers
-            from utils.annotations.
+            from data.annotations.
         :param filetypes: This parameter applies only when an audio reference
             in selmap points to a directory.
         :param added_ext: This parameter applies only when an audio reference
@@ -194,7 +194,7 @@ class AudioFileList:
 
     @staticmethod
     def _safe_fetch_annotations(
-            filepath, annotation_handler, is_multi_file):
+            filepath, annotation_reader, is_multi_file):
 
         logger = logging.getLogger(__name__)
 
@@ -202,8 +202,8 @@ class AudioFileList:
         annots_times = annots_tags = annots_channels = annots_files = None
 
         try:
-            annots_times, annots_tags, annots_channels, annots_files = \
-                annotation_handler.load(filepath, multi_file=is_multi_file)
+            annots_times, _, annots_tags, annots_channels, annots_files = \
+                annotation_reader(filepath, multi_file=is_multi_file)
         except (IndexError, ValueError) as exc:
             logger.error(
                 f'Failed loading "{filepath}", with exception {repr(exc)}. ' +
