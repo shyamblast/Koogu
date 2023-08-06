@@ -1,7 +1,7 @@
 import tensorflow as tf
 from koogu.data.tf_transformations import Spec2Img
 from koogu.model.architectures import BaseArchitecture
-from matplotlib import cm
+from matplotlib import colormaps
 
 
 class MyTransferModel(BaseArchitecture):
@@ -19,7 +19,7 @@ class MyTransferModel(BaseArchitecture):
         target_img_size = (160, 160)
 
         # Choose your favourite colorscale from matplotlib or other sources.
-        my_cmap = cm.get_cmap('jet')(range(256))
+        my_cmap = colormaps['jet'](range(256))
         # `my_cmap` will be a 256 element array of RGB color values from the
         # "Jet" colorscale.
 
