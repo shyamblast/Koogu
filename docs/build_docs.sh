@@ -26,6 +26,9 @@ apt-get -y install git rsync python3-numpy python3-stemmer python3-git python3-p
 
 python3 -m pip install --upgrade -r docs/requirements.txt
 
+# Workaround for github action issue with different user vs owner
+git config --global --add safe.directory `pwd`
+
 #####################
 # DECLARE VARIABLES #
 #####################
