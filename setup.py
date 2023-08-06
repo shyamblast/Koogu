@@ -42,7 +42,7 @@ setup(
     author='Shyam Madhusudhana',
     author_email='shyamm@cornell.edu',
     license='GNU General Public License v3.0',
-    packages=find_packages(),
+    packages=find_packages(include=['koogu', 'koogu.*']),
     python_requires='>=3.6.0',
     install_requires=[
         'numpy',
