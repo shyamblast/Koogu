@@ -23,6 +23,7 @@ jobs:
         apt-get update
         apt-get install -y git
         git clone "https://token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" .
+        git config --global --add safe.directory .
       shell: bash
  
     - name: Execute script to build documentation and update pages
