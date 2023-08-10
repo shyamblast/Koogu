@@ -291,7 +291,7 @@ class KooguArchitectureBase(BaseArchitecture):
         if np.any(remainders):
             additional = np.where(remainders,
                                   kernel_shape - remainders,
-                                  [0, 0]).astype(np.int)
+                                  [0, 0]).astype(int)
             pad_amt = np.asarray([[0, 0], [0, 0], [0, 0], [0, 0]])
             pad_amt[f_axis, 1] = additional[0]
             pad_amt[t_axis, 1] = additional[1]

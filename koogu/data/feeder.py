@@ -437,7 +437,7 @@ class DataFeeder(BaseFeeder):
 
         class_files_tr, class_files_ev = [], []
         class_files_items_tr, class_files_items_ev = [], []
-        useable_class_mask = np.full((num_classes, ), True, dtype=np.bool)
+        useable_class_mask = np.full((num_classes, ), True, dtype=bool)
         for class_idx in range(num_classes):
 
             # Cumulative counts of class-specific clips across all files
@@ -466,9 +466,9 @@ class DataFeeder(BaseFeeder):
         files_clips_idxs_tr = []
         files_clips_idxs_ev = []
         per_class_samples_count_tr = np.zeros((len(valid_class_idxs), ),
-                                              dtype=np.int)
+                                              dtype=np.int64)
         per_class_samples_count_ev = np.zeros((len(valid_class_idxs), ),
-                                              dtype=np.int)
+                                              dtype=np.int64)
         file = None
         for f_idx, file in enumerate(
                 recursive_listing(data_dir,
@@ -477,8 +477,8 @@ class DataFeeder(BaseFeeder):
             label_mask = get_file_labels_mask(
                 os.path.join(data_dir, file))[:, useable_class_mask]
 
-            file_train_clips_idxs = [np.zeros((0, ), dtype=np.int)]
-            file_eval_clips_idxs = [np.zeros((0, ), dtype=np.int)]
+            file_train_clips_idxs = [np.zeros((0, ), dtype=np.int64)]
+            file_eval_clips_idxs = [np.zeros((0, ), dtype=np.int64)]
             for class_idx in range(out_num_classes):
                 file_class_idxs = np.where(label_mask[:, class_idx])[0]
 

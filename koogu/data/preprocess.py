@@ -595,7 +595,7 @@ class GroundTruthDataAggregatorWithAnnots(GroundTruthDataAggregator):
 
         self._labels = []
         self._unmatched_annots_mask = \
-            np.full((len(annots_labels),), False, dtype=np.bool)
+            np.full((len(annots_labels),), False, dtype=bool)
 
         super(GroundTruthDataAggregatorWithAnnots, self).__init__(
             output_filepath, num_classes)
@@ -774,7 +774,7 @@ class GroundTruthDataAggregatorWithAnnots(GroundTruthDataAggregator):
         else:
             # Nothing could be salvaged, return empty containers
             return np.zeros((0, clip_len), dtype=data.dtype), \
-                np.zeros((0,), dtype=np.int)
+                np.zeros((0,), dtype=int)
 
     @classmethod
     def _adjust_clip_annot_coverage(cls, coverage, upper_thld,

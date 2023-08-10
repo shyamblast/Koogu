@@ -194,8 +194,8 @@ def _get_learning_rate_fn(lr, lr_change_at_epochs=None,
 
 # def _validate_fcn_splitting(raw_data_shape, data_cfg, patch_size, patch_overlap):
 #
-#     patch_size = np.asarray(patch_size).astype(np.int)
-#     patch_overlap = np.asarray(patch_overlap if patch_overlap is not None else [0, 0]).astype(np.int)
+#     patch_size = np.asarray(patch_size).astype(int)
+#     patch_overlap = np.asarray(patch_overlap if patch_overlap is not None else [0, 0]).astype(int)
 #
 #     model_input_feat_shp = transform_audio_to_spectral(
 #         data_cfg, tf.placeholder(tf.float32, raw_data_shape)).get_shape().as_list()

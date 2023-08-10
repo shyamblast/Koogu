@@ -40,17 +40,17 @@ setup(
     long_description_content_type='text/markdown',
     url='https://shyamblast.github.io/Koogu/',
     author='Shyam Madhusudhana',
-    author_email='shyamm@cornell.edu',
+    author_email='shyam.m@curtin.edu.au',
     license='GNU General Public License v3.0',
     packages=find_packages(include=['koogu', 'koogu.*']),
-    python_requires='>=3.6.0',
+    python_requires='>=3.7',
     install_requires=[
         'numpy',
         'scipy',
         'soundfile',
         'audioread',
         'resampy',
-        #'tensorflow-gpu>=2.4'
+        'tensorflow>=2.7'
     ],
     classifiers=[
         "Programming Language :: Python",
@@ -62,17 +62,3 @@ setup(
     ],
 )
 
-# Below piece of code copied (and adapted) from
-#     https://github.com/openai/baselines/blob/master/setup.py
-# Ensure there is some tensorflow build with version above 2.4
-import pkg_resources
-tf_pkg = None
-for tf_pkg_name in ['tensorflow', 'tensorflow-gpu', 'tf-nightly', 'tf-nightly-gpu']:
-    try:
-        tf_pkg = pkg_resources.get_distribution(tf_pkg_name)
-    except pkg_resources.DistributionNotFound:
-        pass
-assert tf_pkg is not None, 'TensorFlow needed, of version at least 2.4'
-import re
-from distutils.version import LooseVersion
-assert LooseVersion(re.sub(r'-?rc\d+$', '', tf_pkg.version)) >= LooseVersion('2.4'), 'TensorFlow needed, of version at least 2.4'

@@ -85,7 +85,9 @@ def combine_streaks(det_scores, clip_start_samples, num_samples, squeeze_min_len
 
     num_detections = len(streak_class_idxs)
     if num_detections == 0:
-        return np.zeros((0, 2), dtype=np.uint64), np.zeros((0,), dtype=np.float), streak_class_idxs
+        return np.zeros((0, 2), dtype=np.uint64), \
+            np.zeros((0,), dtype=det_scores.dtype), \
+            streak_class_idxs
 
     if squeeze_min_len is not None:
         max_num_overlapping_clips = \
@@ -346,8 +348,8 @@ def assess_annotations_and_detections_match(
     tps = np.zeros((num_classes, ), dtype=np.uint)
     tp_plus_fp = np.zeros((num_classes, ), dtype=np.uint)
     reca_numerator = np.zeros((num_classes, ), dtype=np.uint)
-    tp_mask = np.full((len(det_labels), ), False, dtype=np.bool)
-    recall_mask = np.full((len(gt_labels), ), False, dtype=np.bool)
+    tp_mask = np.full((len(det_labels), ), False, dtype=bool)
+    recall_mask = np.full((len(gt_labels), ), False, dtype=bool)
 
     for c_idx in np.arange(num_classes):
         # Current class GTs and dets
@@ -437,7 +439,7 @@ def _compute_clips_annots_coverage(clip_offsets, clip_len,
             # Apply penalty.
             # The above mask will have True also for clips that didn't have
             # any overlap. It's okay to apply penalty there since they will
-            # have zero "coverage" anyways.
+            # have zero "coverage" anyway.
             annots_coverage[penalize_mask, l_annot_idx] *= (1 - (
                     np.minimum(  # Distance from clip center to the nearest edge
                         np.abs(clip_centers[penalize_mask] -
@@ -537,7 +539,7 @@ def postprocess_detections(clip_scores, clip_offsets, clip_length,
     elif suppress_nonmax:
         nan_mask = nonmax_suppress_mask(clip_scores)
     else:
-        nan_mask = np.full_like(clip_scores, False, dtype=np.bool)
+        nan_mask = np.full_like(clip_scores, False, dtype=bool)
 
     return combine_streaks(np.where(nan_mask, np.nan, clip_scores),
                            clip_offsets, clip_length,
@@ -552,7 +554,7 @@ def nonmax_suppress_mask(scores):
     :meta private:
     """
 
-    nonmax_mask = np.full(scores.shape, True, dtype=np.bool)
+    nonmax_mask = np.full(scores.shape, True, dtype=bool)
     nonmax_mask[np.arange(scores.shape[0]), scores.argmax(axis=1)] = False
 
     return nonmax_mask

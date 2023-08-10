@@ -102,7 +102,7 @@ class BaseMetric(metaclass=abc.ABCMeta):
         self._ig_kwargs['added_ext'] = FilenameExtensions.numpy
 
         self._valid_class_mask = np.full(
-            (len(self._label_helper.classes_list),), True, dtype=np.bool)
+            (len(self._label_helper.classes_list),), True, dtype=bool)
         if reject_classes is not None:
             for rj_class in ([reject_classes] if isinstance(reject_classes, str)
                              else reject_classes):
@@ -538,7 +538,7 @@ class PrecisionRecall(BaseMetric):
             annots_times * fs).astype(clip_offsets.dtype)
 
         unmatched_annots_mask = \
-            np.full((len(annots_class_idxs),), False, dtype=np.bool)
+            np.full((len(annots_class_idxs),), False, dtype=bool)
 
         for ch in channels:
             curr_ch_annots_mask = (annots_channels == ch)
