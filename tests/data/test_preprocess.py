@@ -4,6 +4,8 @@ import shutil
 import pytest
 from koogu.data import preprocess
 
+from tests.data import narw_dclde_selmap_train
+
 
 @pytest.mark.parametrize(
     'negative_class_label, ignore_zero_annot_files, attempt_salvage, result', [
@@ -28,17 +30,11 @@ def test_mono_channel(
         'filterspec': (9, [42.9, 394.53], 'bandpass'),
         'normalize_clips': False
     }
-    selmap = [
-        ('NOPP6_EST_20090328', 'NOPP6_20090328_RW_upcalls.selections.txt'),
-        ('NOPP6_EST_20090329', 'NOPP6_20090329_RW_upcalls.selections.txt'),
-        ('NOPP6_EST_20090330', 'NOPP6_20090330_RW_upcalls.selections.txt'),
-        ('NOPP6_EST_20090331', 'NOPP6_20090331_RW_upcalls.selections.txt'),
-    ]
 
     outputs_dir = os.path.join(outputroot, 'narw_preprocess')
 
     class_clip_counts = preprocess.from_selection_table_map(
-        audio_settings, selmap,
+        audio_settings, narw_dclde_selmap_train,
         audio_root=os.path.join(dataroot, 'narw_dclde', 'train_audio'),
         seltab_root=os.path.join(dataroot, 'narw_dclde', 'train_annotations'),
         output_root=outputs_dir,
