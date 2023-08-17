@@ -56,7 +56,9 @@ class Settings:
             assert 0 <= self.win_overlap_samples < self.win_len_samples
 
             if nfft_equals_win_len in [None, False]:
-                self.nfft = int(2 ** np.ceil(np.log2(self.win_len_samples)).astype(np.int))  # nextpow2
+                # nextpow2
+                self.nfft = \
+                    int(2 ** np.ceil(np.log2(self.win_len_samples)).astype(int))
             else:
                 self.nfft = self.win_len_samples
 
@@ -299,11 +301,12 @@ class Audio:
                 np.lib.stride_tricks.as_strided(data, shape=shape, strides=strides, writeable=False),
                 np.expand_dims(data[(-clip_len):], 0)], axis=0)
             clip_start_samples = np.concatenate([
-                np.arange(0, len(data) - clip_len + 1, clip_advance, dtype=np.int),
+                np.arange(0, len(data) - clip_len + 1, clip_advance, dtype=int),
                 [(len(data) - clip_len + 1)]], axis=0)
         else:
             sliced_data = np.lib.stride_tricks.as_strided(data, shape=shape, strides=strides, writeable=False)
-            clip_start_samples = np.arange(0, len(data) - clip_len + 1, clip_advance, dtype=np.int)
+            clip_start_samples = \
+                np.arange(0, len(data) - clip_len + 1, clip_advance, dtype=int)
 
         return sliced_data, clip_start_samples
 
@@ -610,7 +613,8 @@ class Filters:
                  ((np.arange(-kernel_half_len, kernel_half_len + 1) ** 2) - (sigma ** 2))
 
         # Sum of the points within one-sigma of mean
-        scale_threshold_factor = np.sum(kernel) - (2 * np.sum(kernel[0:np.ceil(2 * sigma).astype(np.int)]))
+        scale_threshold_factor = np.sum(kernel) - (
+                2 * np.sum(kernel[0:np.ceil(2 * sigma).astype(int)]))
         # Note: Doing this before removal of DC (below) because it undesirably lowers the threshold for larger sigma.
 
         # Normalize, in order to set the convolution outputs to be closer to putative blobs' original SNRs
@@ -639,7 +643,9 @@ class Filters:
         melpoints = np.linspace(freq_extents_mel[0], freq_extents_mel[1], num_banks + 2)
 
         # convert mels to Hz and then on to fft bin idx
-        bin_idxs = np.floor((nfft + 1) * (700 * (10 ** (melpoints / 2595.0) - 1)) / fs).astype(np.int)
+        bin_idxs = np.floor((nfft + 1) *
+                            (700 * (10 ** (melpoints / 2595.0) - 1)) / fs
+                            ).astype(int)
 
         filterbank = np.zeros([nfft // 2 + 1, num_banks], dtype=dtype)
         for bank_idx in range(0, num_banks):

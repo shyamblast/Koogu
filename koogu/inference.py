@@ -137,7 +137,7 @@ def _combine_and_write(raven_writer, out_file_info,
         combined_det_channels = combined_det_channels[sort_idx]
 
     # Convert detection extents from samples to seconds
-    combined_det_times = combined_det_times.astype(np.float) / float(fs)
+    combined_det_times = combined_det_times.astype(float) / float(fs)
 
     if isinstance(class_frequencies[0], list):  # is a 2D list
         def freq_output(l_idx): return class_frequencies[l_idx]

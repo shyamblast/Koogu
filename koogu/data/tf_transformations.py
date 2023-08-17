@@ -137,7 +137,7 @@ class Audio2Spectral(tf.keras.layers.Layer):
 
         # Pre-compute segmentation boundaries (see _to_psd() for more info).
         # Store (seg. start idx, seg. size) pairs.
-        self.psd_segs = np.zeros((3, 2), dtype=np.int)
+        self.psd_segs = np.zeros((3, 2), dtype=int)
         if valid_f_idx_start == 0:
             self.psd_segs[0, 1] = 1  # Include the 0 Hz bin
             self.psd_segs[1, 0] = 1  # For next chunk
