@@ -2,35 +2,43 @@ import os
 import concurrent.futures
 import queue
 import logging
+import warnings
+import sys
 import platform
 import tensorflow as tf
+import koogu
 
 
-def instantiate_logging(log_file, log_level, cmdline_args, filemode='w'):
+def instantiate_logging(log_file, log_level, filemode='w'):
 
-    os.makedirs(os.path.split(log_file)[0], exist_ok=True)
+    try:
+        os.makedirs(os.path.split(log_file)[0], exist_ok=True)
+        handler = logging.FileHandler(filename=log_file, mode=filemode)
+    except Exception as _:
+        warnings.warn(
+            f'Failed to create output file {log_file} for logging. ' +
+            'Will redirect all logs to stdout.')
+        handler = logging.StreamHandler(stream=sys.stdout)
 
     logging.basicConfig(
-        filename=log_file, level=log_level, filemode=filemode,
+        handlers=[handler], level=log_level,
         format='%(asctime)s[%(levelname).1s] %(name)s: %(message)s',
         datefmt='%Y%m%dT%H%M%S')
-
-    log_platform_info()
-    logging.info('Command-line arguments: {}'.format(
-        {k: v for k, v in vars(cmdline_args).items() if v is not None}))
 
 
 def log_platform_info():
 
     logging.info(
-        ('Platform: {:s} ({:s}, {:s} GPU). Python v{:s}. ' +
-         'Tensorflow v{:s} ({:s} CUDA)').format(
-            platform.node(),
-            platform.platform(),
-            'with' if tf.test.is_gpu_available(cuda_only=True) else 'no',
-            platform.python_version(),
-            tf.__version__,
-            'with' if tf.test.is_built_with_cuda() else 'no'))
+        f'Platform: {platform.node():s} ({platform.platform():s}, ' +
+        '{:s} GPU). '.format(
+            'with' if len(tf.config.list_physical_devices('GPU')) > 0
+            else 'no') +
+        f'Python v{platform.python_version():s}. ' +
+        f'Tensorflow v{tf.__version__:s} ' +
+        '({:s} CUDA). '.format(
+           'with' if tf.test.is_built_with_cuda() else 'no') +
+        f'Koogu v{koogu.__version__}.'
+    )
 
 
 def processed_items_generator_mp_ordered(num_workers, processer_fn, raw_items,

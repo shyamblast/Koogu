@@ -10,7 +10,7 @@ from koogu.model import architectures, TrainedModel
 from koogu.data.feeder import BaseFeeder
 from koogu.utils import instantiate_logging
 from koogu.utils.terminal import ArgparseConverters
-from koogu.utils.config import Config, ConfigError, datasection2dict, log_config
+from koogu.utils.config import Config, ConfigError
 
 
 _program_name = 'train_and_eval'
@@ -498,7 +498,6 @@ if __name__ == '__main__':
     instantiate_logging(args.log if args.log is not None else
                         os.path.join(args.model_dir, _program_name + '.log'),
                         args.loglevel, args, filemode='a')
-    log_config(logging.getLogger(__name__), data_cfg.originals, model_cfg, training_cfg, **kwargs)
 
     _main(_get_default_data_feeder(args.data_dir, data_cfg, training_cfg['batch_size']),
           args.modeldir, data_cfg, model_cfg, training_cfg,

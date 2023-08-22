@@ -9,6 +9,7 @@ import csv
 import warnings
 import numpy as np
 import abc
+from enum import Enum
 
 from koogu.data import FilenameExtensions, AssetsExtraNames, annotations
 from koogu.data.raw import Audio, Settings, Convert
@@ -16,7 +17,7 @@ from koogu.utils import instantiate_logging, processed_items_generator_mp
 from koogu.utils.detections import LabelHelper, \
     assess_annotations_and_clips_match
 from koogu.utils.terminal import ArgparseConverters
-from koogu.utils.config import Config, ConfigError, datasection2dict, log_config
+from koogu.utils.config import Config, ConfigError
 from koogu.utils.filesystem import restrict_classes_with_whitelist_file, \
     AudioFileList, get_valid_audio_annot_entries, recursive_listing
 
@@ -790,35 +791,6 @@ class GroundTruthDataAggregatorWithAnnots(GroundTruthDataAggregator):
         )
 
 
-def _instantiate_logging(args, audio_settings):
-    # Create the logger
-    logging.basicConfig(filename=args.log if args.log is not None else os.path.join(args.dst, _program_name + '.log'),
-                        filemode='w', level=args.loglevel, format='[%(levelname).1s] %(funcName)s: %(message)s')
-
-    logger = logging.getLogger(__name__)
-
-    logger.info('Command-line arguments: {}'.format({k: v for k, v in vars(args).items() if v is not None}))
-    logger.info('Audio settings: {}'.format(audio_settings))
-
-
-# def _audio_settings_from_config(cfg_file):
-#     """Load audio settings parameters from the config file and return a Settings.Audio instance"""
-#
-#     cfg = Config(cfg_file, 'DATA')
-#
-#     audio_settings = {
-#         'clip_length': cfg.DATA.audio_clip_length,
-#         'clip_advance': cfg.DATA.audio_clip_advance,
-#         'desired_fs': cfg.DATA.audio_fs,
-#         'filterspec': cfg.DATA.audio_filterspec
-#     }
-#
-#     # Validate settings
-#     _ = Settings.Audio(**audio_settings)    # Will throw, if failure. Will be caught by caller
-#
-#     return audio_settings
-
-
 __all__ = ['from_selection_table_map', 'from_top_level_dirs']
 
 
@@ -919,10 +891,9 @@ if __name__ == '__main__':
     if args.threads:
         other_args['num_threads'] = args.threads
 
-    instantiate_logging(args.log if args.log is not None else
-                            os.path.join(args.dst, _program_name + '.log'),
-                        args.loglevel, args)
-    log_config(logging.getLogger(__name__), data_cfg={'audio_settings': data_settings['audio_settings']})
+    if cfg.paths.logs is not None:
+        instantiate_logging(os.path.join(cfg.paths.logs, 'prepare.log'),
+                            log_level)
 
     exit_code = 0
 
@@ -980,6 +951,7 @@ if __name__ == '__main__':
 
                 from_top_level_dirs(data_settings['audio_settings'], class_dirs, args.src, args.dst, **other_args)
 
-    logging.shutdown()
+    if cfg.paths.logs is not None:
+        logging.shutdown()
 
     exit(exit_code)
