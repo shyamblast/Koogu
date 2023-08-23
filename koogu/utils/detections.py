@@ -563,7 +563,7 @@ def nonmax_suppress_mask(scores):
 class LabelHelper:
     """
     Provides functionality for manipulating and managing class labels in a
-    problem space, without resorting to altering selection tables.
+    problem space, without resorting to altering original annotation files.
 
     :param classes_list: List of class labels. When used during data
         preparation, the list may be generated from available classes or

@@ -226,6 +226,15 @@ class BaseMetric(metaclass=abc.ABCMeta):
 
     @classmethod
     def extract_kwargs_for_postprocess_detections(cls, **kwargs):
+        """
+        If `squeeze_min_dur` is specified, it is the responsibility of the
+        implementation to convert to number of samples (`squeeze_min_samps`)
+        before passing it to
+        :meth:`koogu.utils.detections.postprocess_detections`. This is because
+        sampling rate info will only be available later.
+
+        :meta private:
+        """
 
         # Post-processing function kwargs
         pp_fn_kwargs = {}
@@ -313,17 +322,13 @@ class PrecisionRecall(BaseMetric):
     **Optional parameters**
 
     :param suppress_nonmax: If True (default: False), only the top-scoring class
-        per clip will be considered. When post-processing is enabled, the
-        parameter is handled directly in
-        :meth:`koogu.utils.detections.postprocess_detections`.
+        per clip will be considered.
     :param squeeze_min_dur: (default: None). If set (duration in seconds), an
         algorithm "to squeeze together" temporally overlapping regions from
         successive raw clips will be applied. The 'squeezing' will be restricted
         to produce detections that are at least as long as the specified value.
         The value must be smaller than the duration of the model inputs.
-        Parameter used only when post-processing is enabled, and converts the
-        duration to number of samples before passing it to
-        :meth:`koogu.utils.detections.postprocess_detections`.
+        Parameter used only when post-processing is enabled.
 
     **Parameters specific to**
 
@@ -333,7 +338,6 @@ class PrecisionRecall(BaseMetric):
 
         - *(when post-processing is enabled)*
 
-          :meth:`koogu.utils.detections.postprocess_detections`, and
           :meth:`koogu.utils.detections.assess_annotations_and_detections_match`
 
     can also be specified, and will be passed as-is to the respective

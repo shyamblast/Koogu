@@ -75,7 +75,7 @@ Analyzing field recordings/soundscape data with trained models
 
 Koogu facilitates **batch-processing** of large volumes of field recordings using
 a trained model. Currently, automatic recognition outputs from batch-processing are
-provided as `RavenPro <https://ravensoundsoftware.com/software/raven-pro/>`_
+provided as `Raven Pro <https://ravensoundsoftware.com/software/raven-pro/>`_
 selection table files. A user can not only specify the application of detection
 thresholds and how outputs are produced, but also control the utilization of
 available computational resources.
