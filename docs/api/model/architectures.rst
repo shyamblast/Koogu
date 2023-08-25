@@ -1,9 +1,9 @@
 Available architectures
 =======================
 
-.. automodule:: koogu.model.architectures
+.. autoclass:: koogu.model.architectures.ConvNet
    :members:
-   :undoc-members:
 
-
+.. autoclass:: koogu.model.architectures.DenseNet
+   :members:
 

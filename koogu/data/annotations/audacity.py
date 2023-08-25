@@ -10,6 +10,18 @@ class Reader(BaseAnnotationReader):
         attempt to read annotations' frequency bounds. NaNs will be returned
         for any missing values. If False, the respective item in the tuple
         returned will be set to None.
+
+    Example::
+
+        >>> # Create a reader instance
+        >>> reader = Audacity.Reader()
+        >>>
+        >>> # Read annotations from file and display
+        >>> (times, _, tags, _, _) = reader('my_audacity_annots.txt')
+        >>> print('Start time, End time, Label')
+        >>> print('----------, --------, -----')
+        >>> for idx in range(len(times)):
+        ...     print(f'{times[idx][0]}, {times[idx][1]}, {tags[idx]}')
     """
 
     def __init__(self, fetch_frequencies=False):

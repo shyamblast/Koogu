@@ -17,6 +17,21 @@ class Reader(BaseAnnotationReader):
         of the column in the selection table file(s) from which class labels are
         to be extracted. If None (default), will look for a column with the
         header "Tags".
+
+    Example::
+
+        >>> # Create a reader instance
+        >>> reader = Raven.Reader(fetch_frequencies=True)
+        >>>
+        >>> # Read annotations from file and display
+        >>> (times, freqs, tags, chs, _) = \\
+        ...     reader('20180212_060000.selections.txt')
+        >>> print('Start time, Upper freq, Channel, Tag')
+        >>> print('----------, ----------, -------, ---')
+        >>> for idx in range(len(times)):
+        ...     print(
+        ...         f'{times[idx][0]}, {freqs[idx][1]}, {chs[idx]}, {tags[idx]}'
+        ...     )
     """
 
     def __init__(self, fetch_frequencies=False, label_column_name=None,
@@ -133,7 +148,7 @@ class Reader(BaseAnnotationReader):
             ...                     ('Tags', str),
             ...                     ('Score', float)]
             ...
-            >>> for entry in Reader.get_annotations_from_file(
+            >>> for entry in Raven.Reader.get_annotations_from_file(
             ...         'my_annots.selection.txt', file_fields_spec):
             ...     print(entry[0], entry[1], entry[2], entry[3])
         """

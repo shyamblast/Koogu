@@ -94,8 +94,8 @@ parameter ``negative_class_label``).
 .. seealso::
    If your project does not have annotations, but you have audio files corresponding
    to each species/call type organized under separate directories, you can
-   pre-process the data using :func:`~koogu.data.preprocess.from_top_level_dirs`
-   instead of :func:`~koogu.data.preprocess.from_selection_table_map`.
+   pre-process the data using :func:`~koogu.prepare.from_top_level_dirs`
+   instead of :func:`~koogu.prepare.from_selection_table_map`.
 
 You can check how many clips were generated for each class -
 
@@ -199,7 +199,7 @@ assessing the model’s recognition performance.
    :linenos:
    :lineno-match:
 
-The :func:`~koogu.inference.recognize` function supports many customizations.
+The :func:`~koogu.recognize` function supports many customizations.
 See function API documentation for more details.
 
 3.2. Determine performance
@@ -236,7 +236,7 @@ Koogu supports two ways of using a trained model.
 In most common applications, one would want to be able to **batch process**
 large collections of audio files with a trained model.
 
-In this mode, automatic recognition results are written out in `RavenPro
+In this mode, automatic recognition results are written out in `Raven Pro
 <https://ravensoundsoftware.com/software/raven-pro/>`_ selection table format
 after applying an algorithm to group together detections of the same class across
 contiguous clips.
@@ -247,8 +247,10 @@ contiguous clips.
    :linenos:
    :lineno-match:
 
-The :func:`~koogu.inference.recognize` function supports many customizations.
+The :func:`~koogu.recognize` function supports many customizations.
 See function API documentation for more details.
+
+.. _custom_inferences:
 
 4.2 Custom processing
 ^^^^^^^^^^^^^^^^^^^^^
@@ -263,3 +265,6 @@ Then, you simply pass the clips to :func:`~koogu.inference.analyze_clips`.
 .. literalinclude:: code_samples/full_workflow_example.py
    :start-after: [clip_analyze--start]
    :end-before: [clip_analyze--end]
+
+.. seealso::
+   :doc:`api/misc/low_inference`

@@ -1,6 +1,6 @@
-from koogu.data import preprocess, feeder
+from koogu.data import feeder
 from koogu.model import architectures
-from koogu import train, assessments, recognize
+from koogu import prepare, train, assessments, recognize
 
 from matplotlib import pyplot as plt           # used for plotting graphs
 
@@ -43,7 +43,7 @@ data_settings = {
 prepared_audio_dir = '/home/shyam/projects/NARW/prepared_data'
 
 # Convert audio files into prepared data
-clip_counts = preprocess.from_selection_table_map(
+clip_counts = prepare.from_selection_table_map(
     data_settings['audio_settings'],
     audio_annot_list,
     audio_root, annots_root,

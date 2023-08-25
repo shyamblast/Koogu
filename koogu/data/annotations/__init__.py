@@ -10,16 +10,13 @@ class BaseAnnotationReader(metaclass=abc.ABCMeta):
     invoked from parallel threads of execution. Exercise caution if an
     implementation of this class needs to use and alter any member variables.
 
-    :meta private:
+    :param fetch_frequencies: (boolean; default: False) If True, will also
+        attempt to read annotations' frequency bounds. NaNs will be returned
+        for any missing values. If False, the respective item in the tuple
+        returned from :meth:`__call__` will be set to None.
     """
 
     def __init__(self, fetch_frequencies=False):
-        """
-        :param fetch_frequencies: (boolean; default: False) If True, will also
-            attempt to read annotations' frequency bounds. NaNs will be returned
-            for any missing values. If False, the respective item in the tuple
-            returned from :meth:`__call__` will be set to None.
-        """
 
         self._fetch_frequencies = fetch_frequencies
 
@@ -41,8 +38,6 @@ class BaseAnnotationReader(metaclass=abc.ABCMeta):
           - N-length list of channel indices (0-based)
           - (optional; set to None if not returning) N-length list of audio
             sources corresponding to the returned annotations
-
-        :meta private:
         """
 
         return self._fetch(source, **kwargs)
@@ -82,18 +77,15 @@ class BaseAnnotationWriter(metaclass=abc.ABCMeta):
     invoked from parallel threads of execution. Exercise caution if an
     implementation of this class needs to use and alter any member variables.
 
-    :meta private:
+    :param write_frequencies: (boolean; default: False) If True, will also
+        write out annotations' frequency bounds. Based on the implementation
+        appropriate defaults (blank spaces, NaNs, negative values, etc.)
+        will be written when missing frequency values. If False, frequency
+        values, even if provided, will not be written out, and relevant
+        structural constructs will not be created in the output file.
     """
 
     def __init__(self, write_frequencies=False):
-        """
-        :param write_frequencies: (boolean; default: False) If True, will also
-            write out annotations' frequency bounds. Based on the implementation
-            appropriate defaults (blank spaces, NaNs, negative values, etc.)
-            will be written when missing frequency values. If False, frequency
-            values, even if provided, will not be written out, and relevant
-            structural constructs will not be created in the output file.
-        """
 
         self._write_frequencies = write_frequencies
 
@@ -126,8 +118,6 @@ from . import sonicvisualiser as SonicVisualiser
 from . import audacity as Audacity
 
 __all__ = [
-    'BaseAnnotationReader',
-    'BaseAnnotationWriter',
     'Raven',
     'SonicVisualiser',
     'Audacity'

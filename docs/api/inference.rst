@@ -1,6 +1,6 @@
-Inferencing
-===========
+Apply trained models
+====================
 
-.. automodule:: koogu.inference
-   :members:
+.. autofunction:: koogu.recognize
+   :no-index:
 

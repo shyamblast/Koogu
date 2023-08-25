@@ -2,12 +2,22 @@ Data
 ====
 
 .. toctree::
-   :maxdepth: 1
-   :glob:
+   :maxdepth: 2
 
-   Annotation <annotations>
-   Pre-processing <preprocess>
-   Transformation <transformations>
-   Feeder <feeder>
-   Augmentation <augmentation>
+   annotations <annotations>
+
+.. toctree::
+   :maxdepth: 3
+
+   augmentations <augmentation>
+
+.. toctree::
+   :maxdepth: 2
+
+   feeder <feeder>
+
+.. toctree::
+   :maxdepth: 2
+
+   tf_transformations <transformations>
    

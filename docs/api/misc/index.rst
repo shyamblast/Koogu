@@ -3,8 +3,6 @@ Misc
 
 .. toctree::
    :maxdepth: 1
-   :glob:
 
    Annotations & Detections <detections>
-   performance_assessment
-   
+   Low-level inferencing API <low_inference>

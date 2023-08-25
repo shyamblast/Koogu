@@ -1,21 +1,14 @@
 Model
 =====
 
-Koogu supports a few ready-to-use :doc:`architectures <architectures>`.
-
-User-defined custom architectures can be created by implementing the abstract base class :class:`koogu.model.architectures.BaseArchitecture`.
+Koogu supports a few ready-to-use customizable :doc:`architectures <architectures>`.
 
 ----
 
 .. toctree::
-   :maxdepth: 1
-   :hidden:
-   :glob:
+   :maxdepth: 2
    
-   Architectures <architectures>
+   architectures <architectures>
 
-.. autoclass:: koogu.model.TrainedModel
-   :members: infer, audio_settings, spec_settings, class_names
 
-.. autoclass:: koogu.model.architectures.BaseArchitecture
-   :members:
+User-defined custom architectures can be created by implementing the abstract base class :class:`koogu.model.architectures.BaseArchitecture`.
