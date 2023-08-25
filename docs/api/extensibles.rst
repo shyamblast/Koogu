@@ -30,7 +30,7 @@ Model architecture
 .. seealso::
    Implementing :doc:`../advanced/transfer_learning` models.
 
-Assessment Metric
+Assessment metric
 -----------------
 
 .. autoclass:: koogu.utils.assessments.BaseMetric
