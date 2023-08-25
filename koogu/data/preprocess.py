@@ -1,242 +1,25 @@
 
 import os
-import sys
 import logging
 import json
 from datetime import datetime
-import argparse
-import csv
 import warnings
 import numpy as np
 import abc
-from enum import Enum
 
-from koogu.data import FilenameExtensions, AssetsExtraNames, annotations
-from koogu.data.raw import Audio, Settings, Convert
-from koogu.utils import instantiate_logging, processed_items_generator_mp
-from koogu.utils.detections import LabelHelper, \
-    assess_annotations_and_clips_match
-from koogu.utils.terminal import ArgparseConverters
-from koogu.utils.config import Config, ConfigError
-from koogu.utils.filesystem import restrict_classes_with_whitelist_file, \
-    AudioFileList, get_valid_audio_annot_entries, recursive_listing
+from koogu.data import FilenameExtensions, AssetsExtraNames
+from koogu.data.raw import Audio, Convert
+from koogu.utils import processed_items_generator_mp
+from koogu.utils.detections import assess_annotations_and_clips_match
+from koogu.utils.filesystem import AudioFileList
 
 _program_name = 'preprocess'
 
 
-def from_selection_table_map(audio_settings, audio_seltab_list,
-                             audio_root, seltab_root, output_root,
-                             annotation_reader=None,
-                             desired_labels=None,
-                             remap_labels_dict=None,
-                             negative_class_label=None,
-                             **kwargs):
-    """
-    Pre-process training data using info contained in ``audio_seltab_list``.
-
-    :param audio_settings: A dictionary specifying the parameters for processing
-        audio from files.
-    :param audio_seltab_list: A list containing pairs (tuples or sub-lists) of
-        relative paths to audio files and the corresponding annotation
-        (selection table) files. Alternatively, you could also specify (path to)
-        a 2-column csv file containing these pairs of entries (in the same
-        order). Only use the csv option if the paths are simple (i.e., the
-        filenames do not contain commas or other special characters).
-    :param audio_root: The full paths of audio files listed in
-        ``audio_seltab_list`` are resolved using this as the base directory.
-    :param seltab_root: The full paths of annotations files listed in
-        ``audio_seltab_list`` are resolved using this as the base directory.
-    :param output_root: "Prepared" data will be written to this directory.
-    :param annotation_reader: If not None, must be an annotation reader instance
-        from :mod:`~koogu.data.annotations`. Defaults to Raven
-        :class:`~koogu.data.annotations.Raven.Reader`.
-    :param desired_labels: The target set of class labels. If not None, must be
-        a list of class labels. Any selections (read from the selection tables)
-        having labels that are not in this list will be discarded. This list
-        will be used to populate classes_list.json that will define the classes
-        for the project. If None, then the list of classes will be populated
-        with the annotation labels read from all selection tables.
-    :param remap_labels_dict: If not None, must be a Python dictionary
-        describing mapping of class labels. For details, see similarly named
-        parameter to the constructor of
-        :class:`koogu.utils.detections.LabelHelper`.
-
-        .. note:: If ``desired_labels`` is not None, mappings for which targets
-           are not listed in ``desired_labels`` will be ignored.
-
-    :param negative_class_label: A string (e.g. 'Other', 'Noise') which will be
-        used as a label to identify the negative class clips (those that did not
-        match any annotations). If None (default), saving of negative class
-        clips will be disabled.
-
-    Other parameters specific to
-    :func:`koogu.utils.detections.assess_annotations_and_clips_match`
-    can also be specified, and will be passed as-is to the function.
-
-    :return: A dictionary whose keys are annotation tags (either discovered from
-        the set of annotations, or same as ``desired_labels`` if not None) and
-        the values are the number of clips produced for the corresponding class.
-
-    .. seealso::
-        :mod:`koogu.data.annotations`
-    """
-
-    logger = logging.getLogger(__name__)
-
-    audio_settings_c = Settings.Audio(**audio_settings)
-
-    ah_kwargs = {}
-    if 'label_column_name' in kwargs:
-        ah_kwargs['label_column_name'] = kwargs.pop('label_column_name')
-        warnings.showwarning(
-            'The parameter \'label_column_name\' is deprecated and will be ' +
-            'removed in a future release. You should instead specify an ' +
-            'instance of one of the annotation reader classes from ' +
-            'koogu.data.annotations.',
-            DeprecationWarning, __name__, '')
-    if annotation_reader is None:
-        annotation_reader = annotations.Raven.Reader(**ah_kwargs)
-
-    # ---------- 1. Input generator --------------------------------------------
-    # Discard invalid entries, if any
-    v_audio_seltab_list = get_valid_audio_annot_entries(
-            audio_seltab_list, audio_root, seltab_root, logger=logger)
-
-    if desired_labels is not None:
-        is_fixed_classes = True
-        classes_list = desired_labels
-    else:       # need to discover list of classes
-        is_fixed_classes = False
-        classes_list, invalid_mask = get_unique_labels_from_annotations(
-            seltab_root, [e[-1] for e in v_audio_seltab_list],
-            annotation_reader, num_threads=kwargs.get('num_threads', None))
-
-        if any(invalid_mask):   # remove any broken audio_seltab_list entries
-            v_audio_seltab_list = [
-                e for (e, iv) in zip(v_audio_seltab_list, invalid_mask)
-                if not iv]
-
-    if len(v_audio_seltab_list) == 0:
-        print('Nothing to process')
-        return {}
-
-    ig_kwargs = {}      # Undocumented settings
-    if negative_class_label is not None:
-        # Deal with this only if there was a request to save non-match clips
-        auf_types = kwargs.pop('filetypes', None)
-        if auf_types is not None:
-            ig_kwargs['filetypes'] = auf_types
-    input_generator = AudioFileList.from_annotations(
-        v_audio_seltab_list,
-        audio_root, seltab_root,
-        annotation_reader,
-        **ig_kwargs)
-
-    # ---------- 2. LabelHelper ------------------------------------------------
-    label_helper = LabelHelper(
-        classes_list,
-        remap_labels_dict=remap_labels_dict,
-        negative_class_label=negative_class_label,
-        fixed_labels=is_fixed_classes,
-        assessment_mode=False)
-
-    # ---------- 3. Data aggregator --------------------------------------------
-    # Extract args meant for assess_annotations_and_clips_match()
-    match_fn_kwargs = dict()
-    if 'min_annot_overlap_fraction' in kwargs:
-        assert (0.0 < kwargs['min_annot_overlap_fraction'] <= 1.0)
-        match_fn_kwargs['min_annot_overlap_fraction'] = \
-            kwargs.pop('min_annot_overlap_fraction')
-    if 'keep_only_centralized_annots' in kwargs:
-        match_fn_kwargs['keep_only_centralized_annots'] = \
-            kwargs.pop('keep_only_centralized_annots')
-    if label_helper.negative_class_index is not None:
-        match_fn_kwargs['negative_class_idx'] = \
-            label_helper.negative_class_index
-
-        if 'max_nonmatch_overlap_fraction' in kwargs:
-            assert (0.0 <= kwargs['max_nonmatch_overlap_fraction'] <
-                    match_fn_kwargs.get('min_annot_overlap_fraction', 1.0))
-            match_fn_kwargs['max_nonmatch_overlap_fraction'] = \
-                kwargs.pop('max_nonmatch_overlap_fraction')
-
-    aggregator_kwargs = dict(
-        match_fn_kwargs=match_fn_kwargs,
-        attempt_salvage=kwargs.pop('attempt_salvage', False)
-    )
-
-    return _batch_process(
-        audio_settings_c, input_generator, label_helper, aggregator_kwargs,
-        audio_root, output_root,
-        **kwargs)
-
-
-def from_top_level_dirs(audio_settings, class_dirs,
-                        audio_root, output_root,
-                        remap_labels_dict=None,
-                        **kwargs):
-    """
-    Pre-process training data available as audio files in ``class_dirs``.
-
-    :param audio_settings: A dictionary specifying the parameters for processing
-        audio from files.
-    :param class_dirs: A list containing relative paths to class-specific
-        directories containing audio files. Each directory's contents will be
-        recursively searched for audio files.
-    :param audio_root: The full paths of the class-specific directories listed
-        in ``class_dirs`` are resolved using this as the base directory.
-    :param output_root: "Prepared" data will be written to this directory.
-    :param remap_labels_dict: If not None, must be a Python dictionary
-        describing mapping of class labels. For details, see similarly named
-        parameter to the constructor of
-        :class:`koogu.utils.detections.LabelHelper`.
-    :param filetypes: (optional) Restrict listing to files matching extensions
-        specified in this parameter. Has defaults if unspecified.
-
-    :return: A dictionary whose keys are annotation tags (discovered from the
-        set of annotations) and the values are the number of clips produced for
-        the corresponding class.
-    """
-
-    logger = logging.getLogger(__name__)
-
-    audio_settings_c = Settings.Audio(**audio_settings)
-
-    # ---------- 1. Input generator --------------------------------------------
-    file_types = kwargs.pop('filetypes', AudioFileList.default_audio_filetypes)
-
-    logger.info('  {:<55s} - {:>5s}'.format('Class', 'Files'))
-    logger.info('  {:<55s}   {:>5s}'.format('-----', '-----'))
-    for class_name in class_dirs:
-        count = 0
-        for _ in recursive_listing(os.path.join(audio_root, class_name),
-                                   file_types):
-            count += 1
-        logger.info('  {:<55s} - {:>5d}'.format(class_name, count))
-
-    input_generator = AudioFileList.from_directories(
-        audio_root, class_dirs, file_types)
-
-    # ---------- 2. LabelHelper ------------------------------------------------
-    label_helper = LabelHelper(
-        class_dirs,
-        remap_labels_dict=remap_labels_dict,
-        fixed_labels=False,
-        assessment_mode=False)
-
-    # ---------- 3. Data aggregator --------------------------------------------
-    aggregator_kwargs = {}
-
-    return _batch_process(
-        audio_settings_c, input_generator, label_helper, aggregator_kwargs,
-        audio_root, output_root,
-        **kwargs)
-
-
-def _batch_process(audio_settings, input_generator, label_helper,
-                   aggregator_kwargs,
-                   audio_root, dest_root,
-                   **kwargs):
+def batch_process(audio_settings, input_generator, label_helper,
+                  aggregator_kwargs,
+                  audio_root, dest_root,
+                  **kwargs):
 
     logger = logging.getLogger(__name__)
 
@@ -248,7 +31,7 @@ def _batch_process(audio_settings, input_generator, label_helper,
             DeprecationWarning, __name__, '')
 
     t_start = datetime.now()
-    logger.info('Started at: {}'.format(t_start))
+    logger.debug('Started at: {}'.format(t_start))
 
     # Warn about existing output directory
     if os.path.exists(dest_root) and os.path.isdir(dest_root):
@@ -275,7 +58,7 @@ def _batch_process(audio_settings, input_generator, label_helper,
             total_per_class_clip_counts += file_per_class_clip_counts
 
     t_end = datetime.now()
-    logger.info('Finished at: {}'.format(t_end))
+    logger.debug('Finished at: {}'.format(t_end))
     logger.info('Processing time (hh:mm:ss.ms) {}'.format(t_end - t_start))
 
     retval = {cl: cc
@@ -550,7 +333,7 @@ class GroundTruthDataAggregatorNoAnnots(GroundTruthDataAggregator):
 
             action_str = 'Wrote '
 
-        logging.getLogger(__name__).info(
+        logging.getLogger(__name__).debug(
             ((self._audio_filepath + ': ') if self._audio_filepath else '') +
             action_str + f'{num_clips} clips')
 
@@ -727,7 +510,7 @@ class GroundTruthDataAggregatorWithAnnots(GroundTruthDataAggregator):
         else:
             retval = np.zeros((self._num_classes,), dtype=self.ret_counts_type)
 
-        logger.info(file_str + f'{self._annots_times.shape[0]} annotations. ' +
+        logger.debug(file_str + f'{self._annots_times.shape[0]} annotations. ' +
                     action_str + f'{num_clips} clips')
 
         return retval
@@ -790,168 +573,3 @@ class GroundTruthDataAggregatorWithAnnots(GroundTruthDataAggregator):
             default=0.0
         )
 
-
-__all__ = ['from_selection_table_map', 'from_top_level_dirs']
-
-
-if __name__ == '__main__':
-
-    parser = argparse.ArgumentParser(prog=_program_name, allow_abbrev=False,
-                                     description='Prepare audio data before their conversion to TFRecords.')
-    parser.add_argument('cfg', metavar='<CONFIG FILE>',
-                        help='Path to config file.')
-    parser.add_argument('src', metavar='<AUDIO SOURCE>',
-                        help='Path to either a single audio file or to a directory. When a directory, if selection ' +
-                             'table info is also provided (using \'selmap\'), then this must be the root path from ' +
-                             'which relative paths to audio files in the selection tables will be resolved. ' +
-                             'Otherwise, this must be the root directory containing per-class top-level ' +
-                             'subdirectories which in turn contain audio files.')
-    parser.add_argument('dst', metavar='<DST DIRECTORY>',
-                        help='Path to destination directory into which prepared data will be written.')
-    parser.add_argument('--whitelist', metavar='FILE',
-                        help='Path to text file containing names (one per line) of whitelisted classes.')
-    arg_group_seltab = parser.add_argument_group('Selection tables',
-                                                 'Control which sections of audio files are retained in the output, ' +
-                                                 'with the use of Raven selection tables.')
-    arg_group_seltab.add_argument('--selmap', metavar='CSVFILE',
-                                  help='Path to csv file containing one-to-one mappings from audio files to selection' +
-                                  ' table files. Audio filepaths must be relative to <AUDIO_SOURCE>. If selection ' +
-                                  'table files are not absolute paths, use \'selroot\' to specify the root directory ' +
-                                  'path.')
-    arg_group_seltab.add_argument('--selroot', metavar='DIRECTORY',
-                                  help='Path to the root directory containing selection table files. Note that, if ' +
-                                  'this is specified, all selection table paths in \'selmap\' file be treated as ' +
-                                  'relative paths.')
-    arg_group_seltab.add_argument('--accept-thld', metavar='0-100', type=ArgparseConverters.valid_percent,
-                                  default=90., dest='seltab_accept_thld',
-                                  help='Clips from the source audio files are retained in the output only if the ' +
-                                  'percentage of their temporal overlap with any annotation in a matched selection ' +
-                                  'table is above this threshold value. Default: 90%%.')
-    arg_group_seltab.add_argument('--save-reject-class', dest='save_reject_class', action='store_true',
-                                  help='Enable saving of clips that do not match annotations as \'other\' class. ' +
-                                       'Default: False.')
-    arg_group_seltab.add_argument('--reject-thld', metavar='0-100', type=ArgparseConverters.valid_percent,
-                                  default=0., dest='seltab_reject_thld',
-                                  help='Clips from the source audio files are retained in the output \'other\' class ' +
-                                       'only if the percentage of their temporal overlap with any annotation in a ' +
-                                       'matched selection table is under this threshold value. Default: 0%%.')
-    arg_group_prctrl = parser.add_argument_group('Process control')
-    arg_group_prctrl.add_argument('--threads', metavar='NUM', type=ArgparseConverters.positive_integer,
-                                  help='Number of threads to spawn for parallel execution (default: as many CPUs).')
-    arg_group_logging = parser.add_argument_group('Logging')
-    arg_group_logging.add_argument('--log', metavar='FILE',
-                                   help='Path to file to which logs will be written out.')
-    arg_group_logging.add_argument('--loglevel', choices=['CRITICAL', 'ERROR', 'WARNING', 'INFO', 'DEBUG'],
-                                   default='INFO',
-                                   help='Logging level.')
-    arg_group_misc = parser.add_argument_group('Miscellaneous')
-    arg_group_misc.add_argument('--filetypes', metavar='EXTN', nargs='+', default=AudioFileList.default_audio_filetypes,
-                                help='Audio file types to restrict processing to. Option is ignored if processing ' +
-                                     'selection tables or a single file. Can specify multiple types separated by ' +
-                                     'whitespaces. By default, will include for processing all discovered files with ' +
-                                     'the following extensions: ' + ', '.join(AudioFileList.default_audio_filetypes))
-    arg_group_misc.add_argument('--maxdur', metavar='SECONDS', dest='max_file_duration', type=float,
-                                help='Maximum duration of an audio file to consider it for processing. Larger files ' +
-                                     'will be ignored. Default: no limit.')
-    args = parser.parse_args()
-
-    if not os.path.exists(args.src):
-        print('Error: Invalid source specified', file=sys.stderr)
-        exit(2)
-
-    try:
-        data_settings = datasection2dict(Config(args.cfg, 'DATA').DATA)
-    except FileNotFoundError as exc:
-        print('Error loading config file: {}'.format(exc.strerror), file=sys.stderr)
-        exit(exc.errno)
-    except ConfigError as exc:
-        print('Error processing config file: {}'.format(str(exc)), file=sys.stderr)
-        exit(1)
-    except Exception as exc:
-        print('Error processing config file: {}'.format(repr(exc)), file=sys.stderr)
-        exit(1)
-
-    if os.path.isfile(args.src):    # If src is an audio file by itself. Process and exit immediately.
-
-        # Warn about ignoring whitelist and seltab info, if also provided
-        if args.selmap is not None:
-            warnings.showwarning('Processing a single file, will ignore \'selmap\'.', Warning, _program_name, '')
-        if args.whitelist is not None:
-            warnings.showwarning('Processing a single file, will ignore \'whitelist\'.', Warning, _program_name, '')
-
-        num_clips, _ = Process.audio2clips(Settings.Audio(**data_settings['audio_settings']), args.src, args.dst)
-
-        print('{:s}: {:d} clips'.format(os.path.split(args.src)[-1], num_clips[0]))
-
-        exit(0)
-
-    other_args = {'show_progress': False}
-    if args.max_file_duration:
-        other_args['max_file_duration'] = args.max_file_duration
-    if args.threads:
-        other_args['num_threads'] = args.threads
-
-    if cfg.paths.logs is not None:
-        instantiate_logging(os.path.join(cfg.paths.logs, 'prepare.log'),
-                            log_level)
-
-    exit_code = 0
-
-    if args.selmap is not None:   # If selmap file is given, build a container with all relevant info
-
-        with open(args.selmap, 'r', newline='') as f:
-            seltab_filemap = [(entry[0], entry[1], entry[2])
-                              for entry in csv.reader(f, delimiter=',', quoting=csv.QUOTE_NONE)
-                              if len(entry) == 3]
-        if len(seltab_filemap) == 0:
-            print('No (valid) mappings found in {:s}'.format(args.selmap), file=sys.stderr)
-
-        else:
-
-            other_args['positive_overlap_threshold'] = args.seltab_accept_thld / 100
-            if args.save_reject_class:
-                other_args['negative_overlap_threshold'] = args.seltab_reject_thld / 100
-
-            # Warn about ignoring whitelist, if also provided
-            if args.whitelist is not None:
-                warnings.showwarning('Will ignore \'whitelist\' because \'selmap\' is also provided.',
-                                     Warning, _program_name, '')
-
-            from_selection_table_map(data_settings['audio_settings'],
-                                     audio_seltab_list=seltab_filemap,
-                                     audio_root=args.src,
-                                     seltab_root=args.selroot,
-                                     output_root=args.dst,
-                                     **other_args)
-
-    else:
-        # If seltab info wasn't available, build the list of classes from the combination of the dir listing of src and
-        # classes whitelist.
-
-        # List of classes (first level directory names)
-        try:
-            class_dirs = sorted([c for c in os.listdir(args.src) if os.path.isdir(os.path.join(args.src, c))])
-        except FileNotFoundError as exc:
-            print('Error reading source directory: {}'.format(exc.strerror), file=sys.stderr)
-            exit_code = exc.errno
-        else:
-
-            if args.whitelist is not None:  # Apply whitelist
-                class_dirs = restrict_classes_with_whitelist_file(class_dirs, args.whitelist)
-                print('Application of whitelist from {:s} results in {:d} classes.'.format(
-                    args.whitelist, len(class_dirs)))
-
-            if len(class_dirs) == 0:
-                print('No classes to process.')
-
-            else:
-
-                if args.filetypes:
-                    other_args['filetypes'] = args.filetypes
-
-                from_top_level_dirs(data_settings['audio_settings'], class_dirs, args.src, args.dst, **other_args)
-
-    if cfg.paths.logs is not None:
-        logging.shutdown()
-
-    exit(exit_code)

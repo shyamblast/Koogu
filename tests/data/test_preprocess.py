@@ -2,7 +2,7 @@ import os
 import numpy as np
 import shutil
 import pytest
-from koogu.data import preprocess
+from koogu import prepare
 
 from tests.data import narw_dclde_selmap_train
 
@@ -33,7 +33,7 @@ def test_mono_channel(
 
     outputs_dir = os.path.join(outputroot, 'narw_preprocess')
 
-    class_clip_counts = preprocess.from_selection_table_map(
+    class_clip_counts = prepare.from_selection_table_map(
         audio_settings, narw_dclde_selmap_train,
         audio_root=os.path.join(dataroot, 'narw_dclde', 'train_audio'),
         seltab_root=os.path.join(dataroot, 'narw_dclde', 'train_annotations'),
@@ -88,7 +88,7 @@ def test_multi_channel(
 
     outputs_dir = os.path.join(outputroot, 'sei_preprocess')
 
-    class_clip_counts = preprocess.from_selection_table_map(
+    class_clip_counts = prepare.from_selection_table_map(
         audio_settings,
         audio_seltab_list=os.path.join(dataroot, 'multichannel_Sei',
                                        'seltab_map.csv'),
