@@ -124,13 +124,13 @@ def test_GaussianBlur(narw_json_clips_and_settings, outputroot,
         orig_shape = orig_specs.shape
         orig_specs = np.expand_dims(orig_specs, -1)
 
-    outputs |= {
-        f's={s}': GaussianBlur(s, apply_2d)(orig_specs).numpy()[:, :, :, 0]
-        for s in sigmas
-    }
-    for s, o in outputs.items():
+    for s in sigmas:
+        o = GaussianBlur(s, apply_2d)(orig_specs).numpy()[:, :, :, 0]
+
         assert np.all(orig_shape == o.shape), \
             f's={s}: {orig_shape} != {o.shape}'
+
+        outputs[f's={s}'] = o
 
     save_display_to_disk(
         outputs, outputroot, 'test_tf_transformations',
