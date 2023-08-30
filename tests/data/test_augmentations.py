@@ -1,10 +1,8 @@
 import numpy as np
-from matplotlib import pyplot as plt
-import os
 from koogu.data.augmentations import *
 from koogu.data.raw import Settings, Convert
+from tests.data import save_display_to_disk
 import pytest
-import warnings
 
 
 def aug_output_comparisons(aug_output, orig_shape):
@@ -31,7 +29,7 @@ def test_Temporal_AddGaussianNoise(narw_json_clips_and_settings, outputroot):
             'With noise': Convert.audio2spectral(with_noise,
                                                 fs, spec_settings_c)
         },
-        outputroot, 'Temporal_AddGaussianNoise')
+        outputroot, 'test_augmentations', 'Temporal_AddGaussianNoise')
 
 
 def test_Temporal_AddEcho(narw_json_clips_and_settings, outputroot):
@@ -55,7 +53,7 @@ def test_Temporal_AddEcho(narw_json_clips_and_settings, outputroot):
             'Delayed echo': Convert.audio2spectral(delayed_echo,
                                                    fs, spec_settings_c)
         },
-        outputroot, 'Temporal_AddEcho')
+        outputroot, 'test_augmentations', 'Temporal_AddEcho')
 
 
 def test_Temporal_RampVolume(narw_json_clips_and_settings, outputroot):
@@ -77,7 +75,7 @@ def test_Temporal_RampVolume(narw_json_clips_and_settings, outputroot):
             'Ramp up': Convert.audio2spectral(ramp_up,
                                               fs, spec_settings_c)
         },
-        outputroot, 'Temporal_RampVolume')
+        outputroot, 'test_augmentations', 'Temporal_RampVolume')
 
 
 def test_Temporal_ShiftPitch(narw_json_clips_and_settings, outputroot):
@@ -99,7 +97,7 @@ def test_Temporal_ShiftPitch(narw_json_clips_and_settings, outputroot):
             'Shifted up': Convert.audio2spectral(shift_up,
                                                  fs, spec_settings_c)
         },
-        outputroot, 'Temporal_ShiftPitch')
+        outputroot, 'test_augmentations', 'Temporal_ShiftPitch')
 
 
 def test_SpectroTemporal_AlterDistance(narw_json_clips_and_settings,
@@ -123,7 +121,7 @@ def test_SpectroTemporal_AlterDistance(narw_json_clips_and_settings,
             'Farther': farther,
             'Closer': closer
         },
-        outputroot, 'SpectroTemporal_AlterDistance')
+        outputroot, 'test_augmentations', 'SpectroTemporal_AlterDistance')
 
 
 def test_SpectroTemporal_SmearFrequency(narw_json_clips_and_settings,
@@ -147,7 +145,7 @@ def test_SpectroTemporal_SmearFrequency(narw_json_clips_and_settings,
             'Downward': downward,
             'Upward': upward
         },
-        outputroot, 'SpectroTemporal_SmearFrequency')
+        outputroot, 'test_augmentations', 'SpectroTemporal_SmearFrequency')
 
 
 def test_SpectroTemporal_SmearTime(narw_json_clips_and_settings,
@@ -171,7 +169,7 @@ def test_SpectroTemporal_SmearTime(narw_json_clips_and_settings,
             'Backward': backward,
             'Forward': forward
         },
-        outputroot, 'SpectroTemporal_SmearTime')
+        outputroot, 'test_augmentations', 'SpectroTemporal_SmearTime')
 
 
 def test_SpectroTemporal_SquishFrequency(narw_json_clips_and_settings,
@@ -195,7 +193,7 @@ def test_SpectroTemporal_SquishFrequency(narw_json_clips_and_settings,
             'Downward': downward,
             'Upward': upward
         },
-        outputroot, 'SpectroTemporal_SquishFrequency')
+        outputroot, 'test_augmentations', 'SpectroTemporal_SquishFrequency')
 
 
 def test_SpectroTemporal_SquishTime(narw_json_clips_and_settings,
@@ -219,46 +217,10 @@ def test_SpectroTemporal_SquishTime(narw_json_clips_and_settings,
             'Backward': backward,
             'Forward': forward
         },
-        outputroot, 'SpectroTemporal_SquishTime')
+        outputroot, 'test_augmentations', 'SpectroTemporal_SquishTime')
 
 
 def apply_aug(clips_or_specs, aug):
     retval = np.stack([aug(c_or_s).numpy() for c_or_s in clips_or_specs])
     return retval
-
-
-def save_display_to_disk(specs_dict, outputroot, aug_name):
-
-    rows = specs_dict['Original'].shape[0]
-    cols = len(specs_dict)
-
-    fig, ax = plt.subplots(rows, cols, sharex='all', sharey='all')
-    #print(rows, cols, ax.shape)
-
-    for r_idx in range(rows):
-        vmin = min([val[r_idx, ...].min() for _, val in specs_dict.items()])
-        vmax = max([val[r_idx, ...].max() for _, val in specs_dict.items()])
-
-        for c_idx, (key, val) in enumerate(specs_dict.items()):
-            ax[r_idx, c_idx].imshow(
-                val[r_idx, ...],
-                origin='lower', interpolation='none', cmap=plt.cm.jet,
-                vmin=vmin, vmax=vmax
-            )
-            ax[r_idx, c_idx].spines['top'].set_visible(False)
-            ax[r_idx, c_idx].spines['right'].set_visible(False)
-            ax[r_idx, c_idx].spines['bottom'].set_visible(False)
-            ax[r_idx, c_idx].spines['left'].set_visible(False)
-
-            if r_idx == 0:
-                ax[r_idx, c_idx].set_title(key)
-
-    fig.tight_layout()
-    # fig.canvas.set_window_title(aug_name)
-    # plt.show()
-    outdir = os.path.join(outputroot, 'test_augmentations')
-    os.makedirs(outdir, exist_ok=True)
-    plt.savefig(os.path.join(outdir, f'{aug_name}.png'), bbox_inches='tight')
-    warnings.warn(
-        f'{aug_name} outputs saved at {outdir} for manual validation.')
 
