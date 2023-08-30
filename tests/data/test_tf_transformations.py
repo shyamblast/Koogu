@@ -3,8 +3,10 @@ import numpy as np
 import tensorflow as tf
 from matplotlib import colormaps
 import pytest
+from koogu.data.raw import Settings, Convert
 from koogu.data.tf_transformations import \
-    Audio2Spectral, Spec2Img, NormalizeAudio
+    Audio2Spectral, Spec2Img, NormalizeAudio, GaussianBlur
+from tests.data import save_display_to_disk
 
 
 def test_Audio2Spectral(dataroot, narw_json_clips_and_settings):
@@ -85,3 +87,52 @@ def test_NormalizeAudio(narw_json_clips_and_settings,
     val_range = (output[1, :].min(), output[1, :].max())
     assert np.all(np.isclose(val_range, expected_res[1], rtol=1e-06)), \
         f'Clip2: {val_range}'
+
+
+@pytest.mark.parametrize('apply_2d, tf_spec', [
+    (False, True),
+    (True, True),
+    (False, False),
+    (True, False),
+])
+def test_GaussianBlur(narw_json_clips_and_settings, outputroot,
+                      apply_2d, tf_spec):
+    """
+
+    Args:
+        narw_json_clips_and_settings:
+        outputroot:
+        apply_2d:
+        tf_spec: If True, test TF Audio2Spectral, else test scipy fft
+    """
+
+    data, fs, spec_settings, expected_spec_shape = narw_json_clips_and_settings
+    sigmas = [1.55, 2.55, 5]
+
+    orig_clips = Convert.pcm2float(np.stack([data[0, ...], data[1, ...]]))
+
+    outputs = dict()
+    if tf_spec:
+        orig_specs = Audio2Spectral(fs, spec_settings)(orig_clips)
+        outputs['Original'] = orig_specs.numpy()
+        orig_shape = orig_specs.shape
+        orig_specs = tf.expand_dims(orig_specs, -1)
+    else:
+        spec_settings_c = Settings.Spectral(fs, **spec_settings)
+        orig_specs = Convert.audio2spectral(orig_clips, fs, spec_settings_c)
+        outputs['Original'] = orig_specs
+        orig_shape = orig_specs.shape
+        orig_specs = np.expand_dims(orig_specs, -1)
+
+    outputs |= {
+        f's={s}': GaussianBlur(s, apply_2d)(orig_specs).numpy()[:, :, :, 0]
+        for s in sigmas
+    }
+    for s, o in outputs.items():
+        assert np.all(orig_shape == o.shape), \
+            f's={s}: {orig_shape} != {o.shape}'
+
+    save_display_to_disk(
+        outputs, outputroot, 'test_tf_transformations',
+        'GaussianBlur_' + ('xy' if apply_2d else 'y') +
+        ('_tf' if tf_spec else ''))
