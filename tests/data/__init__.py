@@ -1,4 +1,5 @@
 from matplotlib import pyplot as plt
+from matplotlib import colormaps
 import os
 import warnings
 
@@ -16,31 +17,38 @@ narw_dclde_selmap_test = [
 ]
 
 
-def save_display_to_disk(specs_dict, outputroot, test_mod_name, aug_name):
+def save_display_to_disk(specs_dict, outputroot, test_mod_name, aug_name,
+                         normalize_levels=True):
 
     rows = specs_dict['Original'].shape[0]
     cols = len(specs_dict)
 
-    fig, ax = plt.subplots(rows, cols, sharex='all', sharey='all')
-    #print(rows, cols, ax.shape)
+    fig_scale = 2
+    fig_ratio = \
+        specs_dict['Original'].shape[1] / specs_dict['Original'].shape[2]
+    header_height = 0.21
+    fig, ax = plt.subplots(
+        rows, cols, sharex='all', sharey='all',
+        figsize=(cols * fig_scale,
+                 ((rows * fig_ratio) + header_height) * fig_scale))
 
     for r_idx in range(rows):
-        vmin = min([val[r_idx, ...].min() for _, val in specs_dict.items()])
-        vmax = max([val[r_idx, ...].max() for _, val in specs_dict.items()])
+        if normalize_levels:
+            vmin = min([val[r_idx, ...].min() for _, val in specs_dict.items()])
+            vmax = max([val[r_idx, ...].max() for _, val in specs_dict.items()])
+        else:
+            vmin = vmax = None
 
         for c_idx, (key, val) in enumerate(specs_dict.items()):
             ax[r_idx, c_idx].imshow(
                 val[r_idx, ...],
-                origin='lower', interpolation='none', cmap=plt.cm.jet,
+                origin='lower', interpolation='none', cmap=colormaps['jet'],
                 vmin=vmin, vmax=vmax
             )
-            ax[r_idx, c_idx].spines['top'].set_visible(False)
-            ax[r_idx, c_idx].spines['right'].set_visible(False)
-            ax[r_idx, c_idx].spines['bottom'].set_visible(False)
-            ax[r_idx, c_idx].spines['left'].set_visible(False)
+            ax[r_idx, c_idx].set_axis_off()
 
             if r_idx == 0:
-                ax[r_idx, c_idx].set_title(key)
+                ax[r_idx, c_idx].set_title(key, size=9)
 
     fig.tight_layout()
     # fig.canvas.set_window_title(aug_name)
