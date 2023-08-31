@@ -2,7 +2,6 @@
 import tensorflow as tf
 import numpy as np
 from scipy import signal
-#import logging
 import functools
 
 from koogu.data.raw import Filters, Settings
@@ -373,13 +372,14 @@ class LoG(tf.keras.layers.Layer):
                     regularizer=None,
                     constraint=tf.keras.constraints.non_neg(),
                     trainable=True,
-                    dtype=self.kernels[0].dtype)
+                    dtype=self.dtype)
                 for sc_idx in range(len(scales_sigmas))]
 
         if conv_filters is None:
             self.conv_ops = None
             self.activation = None
             self.retain_LoG = None  # Force this to be unset
+            self.num_out_channels = len(scales_sigmas)
         else:
             if isinstance(conv_filters, int):   # One for all
                 self.conv_ops = [tf.keras.layers.Conv2D(
@@ -388,6 +388,7 @@ class LoG(tf.keras.layers.Layer):
                     padding='same', use_bias=False, data_format=data_format,
                     kernel_initializer=tf.keras.initializers.VarianceScaling(),
                     name='LoG_Conv2D')]
+                self.num_out_channels = conv_filters
             else:
                 self.conv_ops = [tf.keras.layers.Conv2D(
                     filters=num_filters,
@@ -396,8 +397,13 @@ class LoG(tf.keras.layers.Layer):
                     kernel_initializer=tf.keras.initializers.VarianceScaling(),
                     name='LoG{:d}_Conv2D'.format(sc_idx+1))
                     for sc_idx, num_filters in enumerate(conv_filters)]
+                self.num_out_channels = sum(conv_filters)
 
-            self.activation = tf.keras.layers.Activation('relu', name='LoG_ReLu')
+            if retain_LoG:
+                self.num_out_channels += len(scales_sigmas)
+
+            self.activation = tf.keras.layers.Activation('relu',
+                                                         name='LoG_ReLu')
             self.retain_LoG = (retain_LoG is not None and retain_LoG is True)
 
     @tf.function
@@ -412,11 +418,13 @@ class LoG(tf.keras.layers.Layer):
 
         # Process at all scales
         blob_det_inputs = inputs
-        conv_op_idxs = ([0] * len(self.kernels)) if len(self.conv_ops) == 1 \
-            else np.arange(len(self.kernels))
+        if self.conv_ops is not None:
+            conv_op_idxs = \
+                ([0] * len(self.sigmas)) if len(self.conv_ops) == 1 else \
+                np.arange(len(self.sigmas))
         all_scale_LoGs = list()
         conv_outputs = list()
-        for sc_idx in range(len(self.kernels)):
+        for sc_idx in range(len(self.sigmas)):
             # Add padding (incrementally) prior to convolutions so that values
             # at boundaries are not very unrealistic.
             blob_det_inputs = tf.pad(blob_det_inputs,
@@ -438,12 +446,16 @@ class LoG(tf.keras.layers.Layer):
 
             # Apply post-conv, if enabled
             if self.conv_ops is not None:
-                # Add offset and suppress values below zero. Then apply conv.
+                # Suppress values below zero. Then apply conv.
                 conv_outputs.append(
                     self.conv_ops[conv_op_idxs[sc_idx]](
                         self.activation(curr_scale_LoG)))
 
-        outputs = (all_scale_LoGs + conv_outputs) if self.retain_LoG else conv_outputs
+        if self.conv_ops is not None:
+            outputs = (all_scale_LoGs + conv_outputs) \
+                if self.retain_LoG else conv_outputs
+        else:
+            outputs = all_scale_LoGs
 
         if len(outputs) > 1:
             outputs = tf.concat(outputs, axis=channel_axis)
@@ -455,7 +467,7 @@ class LoG(tf.keras.layers.Layer):
     def compute_output_shape(self, input_shape):
         output_shape = input_shape
         output_shape[3 if self.data_format == 'channels_last' else 1] = \
-            len(self.sigmas)
+            self.num_out_channels
         return output_shape
 
     def get_config(self):
