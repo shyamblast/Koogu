@@ -338,11 +338,19 @@ class LoG(tf.keras.layers.Layer):
         self.conv_filters = conv_filters
         self.data_format = data_format
 
-        self.kernels = [tf.constant(
-                            np.reshape(k, [len(k), 1, 1, 1]),
-                            dtype=self.dtype)
-                        for k, _ in (Filters.LoG_kernel_1d(sigma)
-                                     for sigma in self.sigmas)]
+        all_k = {
+            len(k): k
+            for k in (Filters.LoG_kernel_1d(sigma)[0] for sigma in self.sigmas)}
+        self.LoG_conv_ops = [
+            tf.keras.layers.Conv2D(
+                1, (kl, 1),
+                kernel_initializer=lambda shp, dtype: tf.reshape(
+                    tf.cast(all_k[shp[0]], dtype), shp),
+                padding='valid', data_format=data_format,
+                dtype=self.dtype
+            )
+            for kl in all_k.keys()
+        ]
 
         prev_scale_padding = int(0)
         f_padding_vec = list()
@@ -431,12 +439,7 @@ class LoG(tf.keras.layers.Layer):
                                      self.f_padding_vec[sc_idx], 'SYMMETRIC')
 
             # Apply LoG filter
-            curr_scale_LoG = tf.nn.conv2d(
-                blob_det_inputs,
-                self.kernels[sc_idx],
-                strides=[1, 1, 1, 1],
-                padding='VALID',
-                data_format=data_format_other)
+            curr_scale_LoG = self.LoG_conv_ops[sc_idx](blob_det_inputs)
 
             # Add offset, if enabled
             if self.offsets is not None:
@@ -505,20 +508,26 @@ class GaussianBlur(tf.keras.layers.Layer):
 
         self.sigma = sigma
         self.data_format = data_format
+        self.apply_2d = apply_2d
 
         f_axis, t_axis = (1, 2) if data_format == 'channels_last' else (2, 3)
 
-        kernel = Filters.gauss_kernel_1d(sigma)
+        kernel = Filters.gauss_kernel_1d(sigma).astype(self.dtype)
         kernel_len = np.int32(len(kernel))
 
-        # Reshaping as [H, W, in_channels, out_channels]
-        self.kernel_y = tf.constant(
-            np.reshape(kernel, [kernel_len, 1, 1, 1]), dtype=self.dtype)
+        self.conv_y = tf.keras.layers.Conv2D(
+            1, (kernel_len, 1),
+            kernel_initializer=lambda shp, dtype: tf.reshape(kernel, shp),
+            padding='valid', data_format=self.data_format
+        )
         if apply_2d:
-            self.kernel_x = tf.constant(
-                np.reshape(kernel, [1, kernel_len, 1, 1]), dtype=self.dtype)
+            self.conv_x = tf.keras.layers.Conv2D(
+                1, (1, kernel_len),
+                kernel_initializer=lambda shp, dtype: tf.reshape(kernel, shp),
+                padding='valid', data_format=self.data_format
+            )
         else:
-            self.kernel_x = None
+            self.conv_x = None
 
         padding_amt = int(np.ceil(sigma * 4))
         padding_vec = [[0, 0], [0, 0], [0, 0], [0, 0]]
@@ -530,24 +539,13 @@ class GaussianBlur(tf.keras.layers.Layer):
     @tf.function
     def call(self, inputs, **kwargs):
 
-        if self.data_format == 'channels_last':
-            data_format_other = 'NHWC'
-        else:
-            data_format_other = 'NCHW'
-
         # Add necessary padding
         outputs = tf.pad(inputs, self.padding_vec, 'SYMMETRIC')
 
         # Apply Gaussian kernel(s)
-        outputs = tf.nn.conv2d(outputs, self.kernel_y,
-                               strides=[1, 1, 1, 1],
-                               padding='VALID',
-                               data_format=data_format_other)
-        if self.kernel_x is not None:
-            outputs = tf.nn.conv2d(outputs, self.kernel_x,
-                                   strides=[1, 1, 1, 1],
-                                   padding='VALID',
-                                   data_format=data_format_other)
+        outputs = self.conv_y(outputs)
+        if self.conv_x:
+            outputs = self.conv_x(outputs)
 
         return outputs
 
@@ -557,7 +555,7 @@ class GaussianBlur(tf.keras.layers.Layer):
     def get_config(self):
         config = {
             'sigma': self.sigma,
-            'apply_2d': self.kernel_x is not None,
+            'apply_2d': self.apply_2d,
             'data_format': self.data_format
         }
 
