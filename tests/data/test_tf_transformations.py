@@ -205,7 +205,8 @@ def test_LoG(narw_json_clips_and_settings, outputroot,
         for s_idx, s in enumerate(scales_sigmas):
             for c_idx in range(conv_filters):
                 outputs[f's={s}, c={c_idx+1}'] = \
-                    l_outputs[:, :, :, s_idx_offset + s_idx + c_idx]
+                    l_outputs[:, :, :,
+                              s_idx_offset + (s_idx * conv_filters) + c_idx]
 
     save_display_to_disk(
         outputs, outputroot, 'test_tf_transformations',
