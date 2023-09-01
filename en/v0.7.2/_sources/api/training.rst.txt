@@ -1,0 +1,5 @@
+Training
+========
+
+.. autofunction:: koogu.train
+
