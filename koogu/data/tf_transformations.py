@@ -9,12 +9,11 @@ from koogu.data.raw import Filters, Settings
 
 class Linear2dB(tf.keras.layers.Layer):
     """
-    Layer for converting time-frequency (tf) representations from linear to
+    Layer for converting time-frequency representations from linear to
     decibel scale.
 
     :param eps: Epsilon value to add, for avoiding computing log(0.0).
     :param full_scale: (boolean) Whether to convert to dB full-scale.
-    :param name: (optional; string) Name for the layer.
 
     """
 
@@ -279,25 +278,27 @@ class Audio2Spectral(tf.keras.layers.Layer):
 
 class LoG(tf.keras.layers.Layer):
     """
-    Layer for applying Laplacian of Gaussian operator(s) to
-    time-frequency (tf) representations.
+    Layer for applying Laplacian of Gaussian (LoG) operator(s) to
+    time-frequency representations (`Madhusudhana et al. 2021
+    <https://doi.org/10.1098/rsif.2021.0297>`_).
 
-    Arguments:
-      scales_sigmas: Must be a tuple or list of sigma values at different
+    :param scales_sigmas: Must be a tuple or list of sigma values at different
         (usually, geometrically progressing) scales. You may use this formula
-        to determine the possible set of sigma values beyond the lowest_sigma:
-            lowest_sigma * (2 ^ (range(2, floor(
-                log2((max_len - 1) / ((2 x 3) x lowest_sigma)) + 1) + 1) - 1))
-        For example, if lowest_sigma is 4 & max_len is 243, the resulting set
-        of sigmas should be (4, 8, 16, 32).
-      add_offsets: If True (default is False), add a trainable offset value to
-        LoG responses.
-      conv_filters: If not None, must be either a single integer (applicable
-        to outputs of all scales) or a list-like group of integers (one per
-        scale, applicable to outputs of respective scales). As many 3x3
-        filters (trainable) will be created and they will be applied to the
-        final outputs of this layer.
-      retain_LoG: If True, and if conv_filters is enabled, the LoG outputs
+        to determine the possible set of sigma values beyond the `lowest_sigma`:
+
+         |   `lowest_sigma * (2 ^ (range(2, floor(`
+         |     `log2((max_len - 1) / ((2 x 3) x lowest_sigma)) + 1) + 1) - 1))`
+         |  For example, if `lowest_sigma` is 4 & `max_len` is 243, the
+         |  resulting set of sigma values should be (4, 8, 16, 32).
+        
+    :param add_offsets: If True (default is False), add a trainable offset value
+        to LoG responses.
+    :param conv_filters: If not None, must either be a single integer
+        (applicable to outputs of all scales) or a list-like group of integers
+        (one per scale, applicable to outputs of respective scales). As many 3x3
+        filters (trainable) will be created and will be applied to the final
+        outputs of this layer.
+    :param retain_LoG: If True, and if conv_filters is enabled, the LoG outputs
         will be included in the outputs.
     """
 
@@ -488,7 +489,7 @@ class LoG(tf.keras.layers.Layer):
 
 class GaussianBlur(tf.keras.layers.Layer):
     """
-    Layer for applying Gaussian blur to time-frequency (tf) representations.
+    Layer for applying Gaussian blur to time-frequency representations.
 
     :param sigma: Scalar value defining the Gaussian kernel.
     :param apply_2d: (boolean; default: True) If True, will apply smoothing
@@ -572,7 +573,7 @@ class Spec2Img(tf.keras.layers.Layer):
     :param cmap: An Nx3 array of RGB color values. Typically, N is 256. If
         `cmap` also contains alpha values (Nx4 instead of Nx3), the last channel
         will be discarded. For example, to specify a 'jet' colorscale, you could
-        use `matplotlib.cm.jet(range(256))`.
+        use `matplotlib.colormaps['jet'](range(256))`.
     :param vmin: (optional; default: None) If specified along with `vmax`,
         spectrogram values will be scaled to the range [`vmin`, `vmax`].
     :param vmax: (optional; default: None) If specified along with `vmin`,
