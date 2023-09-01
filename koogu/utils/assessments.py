@@ -629,7 +629,7 @@ class PrecisionRecall(BaseMetric):
             for th_idx, thld in enumerate(self._thresholds):
 
                 # Apply post-processing algorithm
-                pp_times_int, pp_scores, pp_class_idxs = \
+                pp_times_int, _, pp_class_idxs = \
                     postprocess_detections(
                         scores[ch, ...][:, self._valid_class_mask],
                         clip_offsets, clip_length,
