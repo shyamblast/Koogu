@@ -314,11 +314,7 @@ class LoG(tf.keras.layers.Layer):
             (isinstance(conv_filters, (list, tuple)) and
              len(conv_filters) == len(scales_sigmas))
 
-        data_format = kwargs.pop('data_format') if 'data_format' in kwargs \
-            else 'channels_last'
-
-        assert data_format in ['channels_first', 'channels_last'], \
-            'Only 2 formats supported'
+        data_format = kwargs.pop('data_format', 'channels_last')
 
         kwargs['trainable'] = \
             True if (add_offsets or conv_filters is not None) else False
@@ -347,9 +343,8 @@ class LoG(tf.keras.layers.Layer):
                 1, (kl, 1),
                 kernel_initializer=lambda shp, dtype: tf.reshape(
                     tf.cast(all_k[shp[0]], dtype), shp),
-                padding='valid', data_format=data_format,
-                dtype=self.dtype
-            )
+                use_bias=False, trainable=False,
+                padding='valid', data_format=data_format, dtype=self.dtype)
             for kl in all_k.keys()
         ]
 
@@ -419,10 +414,8 @@ class LoG(tf.keras.layers.Layer):
     def call(self, inputs, **kwargs):
 
         if self.data_format == 'channels_last':
-            data_format_other = 'NHWC'
             channel_axis = 3
         else:
-            data_format_other = 'NCHW'
             channel_axis = 1
 
         # Process at all scales
@@ -501,8 +494,8 @@ class GaussianBlur(tf.keras.layers.Layer):
 
         data_format = kwargs.pop('data_format', 'channels_last')
 
-        assert data_format in ['channels_first', 'channels_last'], \
-            'Only 2 formats supported'
+        # Force to be non-trainable
+        kwargs['trainable'] = False
 
         super(GaussianBlur, self).__init__(
             name=kwargs.pop('name', 'GaussianBlur'), **kwargs)
@@ -519,14 +512,14 @@ class GaussianBlur(tf.keras.layers.Layer):
         self.conv_y = tf.keras.layers.Conv2D(
             1, (kernel_len, 1),
             kernel_initializer=lambda shp, dtype: tf.reshape(kernel, shp),
-            padding='valid', data_format=self.data_format
-        )
+            use_bias=False, trainable=False,
+            padding='valid', data_format=self.data_format, dtype=self.dtype)
         if apply_2d:
             self.conv_x = tf.keras.layers.Conv2D(
                 1, (1, kernel_len),
                 kernel_initializer=lambda shp, dtype: tf.reshape(kernel, shp),
-                padding='valid', data_format=self.data_format
-            )
+                use_bias=False, trainable=False,
+                padding='valid', data_format=self.data_format, dtype=self.dtype)
         else:
             self.conv_x = None
 
@@ -689,7 +682,11 @@ class NormalizeAudio(tf.keras.layers.Layer):
     """
 
     def __init__(self, **kwargs):
-        super(NormalizeAudio, self).__init__(trainable=False, **kwargs)
+
+        # Force to be non-trainable
+        kwargs['trainable'] = False
+
+        super(NormalizeAudio, self).__init__(**kwargs)
 
     @tf.function
     def call(self, inputs):
