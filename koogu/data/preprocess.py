@@ -13,8 +13,6 @@ from koogu.utils import processed_items_generator_mp
 from koogu.utils.detections import assess_annotations_and_clips_match
 from koogu.utils.filesystem import AudioFileList
 
-_program_name = 'preprocess'
-
 
 def batch_process(audio_settings, input_generator, label_helper,
                   aggregator_kwargs,
@@ -39,7 +37,7 @@ def batch_process(audio_settings, input_generator, label_helper,
             f'Output directory {dest_root} already exists. Contents may get ' +
             'overwritten. CAUTION: Stale files within the directory could ' +
             'lead to corruption of training inputs.',
-            Warning, _program_name, '')
+            Warning, 'preprocess', '')
     else:
         os.makedirs(dest_root, exist_ok=True)
 
