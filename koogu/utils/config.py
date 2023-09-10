@@ -172,7 +172,8 @@ class Config:
         negative_class=[str, None],
         min_annotation_overlap_fraction=[PosFrac, None],
         max_nonmatch_overlap_fraction=[NonNegFrac, None],
-        annotation_reader=[Enum('reader', annotations.__all__), None]
+        annotation_reader=[Enum('reader', annotations.__all__), None],
+        raven_label_column_name=[str, None]
       )
 
     if section == 'assess':
@@ -184,7 +185,8 @@ class Config:
         channels=[NonNegInt, (NonNegInt, 1, None), None],
         min_gt_coverage=[PosFrac, None],
         min_det_usage=[PosFrac, None],
-        annotation_reader=[Enum('reader', annotations.__all__), None]
+        annotation_reader=[Enum('reader', annotations.__all__), None],
+        raven_label_column_name=[str, None]
       )
 
 

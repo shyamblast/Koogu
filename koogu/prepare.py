@@ -1,6 +1,5 @@
 import os
 import logging
-import warnings
 import sys
 import argparse
 from .data import annotations
@@ -9,7 +8,7 @@ from .data.raw import Settings
 from .utils.detections import LabelHelper
 from .utils.terminal import ArgparseConverters
 from .utils.config import Config, ConfigError
-from koogu.utils.filesystem import AudioFileList, \
+from .utils.filesystem import AudioFileList, \
     get_valid_audio_annot_entries, recursive_listing
 from .utils import instantiate_logging
 
@@ -75,17 +74,8 @@ def from_selection_table_map(audio_settings, audio_seltab_list,
 
     audio_settings_c = Settings.Audio(**audio_settings)
 
-    ah_kwargs = {}
-    if 'label_column_name' in kwargs:
-        ah_kwargs['label_column_name'] = kwargs.pop('label_column_name')
-        warnings.showwarning(
-            'The parameter \'label_column_name\' is deprecated and will be ' +
-            'removed in a future release. You should instead specify an ' +
-            'instance of one of the annotation reader classes from ' +
-            'koogu.data.annotations.',
-            DeprecationWarning, __name__, '')
     if annotation_reader is None:
-        annotation_reader = annotations.Raven.Reader(**ah_kwargs)
+        annotation_reader = annotations.Raven.Reader()
 
     # ---------- 1. Input generator --------------------------------------------
     # Discard invalid entries, if any
@@ -295,8 +285,16 @@ def _prepare(cfg_file, log_level, num_threads=None):
             exit(2)
 
         if cfg.prepare.annotation_reader is not None:
-            other_args['annotation_reader'] = \
-                getattr(annotations, cfg.prepare.annotation_reader).Reader()
+            ar_type = getattr(annotations, cfg.prepare.annotation_reader).Reader
+        else:
+            ar_type = annotations.Raven.Reader  # Default to Raven.Reader
+        ar_kwargs = dict()
+        if ar_type == annotations.Raven.Reader and \
+                cfg.prepare.raven_label_column_name is not None:
+            ar_kwargs['label_column_name'] = \
+                cfg.prepare.raven_label_column_name
+        other_args['annotation_reader'] = ar_type(**ar_kwargs)
+
         if cfg.prepare.min_annotation_overlap_fraction is not None:
             other_args['min_annot_overlap_fraction'] = \
                 cfg.prepare.min_annotation_overlap_fraction

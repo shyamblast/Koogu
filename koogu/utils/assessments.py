@@ -71,18 +71,9 @@ class BaseMetric(metaclass=abc.ABCMeta):
 
         self._raw_results_root = raw_results_root
         self._annots_root = annots_root
-        ah_kwargs = {}
-        if 'label_column_name' in kwargs:
-            ah_kwargs['label_column_name'] = kwargs.pop('label_column_name')
-            warnings.showwarning(
-                'The parameter \'label_column_name\' is deprecated and will ' +
-                'be removed in a future release. You should instead specify ' +
-                'an instance of one of the annotation reader classes from ' +
-                'koogu.data.annotations.',
-                DeprecationWarning, __name__, '')
         self._annotation_reader = \
             annotation_reader if annotation_reader is not None else \
-            annotations.Raven.Reader(**ah_kwargs)
+            annotations.Raven.Reader()
 
         # Discard invalid entries, if any
         self._audio_annot_list = get_valid_audio_annot_entries(
