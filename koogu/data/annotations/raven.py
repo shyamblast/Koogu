@@ -1,6 +1,7 @@
 import csv
 import abc
 import io
+import warnings
 from functools import lru_cache
 from koogu.data.annotations import BaseAnnotationReader, BaseAnnotationWriter
 
@@ -39,7 +40,8 @@ class Reader(BaseAnnotationReader):
 
         super(Reader, self).__init__(fetch_frequencies)
 
-        self._label_column_name = label_column_name
+        # Undocumented parameter: to specify default label value
+        default_label = kwargs.get('default_label', None)
 
         # Undocumented parameter: to facilitate incorporating checks on
         # additional fields. Specify
@@ -64,7 +66,8 @@ class Reader(BaseAnnotationReader):
         self._read_orchestrators = {}
         for mf in [True, False]:
             fields_spec, extractors = Reader._get_fields_spec_and_extractors(
-                fetch_frequencies, label_column_name, multi_file=mf)
+                fetch_frequencies, label_column_name,
+                default_label=default_label, multi_file=mf)
 
             self._read_orchestrators[mf] = _ReadOrchestrator(
                 fields_spec + additional_fields_spec, *extractors)
@@ -165,7 +168,8 @@ class Reader(BaseAnnotationReader):
 
     @classmethod
     def _get_fields_spec_and_extractors(
-            cls, fetch_frequencies, label_column_name, multi_file=False):
+            cls, fetch_frequencies, label_column_name,
+            default_label=None, multi_file=False):
         """
         Builds the necessary "fields_spec" based on the available function
         parameter choices and returns it along with 5 callables that can be
@@ -179,7 +183,8 @@ class Reader(BaseAnnotationReader):
             _ReadWriteSpecs.sttime[:3],
             _ReadWriteSpecs.entime[:3],
             (label_column_name or _ReadWriteSpecs.clabel[0],
-             *_ReadWriteSpecs.clabel[1:3]),
+             None,
+             default_label or _ReadWriteSpecs.clabel[2]),
             _ReadWriteSpecs.chlnum[:3]
         ]
         extract_times_fn = cls._extract_times
@@ -349,8 +354,16 @@ class _SelectionTableReader:
                 else:                               # No defaults
                     # Set to attempt conversion. Could blow up!
                     return _SelectionTableReader.convert_nocheck
-            else:                               # Pass as-is
-                return _SelectionTableReader.asis
+            else:                               # No conversion
+                if default_val is not None:         # Default value available
+                    if type(default_val) is not str:
+                        warnings.warn(
+                            'Non-string default '
+                            f'{default_val} ({type(default_val)})'
+                            ' specified for a field without conversion')
+                    return _SelectionTableReader.asis_or_default
+                else:                               # Pass as-is
+                    return _SelectionTableReader.asis
         else:                               # Missing column in file.
             if default_val is not None:         # Default value specified
                 return _SelectionTableReader.default
@@ -360,6 +373,10 @@ class _SelectionTableReader:
     @staticmethod
     def asis(values, pos, cast_type=None, default=None):
         return values[pos]
+
+    @staticmethod
+    def asis_or_default(values, pos, unused, default):
+        return default if values[pos] == '' else values[pos]
 
     @staticmethod
     def convert_nocheck(values, pos, cast_type, default=None):
