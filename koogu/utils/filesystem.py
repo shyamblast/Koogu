@@ -15,20 +15,42 @@ def recursive_listing(root_dir, match_extensions=None):
     """
 
     if match_extensions is None:
-        matcher_fn = lambda x: True
+        filtered = __rl_no_filter
     elif isinstance(match_extensions, str):
-        matcher_fn = lambda x: x.endswith(match_extensions)
+        filtered = __rl_single_filter
     else:  # assuming now that it's a list/tuple of strings
-        matcher_fn = lambda x: any((x.endswith(e) for e in match_extensions))
+        filtered = __rl_multi_filter
 
     for parent, dirs, filenames in os.walk(root_dir):
 
-        for file in [f for f in sorted(filenames) if matcher_fn(f)]:
-            relpath = os.path.relpath(parent, start=root_dir)
-            yield os.path.join(relpath, file) if relpath != '.' else file
+        relpath = os.path.relpath(parent, start=root_dir)
+        adjust = __rl_no_relpath if relpath == '.' else __rl_with_relpath
+
+        for file in sorted(filtered(filenames, match_extensions)):
+            yield adjust(file, relpath)
 
         # Sort this in-place to obtain children subdirs in sorted order
         dirs.sort()
+
+
+def __rl_no_filter(fn_list, _):
+    return fn_list
+
+
+def __rl_single_filter(fn_list, extn):
+    return [f for f in fn_list if f.endswith(extn)]
+
+
+def __rl_multi_filter(fn_list, extn):
+    return [f for f in fn_list if any((f.endswith(e) for e in extn))]
+
+
+def __rl_no_relpath(fl, _):
+    return fl
+
+
+def __rl_with_relpath(fl, relp):
+    return os.path.join(relp, fl)
 
 
 def restrict_classes_with_whitelist_file(classes, wl_file, ):
