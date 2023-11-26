@@ -74,13 +74,12 @@ def from_selection_table_map(audio_settings, audio_seltab_list,
 
     audio_settings_c = Settings.Audio(**audio_settings)
 
-    if annotation_reader is None:
-        annotation_reader = annotations.Raven.Reader()
-
-    # ---------- 1. Input generator --------------------------------------------
     # Discard invalid entries, if any
     v_audio_seltab_list = get_valid_audio_annot_entries(
             audio_seltab_list, audio_root, seltab_root, logger=logger)
+
+    if annotation_reader is None:
+        annotation_reader = annotations.Raven.Reader()
 
     if desired_labels is not None:
         is_fixed_classes = True
@@ -101,6 +100,7 @@ def from_selection_table_map(audio_settings, audio_seltab_list,
         print('Nothing to process')
         return {}
 
+    # ---------- 1. Input generator --------------------------------------------
     ig_kwargs = {}      # Undocumented settings
     if negative_class_label is not None:
         # Deal with this only if there was a request to save non-match clips
@@ -290,17 +290,16 @@ def _prepare(cfg_file, log_level, num_threads=None):
         else:
             ar_type = annotations.Raven.Reader  # Default to Raven.Reader
         ar_kwargs = dict()
-        if ar_type == annotations.Raven.Reader and \
-                cfg.prepare.raven_label_column_name is not None:
-            ar_kwargs['label_column_name'] = \
-                cfg.prepare.raven_label_column_name
-        other_args['annotation_reader'] = ar_type(**ar_kwargs)
+        if ar_type == annotations.Raven.Reader:
+            if cfg.prepare.raven_label_column_name is not None:
+                ar_kwargs['label_column_name'] = \
+                    cfg.prepare.raven_label_column_name
+            if cfg.prepare.raven_default_label is not None:
+                ar_kwargs['default_label'] = cfg.prepare.raven_default_label
 
         if cfg.prepare.min_annotation_overlap_fraction is not None:
             other_args['min_annot_overlap_fraction'] = \
                 cfg.prepare.min_annotation_overlap_fraction
-        if cfg.prepare.negative_class is not None:
-            other_args['negative_class_label'] = cfg.prepare.negative_class
         if cfg.prepare.max_nonmatch_overlap_fraction is not None:
             other_args['max_nonmatch_overlap_fraction'] = \
                 cfg.prepare.max_nonmatch_overlap_fraction
@@ -311,6 +310,10 @@ def _prepare(cfg_file, log_level, num_threads=None):
             audio_root=cfg.paths.train_audio,
             seltab_root=cfg.paths.train_annotations,
             output_root=cfg.paths.training_samples,
+            annotation_reader=ar_type(**ar_kwargs),
+            desired_labels=cfg.prepare.desired_labels,
+            remap_labels_dict=cfg.prepare.remap_labels_dict,
+            negative_class_label=cfg.prepare.negative_class,
             **other_args)
 
     else:

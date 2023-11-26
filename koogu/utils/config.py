@@ -173,7 +173,10 @@ class Config:
         min_annotation_overlap_fraction=[PosFrac, None],
         max_nonmatch_overlap_fraction=[NonNegFrac, None],
         annotation_reader=[Enum('reader', annotations.__all__), None],
-        raven_label_column_name=[str, None]
+        desired_labels=[(str, 1, None), None],
+        remap_labels_dict=[dict, None],
+        raven_label_column_name=[str, None],
+        raven_default_label=[str, None]
       )
 
     if section == 'assess':
