@@ -11,7 +11,6 @@ from koogu.data import FilenameExtensions, AssetsExtraNames
 from koogu.data.raw import Audio, Convert
 from koogu.utils import processed_items_generator_mp
 from koogu.utils.detections import assess_annotations_and_clips_match
-from koogu.utils.filesystem import AudioFileList
 
 
 def batch_process(audio_settings, input_generator, label_helper,
@@ -168,32 +167,32 @@ def _single_threaded_single_file_preprocess(
 
 
 def get_unique_labels_from_annotations(
-        seltab_root, annot_files, annotation_reader,
-        num_threads=None, show_counts=False):
+        annot_root, annot_files, annotation_reader,
+        num_threads=None):
     """
     Query the list of annot_files to determine the unique labels present.
-    If `show_counts` is set to True, their respective counts will be printed.
+
     Returns:
         - a list of discovered unique labels
         - a mask of invalid entries in `annot_files`
     """
 
-    if seltab_root is None:
+    if annot_root is None:
         fp_to_af = {af: af
                     for af in annot_files}
     else:
-        fp_to_af = {os.path.join(seltab_root, af): af
+        fp_to_af = {os.path.join(annot_root, af): af
                     for af in annot_files}
 
     classes_n_counts = {}
     invalid_entries_map = {af: True
                            for af in annot_files}
 
-    for pr_fp, (_, tags, _, _, status) in processed_items_generator_mp(
+    for pr_fp, (status, (_, _, tags, _, _)) in processed_items_generator_mp(
             num_threads or max(1, (os.cpu_count() or 1) - 1),
-            AudioFileList._safe_fetch_annotations,
+            annotation_reader.safe_fetch,
             (fp for fp in fp_to_af.keys()),
-            annotation_reader, False):
+            multi_file=False):
 
         if status:
             uniq_labels, label_counts = np.unique(tags, return_counts=True)
@@ -205,16 +204,8 @@ def get_unique_labels_from_annotations(
 
             invalid_entries_map[fp_to_af[pr_fp]] = False
 
-    uniq_classes = sorted(classes_n_counts.keys())
-    if show_counts:
-        print('  {:<55s} - {:>5s}'.format('Class', 'Annotations'))
-        print('  {:<55s}   {:>5s}'.format('-----', '-----------'))
-        for class_name in uniq_classes:
-            print('  {:<55s} - {:>5d}'.format(class_name,
-                                              classes_n_counts[class_name]))
-
     return \
-        uniq_classes, \
+        classes_n_counts, \
         [invalid_entries_map[af] for af in annot_files]
 
 

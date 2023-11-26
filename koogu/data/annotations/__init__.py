@@ -1,5 +1,6 @@
 import abc
 import math
+import logging
 
 
 class BaseAnnotationReader(metaclass=abc.ABCMeta):
@@ -67,6 +68,38 @@ class BaseAnnotationReader(metaclass=abc.ABCMeta):
     @classmethod
     def default_float(cls):
         return math.nan
+
+    def safe_fetch(self, source, **kwargs):
+        """
+        Similar to invoking `__call__()`. Wraps the functionality in
+        try-catch construct to avoid crashing programs.
+
+        :param source: Identifier of an annotation source (e.g., path to an
+            annotation file).
+
+        :return: A two element tuple
+          - a boolean indicating whether the fetch succeeded or not
+          - 5-element tuple that is the return of invoking `__call__()` directly
+
+        """
+        logger = logging.getLogger(__name__)
+
+        status = True
+        times = freqs = tags = channels = files = None
+
+        try:
+            times, freqs, tags, channels, files = self(source, **kwargs)
+        except (IndexError, ValueError) as exc:
+            logger.error(
+                f'Failed loading "{source}", with exception {repr(exc)}. ' +
+                'Check file for invalid/empty entries.')
+            status = False
+        except Exception as exc:
+            logger.error(
+                f'Failed loading "{source}": {repr(exc)}')
+            status = False
+
+        return status, (times, freqs, tags, channels, files)
 
 
 class BaseAnnotationWriter(metaclass=abc.ABCMeta):

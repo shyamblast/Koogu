@@ -123,9 +123,11 @@ class AudioFileList:
             is_multi_file = os.path.isdir(os.path.join(audio_root, audio_path))
 
             # Fetch annotations
-            annots_times, annots_tags, annots_channels, annots_files, status = \
-                AudioFileList._safe_fetch_annotations(
-                    full_path(seltab_path), annotation_handler, is_multi_file)
+            status, (
+                annots_times, _, annots_tags, annots_channels, annots_files
+            ) = annotation_handler.safe_fetch(full_path(seltab_path),
+                                              multi_file=is_multi_file)
+
             if not status:
                 continue        # error message already logged. just skip
 
@@ -213,30 +215,6 @@ class AudioFileList:
                                     '' if added_ext is None else added_ext),
                                 np.sum(uniq_file_matches_mask)
                             ) + 'annotations could not be found.')
-
-    @staticmethod
-    def _safe_fetch_annotations(
-            filepath, annotation_reader, is_multi_file):
-
-        logger = logging.getLogger(__name__)
-
-        status = True
-        annots_times = annots_tags = annots_channels = annots_files = None
-
-        try:
-            annots_times, _, annots_tags, annots_channels, annots_files = \
-                annotation_reader(filepath, multi_file=is_multi_file)
-        except (IndexError, ValueError) as exc:
-            logger.error(
-                f'Failed loading "{filepath}", with exception {repr(exc)}. ' +
-                'Check file for invalid/empty entries.')
-            status = False
-        except Exception as exc:
-            logger.error(
-                f'Failed loading "{filepath}": {repr(exc)}')
-            status = False
-
-        return annots_times, annots_tags, annots_channels, annots_files, status
 
 
 def get_valid_audio_annot_entries(audio_annot_list_or_csv,

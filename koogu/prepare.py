@@ -87,10 +87,11 @@ def from_selection_table_map(audio_settings, audio_seltab_list,
         classes_list = desired_labels
     else:       # need to discover list of classes
         is_fixed_classes = False
-        classes_list, invalid_mask = get_unique_labels_from_annotations(
+        classes_n_counts, invalid_mask = get_unique_labels_from_annotations(
             seltab_root, [e[-1] for e in v_audio_seltab_list],
             annotation_reader, num_threads=kwargs.get('num_threads', None))
 
+        classes_list = list(classes_n_counts.keys())
         if any(invalid_mask):   # remove any broken audio_seltab_list entries
             v_audio_seltab_list = [
                 e for (e, iv) in zip(v_audio_seltab_list, invalid_mask)
