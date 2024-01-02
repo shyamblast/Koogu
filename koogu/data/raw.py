@@ -41,18 +41,21 @@ class Settings:
         def __init__(self, fs, win_len, win_overlap_prc,
                      nfft_equals_win_len=True,
                      bandwidth_clip=None,
-                     tf_rep_type='spec_db',
-                     eps=1e-10,
+                     tf_rep_type=None,
+                     eps=None,
                      num_mels=None):
             """
-            Validate parameters (usually as loaded from a config file) and set appropriate fields in terms of number of
-            samples/points as would be used by some of the code FFT libraries.
+            Validate parameters (usually as loaded from a config file) and set
+            appropriate fields in terms of number of samples/points as would be
+            typically used by FFT libraries.
             """
 
-            self.win_len_samples = int(round(win_len * fs))     # Convert seconds to samples
+            # Convert seconds to samples
+            self.win_len_samples = int(round(win_len * fs))
             assert self.win_len_samples > 0
 
-            self.win_overlap_samples = int(round(win_len * win_overlap_prc * fs))
+            self.win_overlap_samples = int(
+                round(win_len * win_overlap_prc * fs))
             assert 0 <= self.win_overlap_samples < self.win_len_samples
 
             if nfft_equals_win_len in [None, False]:
@@ -69,14 +72,15 @@ class Settings:
                 assert len(bandwidth_clip) == 2
                 self.bandwidth_clip = bandwidth_clip
 
-            # Set to default ('spec') if not provided
-            rep_type = tf_rep_type.lower() if tf_rep_type is not None else 'spec'
+            # Set to default ('spec_db') if not provided
+            rep_type = tf_rep_type.lower() if tf_rep_type is not None \
+                else 'spec_db'
             # Currently supported formats
-            assert rep_type in ['spec', 'spec_db', 'spec_dbfs', 'spec_pcen',
-                                'melspec', 'melspec_db', 'melspec_dbfs', 'melspec_pcen']
+            assert rep_type in ['spec', 'spec_db', 'spec_dbfs',
+                                'melspec', 'melspec_db', 'melspec_dbfs']
             self.tf_rep_type = rep_type
 
-            self.eps = eps
+            self.eps = eps if eps is not None else 1e-10     # defaults to 1e-10
             self.num_mels = num_mels
 
 
