@@ -181,15 +181,13 @@ class Config:
 
     if section == 'assess':
       return dict(
-        thresholds=[PosFrac, (PosFrac, 1, None), None],
-        squeeze_min_dur=[PosFloat, None],
-        assess_raw=[bool, None],
-        clip_advance=[PosFloat, None],
-        channels=[NonNegInt, (NonNegInt, 1, None), None],
+        thresholds=[PosFrac, (NonNegFrac, 1, None), None],
         min_gt_coverage=[PosFrac, None],
         min_det_usage=[PosFrac, None],
+        squeeze_min_dur=[PosFloat, None],
         annotation_reader=[Enum('reader', annotations.__all__), None],
-        raven_label_column_name=[str, None]
+        raven_label_column_name=[str, None],
+        raven_default_label=[str, None]
       )
 
 
