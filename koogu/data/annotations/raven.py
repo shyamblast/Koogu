@@ -6,6 +6,9 @@ from functools import lru_cache
 from koogu.data.annotations import BaseAnnotationReader, BaseAnnotationWriter
 
 
+def default_extension(): return '.selections.txt'
+
+
 class Reader(BaseAnnotationReader):
     """
     Reader class for reading Raven selection table format files.

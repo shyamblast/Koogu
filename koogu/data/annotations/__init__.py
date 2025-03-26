@@ -155,3 +155,5 @@ __all__ = [
     'SonicVisualiser',
     'Audacity'
 ]
+
+# NOTE: __all__ is accessed directly in /utils/config.py and /explore.py

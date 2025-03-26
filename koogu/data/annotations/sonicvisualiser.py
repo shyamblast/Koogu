@@ -2,6 +2,9 @@ import xml.etree.ElementTree as XElemTree
 from koogu.data.annotations import BaseAnnotationReader
 
 
+def default_extension(): return '.svl'
+
+
 class Reader(BaseAnnotationReader):
     """
     Reader class for reading Sonic Visualiser format annotation files.

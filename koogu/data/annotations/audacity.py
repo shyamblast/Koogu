@@ -2,6 +2,9 @@ import csv
 from koogu.data.annotations import BaseAnnotationReader, BaseAnnotationWriter
 
 
+def default_extension(): return '.txt'
+
+
 class Reader(BaseAnnotationReader):
     """
     Reader class for reading Audacity format annotation files.
