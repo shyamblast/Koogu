@@ -394,7 +394,8 @@ class DataFeeder(BaseFeeder):
                     os.path.join(self._data_dir, b.decode()),
                     files_clips_idxs[a],
                     self._valid_class_mask,
-                    self._suppress_nonmax),
+                    self._suppress_nonmax,
+                    dtype=np.float32),
                 args=(file_idx, npz_file),
                 output_signature=(
                     tf.TensorSpec(shape=(self._in_shape[0],),
@@ -520,10 +521,10 @@ class DataFeeder(BaseFeeder):
 
     @staticmethod
     def file_data_generator(npz_filepath, file_clips_idxs, valid_class_mask,
-                            suppress_nonmax=False):
+                            suppress_nonmax=False, dtype=np.float32):
 
         clips, labels = DataFeeder._get_file_clips_and_labels(
-            npz_filepath, file_clips_idxs, valid_class_mask)
+            npz_filepath, file_clips_idxs, valid_class_mask, dtype=dtype)
 
         if suppress_nonmax:
             # Update labels to be one-hot type, based on the max valued class
@@ -586,13 +587,15 @@ class DataFeeder(BaseFeeder):
                 np.expand_dims(labels.argmax(axis=1), axis=1))
 
     @staticmethod
-    def _get_file_clips_and_labels(filepath, clips_idxs, class_mask):
+    def _get_file_clips_and_labels(filepath, clips_idxs, class_mask,
+                                   dtype=np.float32):
         # In the npz file, clips are stored as int16 & labels are stored as
         # float16. Convert them appropriately before returning.
         with np.load(filepath) as data:
-            return Convert.pcm2float(data['clips'][clips_idxs, :]), \
-                   (data['labels'][clips_idxs, :])[:, class_mask].astype(
-                       np.float32)
+            return \
+                Convert.pcm2float(data['clips'][clips_idxs, :], dtype=dtype), \
+                (data['labels'][clips_idxs, :])[:, class_mask].astype(
+                    np.float32)
 
 
 class SpectralDataFeeder(DataFeeder):
