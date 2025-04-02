@@ -2,7 +2,6 @@ import tensorflow as tf
 from . import KooguArchitectureBase
 
 
-@KooguArchitectureBase.export
 class DenseNet(KooguArchitectureBase):
     """
     DenseNet (`Huang et. al., 2016 <http://arxiv.org/abs/1608.06993>`_).

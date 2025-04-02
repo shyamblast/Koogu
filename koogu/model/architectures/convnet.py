@@ -2,7 +2,6 @@ import tensorflow as tf
 from . import KooguArchitectureBase
 
 
-@KooguArchitectureBase.export
 class ConvNet(KooguArchitectureBase):
     """
     Boilerplate ConvNet network-building logic that can be used, with
