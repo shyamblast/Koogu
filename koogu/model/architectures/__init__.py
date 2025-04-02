@@ -298,13 +298,10 @@ class KooguArchitectureBase(BaseArchitecture):
             additional = np.where(remainders,
                                   kernel_shape - remainders,
                                   [0, 0]).astype(int)
-            pad_amt = np.asarray([[0, 0], [0, 0], [0, 0], [0, 0]])
-            pad_amt[f_axis, 1] = additional[0]
-            pad_amt[t_axis, 1] = additional[1]
-            # print('Pad amount {} for feature dims {}'.format(pad_amt,
-            #                                                  feature_dims))
-            outputs = tf.pad(outputs, pad_amt,
-                             mode='CONSTANT', constant_values=0)
+            outputs = tf.keras.layers.ZeroPadding2D(
+                padding=((0, additional[0]), (0, additional[1])),
+                dtype=self._dtype,
+                data_format=self._data_format)(outputs)
 
         return outputs
 
