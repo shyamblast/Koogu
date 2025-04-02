@@ -250,7 +250,7 @@ class GroundTruthDataAggregator:
         np.savez_compressed(
             filepath,
             fs=fs,
-            labels=labels,
+            labels=np.concatenate(labels),
             channels=np.concatenate([
                     np.broadcast_to(cls.ch_type(ch), (c.shape[0], ))
                     for ch, c in zip(channels, clips)]),
@@ -306,7 +306,10 @@ class GroundTruthDataAggregatorNoAnnots(GroundTruthDataAggregator):
             # "broadcast" to mimic replicating rows.
             labels = np.zeros((self._num_classes, ), dtype=self.gt_type)
             labels[self._file_level_label] = 1.0
-            labels = np.broadcast_to(labels, (num_clips, labels.size))
+            labels = [
+                np.broadcast_to(labels, (c.shape[0], labels.size))
+                for c in self._clips
+            ]
 
             retval[self._file_level_label] = num_clips  # update retval too
 
@@ -480,9 +483,10 @@ class GroundTruthDataAggregatorWithAnnots(GroundTruthDataAggregator):
         action_str = ''
         if num_clips > 0:
 
-            all_labels = np.concatenate(self._labels, axis=0)
-            retval = np.sum(all_labels == 1.0, axis=0,
-                            dtype=self.ret_counts_type)
+            retval = np.sum([
+                np.sum(ch_labels == 1.0, axis=0, dtype=self.ret_counts_type)
+                for ch_labels in self._labels
+            ], axis=0)
 
             GroundTruthDataAggregator.save(
                 self._output_filepath,
@@ -490,7 +494,7 @@ class GroundTruthDataAggregatorWithAnnots(GroundTruthDataAggregator):
                 self._channels,
                 self._clip_offsets,
                 self._clips,
-                all_labels,
+                self._labels,
                 normalize_clips=normalize_clips
             )
 
