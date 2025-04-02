@@ -1,9 +1,5 @@
 
 import numpy as np
-try:
-    from collections.abc import Generator
-except ImportError:
-    from collections import Generator
 from warnings import showwarning
 from koogu.data.annotations.raven import Reader as RavenReader
 
@@ -128,78 +124,6 @@ def combine_streaks(det_scores, clip_start_samples, num_samples, squeeze_min_len
         return ret_samp_extents, ret_scores, streak_class_idxs, ret_extents
     else:
         return ret_samp_extents, ret_scores, streak_class_idxs
-
-
-class SelectionTableReader(Generator):
-    """
-    A generator for reading Raven selection tables. A simple, fast yet efficient
-    way for processing selection tables. Pass in the path to the file and a list
-    containing field specifications, and retrieve table entries iteratively,
-    without having to load the entire selection table file in memory.
-
-    :param seltab_file: Path to a Raven selection table file.
-    :param fields_spec: A list of field specifiers. A field specifier must be a
-        tuple containing -
-
-        * the name of the field (column header),
-        * the corresponding data type, and
-        * optionally, a default value.
-
-        The field names (case-sensitive) should match the actual column headers
-        in the selection table file. If no matching column header is found for a
-        specified field, then the respective value will be None in every
-        returned output. If an annotation entry is blank for a specified field,
-        then the respective value returned will be set to either the default (if
-        specified) or to None.
-    :param delimiter: (optional; default is the tab character) The delimiter in
-        the selection table file.
-
-    :return: The generator iteratively yields tuples containing type-converted
-        values corresponding to the chosen fields from each annotation read. The
-        fields in the tuple will be in the same order as that of
-        ``fields_spec``.
-
-    Example::
-
-        >>> fields_spec = [('Selection', int, 0),
-        ...                ('Begin Time (s)', float, 0),
-        ...                ('Tags', str),
-        ...                ('Score', float)]
-        ...
-        >>> for entry in SelectionTableReader('my_annots.selection.txt',
-        ...                                   fields_spec):
-        ...     print(entry[0], entry[1], entry[2], entry[3])
-
-    :meta private:
-    """
-
-    def __init__(self, seltab_file, fields_spec, delimiter='\t'):
-        showwarning(
-            'This interface is deprecated and will be removed in a future ' +
-            'release. You should instead use ' +
-            'koogu.data.annotations.Raven.get_annotations_from_file() which ' +
-            'provides the same functionality.',
-            DeprecationWarning, __name__ + '.' + self.__class__.__name__, '')
-
-        self._annots_itr = RavenReader.get_annotations_from_file(
-            seltab_file, fields_spec, delimiter)
-
-    # internal function
-    def send(self, _):
-        """
-        :meta private:
-        """
-        return next(self._annots_itr)
-
-    # internal function
-    def throw(self, type=None, value=None, traceback=None):
-        """
-        :meta private:
-        """
-        raise StopIteration
-
-    def __del__(self):
-        pass
 
 
 def assess_annotations_and_clips_match(
