@@ -82,6 +82,7 @@ class BaseArchitecture(metaclass=abc.ABCMeta):
         activation_type = 'sigmoid' if self._multilabel else 'softmax'
         outputs = tf.keras.layers.Dense(units=num_classes,
                                         activation=activation_type,
+                                        dtype=self._dtype,
                                         name='Logits'
                                         )(outputs)
 
@@ -137,7 +138,7 @@ class KooguArchitectureBase(BaseArchitecture):
         # Default to an empty list. Otherwise, save instantiated objects of
         # classes that are instances of tf.keras.layers.Layer.
         self._preprocs = [
-            KooguArchitectureBase._get_preproc(preproc_item, self._data_format)
+            self._get_preproc(preproc_item)
             for preproc_item in kwargs.get('preproc', [])]
 
     @property
@@ -178,15 +179,18 @@ class KooguArchitectureBase(BaseArchitecture):
         # Add dense layers as requested
         for dl_idx, num_nodes in enumerate(self._dense_layers):
             outputs = tf.keras.layers.Dense(units=num_nodes, use_bias=False,
-                                            name='FC-D{:d}'.format(dl_idx + 1)
+                                            dtype=self._dtype,
+                                            name=f'FC-D{dl_idx + 1:d}'
                                             )(outputs)
             outputs = tf.keras.layers.BatchNormalization(
                 scale=False, epsilon=1e-8,
-                name='BatchNorm-D{:d}'.format(dl_idx + 1))(outputs)
+                dtype=self._dtype,
+                name=f'BatchNorm-D{dl_idx + 1:d}')(outputs)
 
             if self._dense_layers_activation:
                 outputs = tf.keras.layers.Activation(
-                    'relu', name='ReLu-D{:d}'.format(dl_idx + 1))(outputs)
+                    'relu', dtype=self._dtype,
+                    name=f'ReLu-D{dl_idx + 1:d}')(outputs)
 
         return outputs
 
@@ -198,8 +202,7 @@ class KooguArchitectureBase(BaseArchitecture):
         raise NotImplementedError(
             'build_network() method not implemented in derived class')
 
-    @staticmethod
-    def _get_preproc(preproc_item, data_format):
+    def _get_preproc(self, preproc_item):
 
         if isinstance(preproc_item, tf.keras.layers.Layer):
             # If it was already an instantiated object, return as-is
@@ -218,6 +221,9 @@ class KooguArchitectureBase(BaseArchitecture):
 
         fixed_params = {k: v for k, v in params.items()}  # copy
 
+        if 'dtype' not in params:     # Add dtype if missing
+            fixed_params['dtype'] = self._dtype
+
         if name == 'LoG':
             if 'name' not in params:
                 fixed_params['name'] = 'PreLoG'
@@ -232,7 +238,7 @@ class KooguArchitectureBase(BaseArchitecture):
         # keras ones.
 
         if 'data_format' not in params:     # Add data_format if missing
-            fixed_params['data_format'] = data_format
+            fixed_params['data_format'] = self._data_format
 
         if name == 'Conv2D':
             if 'kernel_size' not in params:
@@ -270,14 +276,14 @@ class KooguArchitectureBase(BaseArchitecture):
         raise ValueError(
             'Unknown preproc option requested: {:s}'.format(name))
 
-    @staticmethod
-    def pad_for_valid_conv2d(inputs, kernel_shape, strides, data_format):
+    def pad_for_valid_conv2d(self, inputs, kernel_shape, strides):
         """
         Utility function to ensure that pixels at boundaries are properly
         accounted for when stride > 1.
         """
 
-        f_axis, t_axis = (1, 2) if data_format == 'channels_last' else (2, 3)
+        f_axis, t_axis = \
+            (1, 2) if self._data_format == 'channels_last' else (2, 3)
 
         feature_dims = inputs.get_shape().as_list()
         outputs = inputs

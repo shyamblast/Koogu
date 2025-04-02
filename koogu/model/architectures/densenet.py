@@ -103,35 +103,41 @@ class DenseNet(KooguArchitectureBase):
         def composite_fn(cf_inputs, num_filters, kernel_size, strides,
                          padding, cf_idx, n_pre=''):
 
-            name_prefix = n_pre + 'CF{}_'.format(cf_idx)
+            name_prefix = f'{n_pre}CF{cf_idx}_'
 
             cf_outputs = tf.keras.layers.BatchNormalization(
-                axis=channel_axis, fused=True, scale=False,
-                name=name_prefix + 'BatchNorm')(cf_inputs)
+                axis=channel_axis, scale=False, epsilon=1e-8,
+                dtype=self._dtype,
+                name=f'{name_prefix}BatchNorm')(cf_inputs)
             cf_outputs = tf.keras.layers.Activation(
-                'relu', name=name_prefix + 'ReLu')(cf_outputs)
+                'relu',
+                dtype=self._dtype,
+                name=f'{name_prefix}ReLu')(cf_outputs)
 
             if padding == 'valid':
                 # Ensure that pixels at boundaries are properly accounted for
                 # when stride > 1.
-                cf_outputs = KooguArchitectureBase.pad_for_valid_conv2d(
-                    cf_outputs, kernel_size, strides, self._data_format)
+                cf_outputs = self.pad_for_valid_conv2d(
+                    cf_outputs, kernel_size, strides)
 
             cf_outputs = tf.keras.layers.Conv2D(
                 filters=num_filters, kernel_size=kernel_size, strides=strides,
                 padding=padding, use_bias=False, data_format=self._data_format,
                 kernel_initializer=tf.keras.initializers.VarianceScaling(),
-                name=name_prefix + 'Conv2D')(cf_outputs)
+                dtype=self._dtype,
+                name=f'{name_prefix}Conv2D')(cf_outputs)
 
             if dropout_rate > 0.0:
                 cf_outputs = tf.keras.layers.Dropout(
-                    dropout_rate, name=name_prefix + 'Dropout')(cf_outputs)
+                    dropout_rate,
+                    dtype=self._dtype,
+                    name=f'{name_prefix}Dropout')(cf_outputs)
 
             return cf_outputs
 
         def dense_block(db_inputs, num_layers_in_block, b_idx):
 
-            name_prefix = 'B{:d}_'.format(b_idx)
+            name_prefix = f'B{b_idx:d}_'
 
             db_outputs = [db_inputs]
 
@@ -140,7 +146,8 @@ class DenseNet(KooguArchitectureBase):
                     db_outputs = [
                         tf.keras.layers.Concatenate(
                             axis=channel_axis,
-                            name=name_prefix + 'Concat{:d}'.format(layer + 1)
+                            dtype=self._dtype,
+                            name=f'{name_prefix}Concat{layer + 1:d}'
                         )(db_outputs)
                     ]
 
@@ -148,7 +155,7 @@ class DenseNet(KooguArchitectureBase):
                     layer_outputs = composite_fn(
                         db_outputs[-1], arch_config['growth_rate'] * 4,
                         [1, 1], [1, 1], 'same',
-                        '-BtlNk{:d}'.format(layer + 1), name_prefix)
+                        f'-BtlNk{layer + 1:d}', name_prefix)
                 else:
                     layer_outputs = db_outputs[-1]
 
@@ -159,7 +166,9 @@ class DenseNet(KooguArchitectureBase):
                 db_outputs.append(layer_outputs)
 
             return tf.keras.layers.Concatenate(
-                axis=channel_axis, name=name_prefix + 'Concat')(db_outputs)
+                axis=channel_axis,
+                dtype=self._dtype,
+                name=f'{name_prefix}Concat')(db_outputs)
 
         outputs = inputs
 
@@ -190,37 +199,41 @@ class DenseNet(KooguArchitectureBase):
                         outputs, num_features,
                         arch_config['pool_sizes'][block_idx],
                         arch_config['pool_strides'][block_idx],
-                        'valid', '', n_pre='T{:d}_'.format(block_idx + 1))
+                        'valid', '', n_pre=f'T{block_idx + 1:d}_')
                 else:
                     outputs = composite_fn(
                         outputs, num_features, [1, 1], [1, 1], 'valid', '',
-                        n_pre='T{:d}_'.format(block_idx + 1))
+                        n_pre=f'T{block_idx + 1:d}_')
                     # Ensure that pixels at boundaries are properly accounted
                     # for when stride > 1.
-                    outputs = KooguArchitectureBase.pad_for_valid_conv2d(
+                    outputs = self.pad_for_valid_conv2d(
                         outputs,
                         arch_config['pool_sizes'][block_idx],
-                        arch_config['pool_strides'][block_idx],
-                        self._data_format)
+                        arch_config['pool_strides'][block_idx])
                     outputs = pooling(
                         pool_size=arch_config['pool_sizes'][block_idx],
                         strides=arch_config['pool_strides'][block_idx],
                         padding='valid', data_format=self._data_format,
-                        name='T{:d}_Pool'.format(block_idx + 1))(outputs)
+                        dtype=self._dtype,
+                        name=f'T{block_idx + 1:d}_Pool')(outputs)
 
         # Final batch_norm & activation
         outputs = tf.keras.layers.BatchNormalization(
-            axis=channel_axis, fused=True, scale=False, epsilon=1e-8)(outputs)
-        outputs = tf.keras.layers.Activation('relu', name='ReLu')(outputs)
+            axis=channel_axis, scale=False, epsilon=1e-8,
+            dtype=tf.float32)(outputs)
+        outputs = tf.keras.layers.Activation(
+            'relu', dtype=tf.float32, name='ReLu')(outputs)
 
         # Pooling or flattening
         if arch_config['flatten_leaf_nodes']:  # if flattening was enabled
             outputs = tf.keras.layers.Flatten(
-                data_format=self._data_format)(outputs)
+                data_format=self._data_format,
+                dtype=self._dtype)(outputs)
         else:
             # This is the default - take global mean
             outputs = tf.keras.layers.GlobalAveragePooling2D(
-                data_format=self._data_format)(outputs)
+                data_format=self._data_format,
+                dtype=self._dtype)(outputs)
 
         return outputs
 

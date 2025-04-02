@@ -95,27 +95,31 @@ class ConvNet(KooguArchitectureBase):
                 filters=num_filters, kernel_size=(3, 3), strides=(1, 1),
                 padding='same', use_bias=False, data_format=self._data_format,
                 kernel_initializer=tf.keras.initializers.VarianceScaling(),
+                dtype=self._dtype,
                 name=f'Conv2D_{l_idx + 1:d}')(outputs)
 
             if dropout_rate > 0.0:
                 outputs = tf.keras.layers.Dropout(
-                    dropout_rate, name=f'Dropout_{l_idx + 1:d}')(outputs)
+                    dropout_rate, dtype=self._dtype,
+                    name=f'Dropout_{l_idx + 1:d}')(outputs)
 
             if arch_config['add_batchnorm']:
                 outputs = tf.keras.layers.BatchNormalization(
-                    axis=channel_axis, fused=True, scale=False,
+                    axis=channel_axis, scale=False, epsilon=1e-8,
+                    dtype=self._dtype,
                     name=f'BatchNorm_{l_idx + 1:d}')(outputs)
 
             outputs = tf.keras.layers.Activation(
-                'relu', name=f'ReLu_{l_idx + 1:d}')(outputs)
+                'relu', dtype=self._dtype, name=f'ReLu_{l_idx + 1:d}')(outputs)
 
             outputs = pooling(pool_size=pool_size,
                               strides=pool_stride,
                               padding='valid', data_format=self._data_format,
+                              dtype=self._dtype,
                               name=f'Pool_{l_idx + 1:d}')(outputs)
 
         outputs = tf.keras.layers.Flatten(
-            data_format=self._data_format)(outputs)
+            data_format=self._data_format, dtype=self._dtype)(outputs)
 
         return outputs
 
