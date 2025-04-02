@@ -1,83 +1,112 @@
-
 import numpy as np
 from warnings import showwarning
-from koogu.data.annotations.raven import Reader as RavenReader
 
 
 def _squeeze_streak(starts, scores, num_samples, group_size):
-    """Internal helper function for combine_streaks().
-    Adjusts the start-end times of successive detections of the same label to contain the maximal overlapping duration
-    and aggregates the scores."""
+    """
+    Internal helper function for combine_streaks().
+    Adjusts the start-end times of successive detections of the same label to
+    contain the maximal overlapping duration and aggregates the scores.
+    """
 
-    # Find maximal overlapping regions within a streak of detections and group those detections together.
-    # identify the group extents and aggregate scores within each grouping
-    grp_start_det_idxs = np.arange(min(group_size, len(starts)) - 1, len(starts))
+    # Find maximal overlapping regions within a streak of detections and group
+    # those detections together.
+    # Identify the group extents and aggregate scores within each grouping
+    grp_start_det_idxs = np.arange(min(group_size, len(starts)) - 1,
+                                   len(starts))
     grp_end_det_idxs = np.arange(len(starts) - min(group_size, len(starts)) + 1)
-    group_extents = np.stack([starts[grp_start_det_idxs], starts[grp_end_det_idxs] + num_samples - 1]).T
+    group_extents = np.stack([starts[grp_start_det_idxs],
+                              starts[grp_end_det_idxs] + num_samples - 1]).T
     group_extent_idxs = np.stack([grp_start_det_idxs, grp_end_det_idxs]).T
-    group_scores = np.asarray([np.max(scores[st_idx:(en_idx + 1)])
-                               for st_idx, en_idx in zip(grp_end_det_idxs, grp_start_det_idxs)])
+    group_scores = np.asarray([
+        np.max(scores[st_idx:(en_idx + 1)])
+        for st_idx, en_idx in zip(grp_end_det_idxs, grp_start_det_idxs)
+    ])
 
-    # Now combine successive maximal overlapping groups if they are contiguous (or also further overlapping)
+    # Now combine successive maximal overlapping groups if they are contiguous
+    # (or also further overlapping)
     contiguous_groups_mask = (group_extents[:-1, 1] + 1) >= group_extents[1:, 0]
-    contiguous_groups_onsets = np.where(
-        np.concatenate([contiguous_groups_mask[0:1],
-                        np.logical_and(np.logical_not(contiguous_groups_mask[:-1]), contiguous_groups_mask[1:])])
-        )[0]
-    contiguous_groups_ends = np.where(
-        np.concatenate([np.logical_and(contiguous_groups_mask[:-1], np.logical_not(contiguous_groups_mask[1:])),
-                        contiguous_groups_mask[-1:]]))[0] + 1
+    contiguous_groups_onsets = np.where(np.concatenate([
+        contiguous_groups_mask[0:1],
+        np.logical_and(np.logical_not(contiguous_groups_mask[:-1]),
+                       contiguous_groups_mask[1:])
+    ]))[0]
+    contiguous_groups_ends = np.where(np.concatenate([
+        np.logical_and(contiguous_groups_mask[:-1],
+                       np.logical_not(contiguous_groups_mask[1:])),
+        contiguous_groups_mask[-1:]
+    ]))[0] + 1
 
     # Find non-contiguous groups, if any
     noncontiguous_groups_mask = np.full((group_extents.shape[0], ), True)
     noncontiguous_groups_mask[[
-        d_idx for s_idx, e_idx in zip(contiguous_groups_onsets, contiguous_groups_ends)
-        for d_idx in range(s_idx, e_idx + 1)]] = False
+        d_idx
+        for s_idx, e_idx in zip(contiguous_groups_onsets,
+                                contiguous_groups_ends)
+        for d_idx in range(s_idx, e_idx + 1)
+    ]] = False
 
     # Combine results of both contiguous groups and non-contiguous ones
     group_extent_idxs = np.concatenate([
-        np.stack([group_extent_idxs[contiguous_groups_onsets, 1], group_extent_idxs[contiguous_groups_ends, 0]]).T,
+        np.stack([group_extent_idxs[contiguous_groups_onsets, 1],
+                  group_extent_idxs[contiguous_groups_ends, 0]]).T,
         group_extent_idxs[noncontiguous_groups_mask, ...]],
         axis=0)
     group_extents = np.concatenate([
-        np.stack([group_extents[contiguous_groups_onsets, 0], group_extents[contiguous_groups_ends, 1]]).T,
+        np.stack([group_extents[contiguous_groups_onsets, 0],
+                  group_extents[contiguous_groups_ends, 1]]).T,
         group_extents[noncontiguous_groups_mask, ...]],
         axis=0)
     group_scores = np.concatenate([
-        [np.median(group_scores[s_idx:e_idx+1])
-         for s_idx, e_idx in zip(contiguous_groups_onsets, contiguous_groups_ends)],
+        [
+            np.median(group_scores[s_idx:e_idx+1])
+            for s_idx, e_idx in zip(contiguous_groups_onsets,
+                                    contiguous_groups_ends)
+        ],
         group_scores[noncontiguous_groups_mask]],
         axis=0)
 
     return group_extents, group_scores, np.sort(group_extent_idxs, axis=1)
 
 
-def combine_streaks(det_scores, clip_start_samples, num_samples, squeeze_min_len=None, return_idxs=False):
+def combine_streaks(det_scores, clip_start_samples, num_samples,
+                    squeeze_min_len=None, return_idxs=False):
     """
     Combine together groupings of successive independent detections.
-    :param det_scores: An [N x M] array containing M per-class scores for each of the N clips.
-    :param clip_start_samples: An N-length integer array containing indices of the first sample in each clip.
+
+    :param det_scores: An [N x M] array containing M per-class scores for each
+        of the N clips.
+    :param clip_start_samples: An N-length integer array containing indices of
+        the first sample in each clip.
     :param num_samples: Number of samples in each clip.
-    :param squeeze_min_len: If not None, will run the algorithm to squish contiguous detections of the same class.
-        Squeezing will be limited to produce detections that are at least squeeze_min_len samples long.
+    :param squeeze_min_len: If not None, will run the algorithm to squish
+        contiguous detections of the same class.
+        Squeezing will be limited to produce detections that are at least
+        squeeze_min_len samples long.
     :return:
-        A tuple containing sample idxs (array of start and end pairs), aggregated scores, class IDs and, if requested,
-        start-end indices making up each combined streak.
+        A tuple containing sample idxs (array of start and end pairs),
+        aggregated scores, class IDs and, if requested, start-end indices making
+        up each combined streak.
 
     :meta private:
     """
 
     assert squeeze_min_len is None or squeeze_min_len <= num_samples
 
-    good_dets_mask = np.logical_not(np.isnan(det_scores))   # Only take valid score clips
+    # Only take valid score clips
+    good_dets_mask = np.logical_not(np.isnan(det_scores))
 
     # Find the extents of every streak
-    streak_class_idxs, streak_onset_idxs = np.where(
-        np.concatenate([good_dets_mask[0:1, :],
-                        np.logical_and(np.logical_not(good_dets_mask[:-1, :]), good_dets_mask[1:, :])]).T)
-    _, streak_end_idxs = np.where(
-        np.concatenate([np.logical_and(good_dets_mask[:-1, :], np.logical_not(good_dets_mask[1:, :])),
-                        good_dets_mask[-1:, :]]).T)
+    streak_class_idxs, streak_onset_idxs = np.where(np.concatenate([
+        good_dets_mask[0:1, :],
+        np.logical_and(np.logical_not(good_dets_mask[:-1, :]),
+                       good_dets_mask[1:, :])
+    ]).T)
+    _, streak_end_idxs = np.where(np.concatenate([
+        np.logical_and(good_dets_mask[:-1, :],
+                       np.logical_not(good_dets_mask[1:, :])),
+        good_dets_mask[-1:, :]
+    ]).T)
 
     num_detections = len(streak_class_idxs)
     if num_detections == 0:
@@ -86,8 +115,10 @@ def combine_streaks(det_scores, clip_start_samples, num_samples, squeeze_min_len
             streak_class_idxs
 
     if squeeze_min_len is not None:
-        max_num_overlapping_clips = \
-            1 + (clip_start_samples[1:] <= (clip_start_samples[0] + (num_samples - squeeze_min_len))).sum()
+        max_num_overlapping_clips = 1 + (
+                clip_start_samples[1:] <= (
+                    clip_start_samples[0] + (num_samples - squeeze_min_len))
+        ).sum()
 
         ret_samp_extents = list()
         ret_extents = list()
@@ -96,14 +127,17 @@ def combine_streaks(det_scores, clip_start_samples, num_samples, squeeze_min_len
         for idx in range(num_detections):
             str_st_idx = streak_onset_idxs[idx]
             str_en_idx = streak_end_idxs[idx] + 1
-            c_samp_exts, c_scores, c_exts = _squeeze_streak(clip_start_samples[str_st_idx:str_en_idx],
-                                       det_scores[str_st_idx:str_en_idx, streak_class_idxs[idx]],
-                                       num_samples, max_num_overlapping_clips)
+            c_samp_exts, c_scores, c_exts = _squeeze_streak(
+                clip_start_samples[str_st_idx:str_en_idx],
+                det_scores[str_st_idx:str_en_idx, streak_class_idxs[idx]],
+                num_samples,
+                max_num_overlapping_clips)
 
             ret_samp_extents.append(c_samp_exts)
             ret_extents.append(c_exts + str_st_idx)
             ret_scores.append(c_scores)
-            ret_class_idxs.append(np.full((len(c_scores),), streak_class_idxs[idx]))
+            ret_class_idxs.append(
+                np.full((len(c_scores),), streak_class_idxs[idx]))
 
         ret_samp_extents = np.concatenate(ret_samp_extents, axis=0)
         ret_extents = np.concatenate(ret_extents, axis=0)
@@ -111,14 +145,23 @@ def combine_streaks(det_scores, clip_start_samples, num_samples, squeeze_min_len
         streak_class_idxs = np.concatenate(ret_class_idxs, axis=0)
     else:
         ret_samp_extents = np.asarray(
-            [[clip_start_samples[streak_onset_idxs[idx]], clip_start_samples[streak_end_idxs[idx]] + num_samples - 1]
-             for idx in range(num_detections)], dtype=np.uint64)
+            [
+                [clip_start_samples[streak_onset_idxs[idx]],
+                 clip_start_samples[streak_end_idxs[idx]] + num_samples - 1]
+                for idx in range(num_detections)
+            ],
+            dtype=np.uint64)
         ret_extents = np.asarray(
             [[streak_onset_idxs[idx], streak_end_idxs[idx]]
              for idx in range(num_detections)], dtype=np.uint64)
-        ret_scores = np.asarray(
-            [np.max(det_scores[streak_onset_idxs[idx]:(streak_end_idxs[idx] + 1), streak_class_idxs[idx]])
-             for idx in range(num_detections)])
+        ret_scores = np.asarray([
+            np.max(
+                det_scores[
+                    streak_onset_idxs[idx]:(streak_end_idxs[idx] + 1),
+                    streak_class_idxs[idx]]
+            )
+            for idx in range(num_detections)
+        ])
 
     if return_idxs:
         return ret_samp_extents, ret_scores, streak_class_idxs, ret_extents
