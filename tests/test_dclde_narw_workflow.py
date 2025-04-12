@@ -46,10 +46,10 @@ def test_all_stages(dataroot, outputroot):
     model_dir = os.path.join(outputs_dir, 'model')
     dets_dir = os.path.join(outputs_dir, 'detections')
 
-    class_clip_counts = prepare.from_selection_table_map(
+    class_clip_counts = prepare.from_annotations(
         _audio_settings, narw_dclde_selmap_train,
         audio_root=os.path.join(dataroot, 'narw_dclde', 'train_audio'),
-        seltab_root=os.path.join(dataroot, 'narw_dclde', 'train_annotations'),
+        annot_root=os.path.join(dataroot, 'narw_dclde', 'train_annotations'),
         output_root=clips_dir,
         negative_class_label='Other'
     )

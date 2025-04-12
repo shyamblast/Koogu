@@ -2,6 +2,7 @@ import os
 import logging
 import sys
 import argparse
+import warnings
 from .data import annotations
 from .data.preprocess import batch_process, get_unique_labels_from_annotations
 from .data.raw import Settings
@@ -21,30 +22,59 @@ def from_selection_table_map(audio_settings, audio_seltab_list,
                              negative_class_label=None,
                              **kwargs):
     """
-    Pre-process training data using info contained in ``audio_seltab_list``.
+    Deprecated interface, retained for backwards compatibility.
+
+    :meta private:
+    """
+    warnings.showwarning(
+        'The interface koogu.prepare.from_selection_table_map is deprecated '
+        'and will be removed in a future release. Instead of this, please use '
+        'koogu.prepare.from_annotations.',
+        DeprecationWarning, __name__, '')
+
+    return from_annotations(audio_settings, audio_seltab_list,
+                            audio_root, seltab_root, output_root,
+                            annotation_reader=annotation_reader,
+                            desired_labels=desired_labels,
+                            remap_labels_dict=remap_labels_dict,
+                            negative_class_label=negative_class_label,
+                            **kwargs)
+
+
+def from_annotations(audio_settings, audio_annot_list,
+                     audio_root, annot_root, output_root,
+                     annotation_reader=None,
+                     desired_labels=None,
+                     remap_labels_dict=None,
+                     negative_class_label=None,
+                     **kwargs):
+    """
+    Pre-process training data using info contained in ``audio_annot_list``.
 
     :param audio_settings: A dictionary specifying the parameters for processing
         audio from files.
-    :param audio_seltab_list: A list containing pairs (tuples or sub-lists) of
-        relative paths to audio files and the corresponding annotation
-        (selection table) files. Alternatively, you could also specify (path to)
-        a 2-column csv file containing these pairs of entries (in the same
-        order). Only use the csv option if the paths are simple (i.e., the
-        filenames do not contain commas or other special characters).
+    :param audio_annot_list: A list containing pairs (list-like) of relative
+        paths to audio files and the corresponding annotation file(s). The
+        latter can be a single path string or a nested list of path strings.
+        Alternatively, you could also specify (path to) a csv file containing
+        these pairs of entries (in the same order; include 3rd, 4th, ...
+        columns if you need to specify additional annotation files corresponding
+        to an audio path). Only use the csv option if the paths are simple
+        (i.e., the filenames do not contain commas or other special characters).
     :param audio_root: The full paths of audio files listed in
-        ``audio_seltab_list`` are resolved using this as the base directory.
-    :param seltab_root: The full paths of annotations files listed in
-        ``audio_seltab_list`` are resolved using this as the base directory.
+        ``audio_annot_list`` are resolved using this as the base directory.
+    :param annot_root: The full paths of annotations files listed in
+        ``audio_annot_list`` are resolved using this as the base directory.
     :param output_root: "Prepared" data will be written to this directory.
     :param annotation_reader: If not None, must be an annotation reader instance
-        from :mod:`~koogu.data.annotations`. Defaults to Raven
+        from the :mod:`~koogu.data.annotations` module. Defaults to Raven
         :class:`~koogu.data.annotations.Raven.Reader`.
     :param desired_labels: The target set of class labels. If not None, must be
-        a list of class labels. Any selections (read from the selection tables)
+        a list of class labels. Any annotations (read from the annotation files)
         having labels that are not in this list will be discarded. This list
         will be used to populate classes_list.json that will define the classes
         for the project. If None, then the list of classes will be populated
-        with the annotation labels read from all selection tables.
+        with the annotation labels read from all annotation files.
     :param remap_labels_dict: If not None, must be a Python dictionary
         describing mapping of class labels. For details, see similarly named
         parameter to the constructor of
@@ -75,8 +105,12 @@ def from_selection_table_map(audio_settings, audio_seltab_list,
     audio_settings_c = Settings.Audio(**audio_settings)
 
     # Discard invalid entries, if any
-    v_audio_seltab_list = get_valid_audio_annot_entries(
-            audio_seltab_list, audio_root, seltab_root, logger=logger)
+    v_audio_annot_list = get_valid_audio_annot_entries(
+            audio_annot_list, audio_root, annot_root, logger=logger)
+
+    if len(v_audio_annot_list) == 0:
+        print('Nothing to process')
+        return {}
 
     if annotation_reader is None:
         annotation_reader = annotations.Raven.Reader()
@@ -86,19 +120,9 @@ def from_selection_table_map(audio_settings, audio_seltab_list,
         classes_list = desired_labels
     else:       # need to discover list of classes
         is_fixed_classes = False
-        classes_n_counts, invalid_mask = get_unique_labels_from_annotations(
-            seltab_root, [e[-1] for e in v_audio_seltab_list],
+        classes_list = get_unique_labels_from_annotations(
+            annot_root, [af for _, rhs in v_audio_annot_list for af in rhs],
             annotation_reader, num_threads=kwargs.get('num_threads', None))
-
-        classes_list = list(classes_n_counts.keys())
-        if any(invalid_mask):   # remove any broken audio_seltab_list entries
-            v_audio_seltab_list = [
-                e for (e, iv) in zip(v_audio_seltab_list, invalid_mask)
-                if not iv]
-
-    if len(v_audio_seltab_list) == 0:
-        print('Nothing to process')
-        return {}
 
     # ---------- 1. Input generator --------------------------------------------
     ig_kwargs = {}      # Undocumented settings
@@ -108,8 +132,8 @@ def from_selection_table_map(audio_settings, audio_seltab_list,
         if auf_types is not None:
             ig_kwargs['filetypes'] = auf_types
     input_generator = AudioFileList.from_annotations(
-        v_audio_seltab_list,
-        audio_root, seltab_root,
+        v_audio_annot_list,
+        audio_root, annot_root,
         annotation_reader,
         **ig_kwargs)
 
@@ -214,7 +238,7 @@ def from_top_level_dirs(audio_settings, class_dirs,
         **kwargs)
 
 
-__all__ = ['from_selection_table_map', 'from_top_level_dirs']
+__all__ = ['from_annotations', 'from_top_level_dirs']
 
 
 def cmdline_parser(parser=None):
@@ -304,11 +328,11 @@ def _prepare(cfg_file, log_level, num_threads=None):
             other_args['max_nonmatch_overlap_fraction'] = \
                 cfg.prepare.max_nonmatch_overlap_fraction
 
-        from_selection_table_map(
+        from_annotations(
             cfg.data.audio.as_dict(),
-            audio_seltab_list=cfg.paths.train_audio_annotations_map,
+            audio_annot_list=cfg.paths.train_audio_annotations_map,
             audio_root=cfg.paths.train_audio,
-            seltab_root=cfg.paths.train_annotations,
+            annot_root=cfg.paths.train_annotations,
             output_root=cfg.paths.training_samples,
             annotation_reader=ar_type(**ar_kwargs),
             desired_labels=cfg.prepare.desired_labels,

@@ -95,7 +95,7 @@ parameter ``negative_class_label``).
    If your project does not have annotations, but you have audio files corresponding
    to each species/call type organized under separate directories, you can
    pre-process the data using :func:`~koogu.prepare.from_top_level_dirs`
-   instead of :func:`~koogu.prepare.from_selection_table_map`.
+   instead of :func:`~koogu.prepare.from_annotations`.
 
 You can check how many clips were generated for each class -
 

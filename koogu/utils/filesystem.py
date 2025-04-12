@@ -84,30 +84,31 @@ class AudioFileList:
                 yield os.path.join(class_dir, file), None, class_dir, None
 
     @staticmethod
-    def from_annotations(selmap, audio_root, seltab_root, annotation_handler,
+    def from_annotations(audio_annot_map, audio_root, annot_root,
+                         annotation_handler,
                          filetypes=None, added_ext=None):
         """
 
-        :param selmap: Mapping from audio file/dir to corresponding annotation
-            file. Only specify paths that are relative to 'audio_root' and
-            'seltab_root'.
+        :param audio_annot_map: Mapping from audio file/dir to corresponding
+            annotation file(s). Only specify paths that are relative to
+            `audio_root` and `annot_root`.
         :param audio_root: Root directory for all audio files.
-        :param seltab_root: Root directory for all annotation files.
+        :param annot_root: Root directory for all annotation files.
         :param annotation_handler: An instance of one of the annotation handlers
             from data.annotations.
         :param filetypes: This parameter applies only when an audio reference
-            in selmap points to a directory.
+            in `audio_annot_map` points to a directory.
         :param added_ext: This parameter applies only when an audio reference
-            in selmap points to a directory. Useful when looking for
+            in `audio_annot_map` points to a directory. Useful when looking for
             'raw result' files, during performance assessments.
         """
 
         logger = logging.getLogger(__name__)
 
-        if seltab_root is None:
+        if annot_root is None:
             def full_path(x): return x
         else:
-            def full_path(x): return os.path.join(seltab_root, x)
+            def full_path(x): return os.path.join(annot_root, x)
 
         match_extensions = filetypes if filetypes else \
             AudioFileList.default_audio_filetypes
@@ -118,28 +119,46 @@ class AudioFileList:
             else:  # assuming now that it's a list/tuple of strings
                 match_extensions = [(m + added_ext) for m in match_extensions]
 
-        for (audio_path, seltab_path) in selmap:
+        for (audio_path, annot_paths) in audio_annot_map:
 
             is_multi_file = os.path.isdir(os.path.join(audio_root, audio_path))
 
             # Fetch annotations
-            status, (
-                annots_times, _, annots_tags, annots_channels, annots_files
-            ) = annotation_handler.safe_fetch(full_path(seltab_path),
-                                              multi_file=is_multi_file)
+            valid_row = True
+            num_annots = 0
+            annots_times = []
+            annots_tags = []
+            annots_channels = []
+            annots_files = []
+            for annot_path in annot_paths:
+                status, (a_times, _, a_tags, a_channels, a_files) = \
+                    annotation_handler.safe_fetch(full_path(annot_path),
+                                                  multi_file=is_multi_file)
 
-            if not status:
-                continue        # error message already logged. just skip
+                if status:
+                    num_annots += len(a_times)
+                    annots_times.append(a_times)
+                    annots_tags.append(a_tags)
+                    annots_channels.append(a_channels)
+                    annots_files.append(a_files)
+                else:
+                    valid_row = False
 
-            num_annots = len(annots_times)
+            # Discard audio-annot(s) pair if any annot file failed
+            if not valid_row:
+                continue  # error message(s) already logged. just skip
+
             if num_annots > 0:
-                # Convert to numpy arrays
-                annots_times = np.asarray(annots_times)
+                # Combine and convert to numpy arrays
+                annots_times = np.asarray(np.concatenate(annots_times, axis=0))
                 annots_channels = \
-                    np.asarray(annots_channels).astype(np.uint8)
+                    np.asarray(np.concatenate(annots_channels)).astype(np.uint8)
+
+                # Flatten
+                annots_tags = [
+                    a_tag for a_tags in annots_tags for a_tag in a_tags]
             else:
-                logger.warning(
-                    f'No valid annotations found in {seltab_path:s}')
+                logger.warning(f'No valid annotations found for {audio_path}')
                 annots_times = np.zeros((0, 2))
                 annots_tags = []
                 annots_channels = np.zeros((0, ), dtype=np.uint8)
@@ -151,8 +170,12 @@ class AudioFileList:
                     yield audio_path, annots_times, annots_tags, annots_channels
 
             else:
-                # The selection table file applied to the directory's contents.
+                # The annotation file applied to the directory's contents.
                 # Yield each listed audio file individually.
+
+                # Flatten
+                annots_files = [
+                    a_f for a_fs in annots_files for a_f in a_fs]
 
                 all_entries_idxs = np.arange(num_annots)
                 remaining_entries_mask = np.full((num_annots, ), True)
@@ -222,11 +245,11 @@ def get_valid_audio_annot_entries(audio_annot_list_or_csv,
                                   plus_extn=None, logger=None):
     """
     Validate presence of files in `audio_annot_list_or_csv` and return a list of
-    only valid entries. Each entry is a pair of audio file/dir and annot file.
-    Alternatively, `audio_annot_list_or_csv` could also be specified as (a path
-    to) a 2-column csv file containing audio-annot pairs. Only use the csv
-    option if the paths are simple (i.e., the filenames do not contain commas or
-    other special characters).
+    only valid entries. Each entry is a pair of audio file/dir and annot
+    file(s). Alternatively, `audio_annot_list_or_csv` could also be specified as
+    (a path to) a 2-column csv file containing audio-annot pairs. Only use the
+    csv option if the paths are simple (i.e., the filenames do not contain
+    commas or other special characters).
 
     `plus_extn` if not None (e.g., '.npz') will be appended to each audio file.
 
@@ -254,42 +277,52 @@ def get_valid_audio_annot_entries(audio_annot_list_or_csv,
             os.path.exists(os.path.join(audio_root, lhs_fullname(entry)))
         )
         if not retval:
-            logger.error(
-                '{} file path "{}" is either invalid or unreachable'.
-                format(f_type, lhs_fullname(entry)))
+            logger.error(f'{f_type} file path "{lhs_fullname(entry)}" is either'
+                         'invalid or unreachable')
         return retval
 
-    def validate_rhs(entry):
-        retval = len(entry) > 0 and (os.path.isfile(rhs_fullpath(entry)))
-        if not retval:
+    def validate_rhs(entries, audio_f):
+        if len(entries) == 0:
             logger.error(
-                'Annotation file path "{}" is either invalid or unreachable'.
-                format(entry))
-        return retval
+                'No annotation entry(ies) found corresponding to '
+                f'audio "{audio_f}"')
+            return False
+
+        for entry in entries:
+            retval = len(entry) > 0 and (os.path.isfile(rhs_fullpath(entry)))
+            if not retval:
+                logger.error(
+                    f'Invalid or unreachable annotation file entry "{entry}" '
+                    f'corresponding to audio "{audio_f}"')
+                return False    # A single failure invalidates the whole row
+
+        return True
 
     if isinstance(audio_annot_list_or_csv, (list, tuple)):
-        audio_annot_list = audio_annot_list_or_csv
+        audio_annot_list = [    # Copy, and force rhs to be list-like
+            (lhs, rhs if isinstance(rhs, (list, tuple)) else [rhs])
+            for lhs, rhs in audio_annot_list_or_csv
+        ]
     elif isinstance(audio_annot_list_or_csv, str):
         if os.path.exists(audio_annot_list_or_csv):
             # Attempt reading it as a csv file
             with open(audio_annot_list_or_csv, 'r', newline='') as fh:
                 audio_annot_list = [
-                    entry[:2] for entry in csv.reader(fh) if len(entry) >= 2]
+                    (entry[0], [e for e in entry[1:] if len(e) > 0])
+                    for entry in csv.reader(fh)
+                    if len(entry) >= 2
+                ]
         else:
-            raise ValueError('Path specified in audio_annot_list ' +
-                             f'({audio_annot_list_or_csv}) does not exist.')
+            raise ValueError(
+                'Cannot access file specified for audio-annotations map: '
+                f'{audio_annot_list_or_csv}')
     else:
         raise ValueError(
-            'Audio file & annotation pairs must either be specified as a list' +
-            ' of pairs, or as a path to a csv file')
+            'Audio file & annotation pairs must either be specified as a list '
+            'of pairs, or as a path to a csv file')
 
-    valid_entries_mask = [
-        (validate_lhs(lhs) and validate_rhs(rhs))
-        for (lhs, rhs) in audio_annot_list
-    ]
-
-    # Discard invalid entries, if any
-    return [entry
-            for entry, v in zip(audio_annot_list, valid_entries_mask)
-            if v]
+    # Discard invalid entries (if any) and return remaining
+    return [(lhs, rhs)
+            for lhs, rhs in audio_annot_list
+            if (validate_lhs(lhs) and validate_rhs(rhs, lhs))]
 

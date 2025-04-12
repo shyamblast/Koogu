@@ -43,7 +43,7 @@ data_settings = {
 prepared_audio_dir = '/home/shyam/projects/NARW/prepared_data'
 
 # Convert audio files into prepared data
-clip_counts = prepare.from_selection_table_map(
+clip_counts = prepare.from_annotations(
     data_settings['audio_settings'],
     audio_annot_list,
     audio_root, annots_root,

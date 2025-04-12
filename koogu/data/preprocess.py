@@ -122,7 +122,7 @@ def _single_threaded_single_file_preprocess(
             **aggregator_kwargs,
             audio_filepath=audio_file)
 
-    else:  # invoked by from_selection_table_map()
+    else:  # invoked by from_annotations()
         # Based on remap_labels_dict or desired_labels, some labels may
         # become invalid. Keep only annots with valid labels.
         valid_annots_idxs = [
@@ -175,38 +175,22 @@ def get_unique_labels_from_annotations(
     Returns:
         - a list of discovered unique labels
         - a mask of invalid entries in `annot_files`
+
+    :meta private:
     """
 
-    if annot_root is None:
-        fp_to_af = {af: af
-                    for af in annot_files}
-    else:
-        fp_to_af = {os.path.join(annot_root, af): af
-                    for af in annot_files}
-
-    classes_n_counts = {}
-    invalid_entries_map = {af: True
-                           for af in annot_files}
-
-    for pr_fp, (status, (_, _, tags, _, _)) in processed_items_generator_mp(
-            num_threads or max(1, (os.cpu_count() or 1) - 1),
+    uniq_classes = set()
+    for _, (status, (_, _, tags, _, _)) in processed_items_generator_mp(
+            min((num_threads or (os.cpu_count() or 1)), len(annot_files)),
             annotation_reader.safe_fetch,
-            (fp for fp in fp_to_af.keys()),
+            (os.path.join(annot_root, af) for af in annot_files),
             multi_file=False):
 
         if status:
-            uniq_labels, label_counts = np.unique(tags, return_counts=True)
-            for ul, lc in zip(uniq_labels, label_counts):
-                if ul in classes_n_counts:
-                    classes_n_counts[ul] += lc
-                else:
-                    classes_n_counts[ul] = int(lc)
+            uniq_classes = uniq_classes.union(set(tags))
+        # Failures to load would already have been reported by safe_fetch()
 
-            invalid_entries_map[fp_to_af[pr_fp]] = False
-
-    return \
-        classes_n_counts, \
-        [invalid_entries_map[af] for af in annot_files]
+    return sorted(list(uniq_classes))
 
 
 class GroundTruthDataAggregator:

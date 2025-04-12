@@ -562,7 +562,7 @@ class LabelHelper:
         during performance assessments.
 
     .. seealso::
-        :func:`koogu.prepare.from_selection_table_map`
+        :func:`koogu.prepare.from_annotations`
         :func:`koogu.prepare.from_top_level_dirs`
         :func:`koogu.utils.assessments.BaseMetric`
     """

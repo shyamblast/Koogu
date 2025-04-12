@@ -115,10 +115,13 @@ def _process_project_annotations(cfg, num_threads=None):
                   file=sys.stderr)
             return 102
 
-        annot_files = [
-            aa[1] for aa in get_valid_audio_annot_entries(
+        annot_files = [     # Get flattened list of annot files
+            anf
+            for _, anfs in get_valid_audio_annot_entries(
                 cfg.paths.train_audio_annotations_map,
-                cfg.paths.train_audio, cfg.paths.train_annotations)]
+                cfg.paths.train_audio, cfg.paths.train_annotations)
+            for anf in anfs
+        ]
 
         analyze_annotations(
             cfg.paths.train_annotations, annot_files,
@@ -141,10 +144,13 @@ def _process_project_annotations(cfg, num_threads=None):
                   file=sys.stderr)
             return 102
 
-        annot_files = [
-            aa[1] for aa in get_valid_audio_annot_entries(
+        annot_files = [     # Get flattened list of annot files
+            anf
+            for _, anfs in get_valid_audio_annot_entries(
                 cfg.paths.test_audio_annotations_map,
-                cfg.paths.test_audio, cfg.paths.test_annotations)]
+                cfg.paths.test_audio, cfg.paths.test_annotations)
+            for anf in anfs
+        ]
 
         analyze_annotations(
             cfg.paths.test_annotations, annot_files,

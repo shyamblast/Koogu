@@ -63,7 +63,7 @@ be invoked.
   ]
   
   # Convert audio files into prepared data
-  clip_counts = preprocess.from_selection_table_map(
+  clip_counts = preprocess.from_annotations(
     audio_settings, audio_annot_list,
     audio_root, annots_root,
     output_root=prepared_audio_dir

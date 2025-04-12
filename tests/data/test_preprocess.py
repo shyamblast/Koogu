@@ -33,10 +33,10 @@ def test_mono_channel(
 
     outputs_dir = os.path.join(outputroot, 'narw_preprocess')
 
-    class_clip_counts = prepare.from_selection_table_map(
+    class_clip_counts = prepare.from_annotations(
         audio_settings, narw_dclde_selmap_train,
         audio_root=os.path.join(dataroot, 'narw_dclde', 'train_audio'),
-        seltab_root=os.path.join(dataroot, 'narw_dclde', 'train_annotations'),
+        annot_root=os.path.join(dataroot, 'narw_dclde', 'train_annotations'),
         output_root=outputs_dir,
         negative_class_label=negative_class_label,
         ignore_zero_annot_files=ignore_zero_annot_files,
@@ -88,12 +88,12 @@ def test_multi_channel(
 
     outputs_dir = os.path.join(outputroot, 'sei_preprocess')
 
-    class_clip_counts = prepare.from_selection_table_map(
+    class_clip_counts = prepare.from_annotations(
         audio_settings,
-        audio_seltab_list=os.path.join(dataroot, 'multichannel_Sei',
+        audio_annot_list=os.path.join(dataroot, 'multichannel_Sei',
                                        'seltab_map.csv'),
         audio_root=os.path.join(dataroot, 'multichannel_Sei', 'audio'),
-        seltab_root=os.path.join(dataroot, 'multichannel_Sei', 'annotations'),
+        annot_root=os.path.join(dataroot, 'multichannel_Sei', 'annotations'),
         output_root=outputs_dir,
         negative_class_label=negative_class_label,
         ignore_zero_annot_files=ignore_zero_annot_files,
