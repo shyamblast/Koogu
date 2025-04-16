@@ -145,6 +145,15 @@ class Config:
         num_mels=[PosInt, None]
       )
 
+    if section == 'data.annotations':
+      return dict(
+        annotation_reader=[Enum('reader', annotations.__all__), None],
+        desired_labels=[(str, 1, None), None],
+        remap_labels_dict=[dict, None],
+        raven_label_column_name=[str, None],
+        raven_default_label=[str, None]
+      )
+
     if section == 'model':
       return dict(
         architecture=[Enum('arch', architectures.__all__), None],
@@ -172,11 +181,7 @@ class Config:
         negative_class=[str, None],
         min_annotation_overlap_fraction=[PosFrac, None],
         max_nonmatch_overlap_fraction=[NonNegFrac, None],
-        annotation_reader=[Enum('reader', annotations.__all__), None],
-        desired_labels=[(str, 1, None), None],
-        remap_labels_dict=[dict, None],
-        raven_label_column_name=[str, None],
-        raven_default_label=[str, None]
+        attempt_salvage=[bool, None]
       )
 
     if section == 'assess':
@@ -184,10 +189,7 @@ class Config:
         thresholds=[PosFrac, (NonNegFrac, 1, None), None],
         min_gt_coverage=[PosFrac, None],
         min_det_usage=[PosFrac, None],
-        squeeze_min_dur=[PosFloat, None],
-        annotation_reader=[Enum('reader', annotations.__all__), None],
-        raven_label_column_name=[str, None],
-        raven_default_label=[str, None]
+        squeeze_min_dur=[PosFloat, None]
       )
 
 

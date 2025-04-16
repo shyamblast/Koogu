@@ -8,6 +8,9 @@ from .utils.config import Config, ConfigError
 from .utils.assessments import PrecisionRecall
 
 
+__all__ = []
+
+
 def cmdline_parser(parser=None):
 
     if parser is None:
@@ -43,7 +46,7 @@ def cmdline_assess_performance(cfg_file, result_file, assess_raw):
 
     # Load config
     try:
-        cfg = Config(cfg_file, 'assess', 'prepare')
+        cfg = Config(cfg_file, 'data.annotations', 'assess', 'prepare')
     except FileNotFoundError as exc:
         print(f'Error loading config file: {exc.strerror}', file=sys.stderr)
         exit(exc.errno)
@@ -62,25 +65,22 @@ def cmdline_assess_performance(cfg_file, result_file, assess_raw):
         other_pr_kwargs['reject_classes'] = cfg.prepare.negative_class
 
     # Set up annotation reader for reading test annotations
-    if cfg.assess.annotation_reader is not None:
-        ar_type = getattr(annotations, cfg.assess.annotation_reader).Reader
-    elif cfg.prepare.annotation_reader is not None:
-        # Fallback to `prepare` settings if `assess` didn't specify a reader
-        ar_type = getattr(annotations, cfg.prepare.annotation_reader).Reader
+    if cfg.data.annotations.annotation_reader is not None:
+        ar_type = getattr(annotations,
+                          cfg.data.annotations.annotation_reader).Reader
     else:
         ar_type = annotations.Raven.Reader  # Default to Raven.Reader
     ar_kwargs = dict()
     if ar_type == annotations.Raven.Reader:
-        val = (cfg.assess.raven_label_column_name or
-               cfg.prepare.raven_label_column_name)     # Fallback
-        if val is not None:
-            ar_kwargs['label_column_name'] = val
-
-        val = (cfg.assess.raven_default_label or
-               cfg.prepare.raven_default_label)         # Fallback
-        if val is not None:
-            ar_kwargs['default_label'] = val
+        if cfg.data.annotations.raven_label_column_name is not None:
+            ar_kwargs['label_column_name'] = \
+                cfg.data.annotations.raven_label_column_name
+        if cfg.data.annotations.raven_default_label is not None:
+            ar_kwargs['default_label'] = \
+                cfg.data.annotations.raven_default_label
     other_pr_kwargs['annotation_reader'] = ar_type(**ar_kwargs)
+    other_pr_kwargs['remap_labels_dict'] = \
+        cfg.data.annotations.remap_labels_dict
 
     if assess_raw:  # "raw" performance assessments if requested
         if cfg.prepare.min_annotation_overlap_fraction is not None:
@@ -117,6 +117,7 @@ def cmdline_assess_performance(cfg_file, result_file, assess_raw):
         **other_pr_kwargs
     ).assess()
 
+    os.makedirs(os.path.split(result_file)[0], exist_ok=True)
     if result_type == 'csv':
         _save_csv(result_file, other_pr_kwargs['thresholds'],
                   overall_pr, per_class_pr)

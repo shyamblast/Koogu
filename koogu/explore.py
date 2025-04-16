@@ -81,28 +81,24 @@ def _get_annot_file_vals(filepath, annotation_reader,
 
 def _process_project_annotations(cfg, num_threads=None):
 
-    # if not os.path.exists(cfg.paths.train_annotations):
-    #     print('Error: Invalid path specified in train_annotations',
-    #           file=sys.stderr)
-    #     return 102
-
     other_args = dict()
     if num_threads is not None:
         other_args['num_threads'] = num_threads
 
-    if cfg.prepare.annotation_reader is not None and \
-            cfg.prepare.annotation_reader != 'Raven':
+    if cfg.data.annotations.annotation_reader is not None and \
+            cfg.data.annotations.annotation_reader != 'Raven':
         annotation_reader = getattr(
-            annotations, cfg.prepare.annotation_reader).Reader(
+            annotations, cfg.data.annotations.annotation_reader).Reader(
                 fetch_frequencies=True)
     else:
         # Default to custom raven.Reader
         ar_kwargs = dict()
-        if cfg.prepare.raven_label_column_name is not None:
+        if cfg.data.annotations.raven_label_column_name is not None:
             ar_kwargs['label_column_name'] = \
-                cfg.prepare.raven_label_column_name
-        if cfg.prepare.raven_default_label is not None:
-            ar_kwargs['default_label'] = cfg.prepare.raven_default_label
+                cfg.data.annotations.raven_label_column_name
+        if cfg.data.annotations.raven_default_label is not None:
+            ar_kwargs['default_label'] = \
+                cfg.data.annotations.raven_default_label
         annotation_reader = get_raven_reader_for_explore(**ar_kwargs)
 
     anything_output = False
@@ -128,8 +124,8 @@ def _process_project_annotations(cfg, num_threads=None):
             os.path.join(cfg.paths.project_root,
                          'training_annotations_stats.html'),
             annotation_reader=annotation_reader,
-            desired_labels=cfg.prepare.desired_labels,
-            remap_labels_dict=cfg.prepare.remap_labels_dict,
+            desired_labels=cfg.data.annotations.desired_labels,
+            remap_labels_dict=cfg.data.annotations.remap_labels_dict,
             name='Training',
             **other_args
         )
@@ -156,8 +152,8 @@ def _process_project_annotations(cfg, num_threads=None):
             cfg.paths.test_annotations, annot_files,
             os.path.join(cfg.paths.project_root, 'test_annotations_stats.html'),
             annotation_reader=annotation_reader,
-            desired_labels=cfg.prepare.desired_labels,
-            remap_labels_dict=cfg.prepare.remap_labels_dict,
+            desired_labels=cfg.data.annotations.desired_labels,
+            remap_labels_dict=cfg.data.annotations.remap_labels_dict,
             name='Test',
             **other_args
         )
@@ -644,7 +640,8 @@ def cmdline_run(cfg_file, num_threads=None,
 
     # Load config
     try:
-        cfg = Config(cfg_file, 'prepare')
+        cfg = Config(cfg_file, 'data.audio', 'data.spec', 'data.annotations',
+                     'prepare')
     except FileNotFoundError as exc:
         print(f'Error loading config file: {exc.strerror}', file=sys.stderr)
         exit(exc.errno)

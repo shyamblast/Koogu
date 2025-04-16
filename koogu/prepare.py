@@ -275,7 +275,7 @@ def _prepare(cfg_file, log_level, num_threads=None):
 
     # Load config
     try:
-        cfg = Config(cfg_file, 'data.audio', 'data.spec', 'prepare')
+        cfg = Config(cfg_file, 'data.audio', 'data.annotations', 'prepare')
     except FileNotFoundError as exc:
         print(f'Error loading config file: {exc.strerror}', file=sys.stderr)
         exit(exc.errno)
@@ -309,17 +309,19 @@ def _prepare(cfg_file, log_level, num_threads=None):
                   file=sys.stderr)
             exit(2)
 
-        if cfg.prepare.annotation_reader is not None:
-            ar_type = getattr(annotations, cfg.prepare.annotation_reader).Reader
+        if cfg.data.annotations.annotation_reader is not None:
+            ar_type = getattr(annotations,
+                              cfg.data.annotations.annotation_reader).Reader
         else:
             ar_type = annotations.Raven.Reader  # Default to Raven.Reader
         ar_kwargs = dict()
         if ar_type == annotations.Raven.Reader:
-            if cfg.prepare.raven_label_column_name is not None:
+            if cfg.data.annotations.raven_label_column_name is not None:
                 ar_kwargs['label_column_name'] = \
-                    cfg.prepare.raven_label_column_name
-            if cfg.prepare.raven_default_label is not None:
-                ar_kwargs['default_label'] = cfg.prepare.raven_default_label
+                    cfg.data.annotations.raven_label_column_name
+            if cfg.data.annotations.raven_default_label is not None:
+                ar_kwargs['default_label'] = \
+                    cfg.data.annotations.raven_default_label
 
         if cfg.prepare.min_annotation_overlap_fraction is not None:
             other_args['min_annot_overlap_fraction'] = \
@@ -327,6 +329,8 @@ def _prepare(cfg_file, log_level, num_threads=None):
         if cfg.prepare.max_nonmatch_overlap_fraction is not None:
             other_args['max_nonmatch_overlap_fraction'] = \
                 cfg.prepare.max_nonmatch_overlap_fraction
+        if cfg.prepare.attempt_salvage is not None:
+            other_args['attempt_salvage'] = cfg.prepare.attempt_salvage
 
         from_annotations(
             cfg.data.audio.as_dict(),
@@ -335,8 +339,8 @@ def _prepare(cfg_file, log_level, num_threads=None):
             annot_root=cfg.paths.train_annotations,
             output_root=cfg.paths.training_samples,
             annotation_reader=ar_type(**ar_kwargs),
-            desired_labels=cfg.prepare.desired_labels,
-            remap_labels_dict=cfg.prepare.remap_labels_dict,
+            desired_labels=cfg.data.annotations.desired_labels,
+            remap_labels_dict=cfg.data.annotations.remap_labels_dict,
             negative_class_label=cfg.prepare.negative_class,
             **other_args)
 
