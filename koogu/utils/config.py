@@ -241,11 +241,18 @@ class _Section:
       else:
         setattr(self, field_name, field_val)
 
-  def as_dict(self):
-    return {
-      k: v.as_dict() if isinstance(v, _Section) else v
-      for k, v in vars(self).items()
-    }
+  def as_dict(self, skip_invalid=None):
+    if skip_invalid:
+      return {
+        k: v.as_dict() if isinstance(v, _Section) else v
+        for k, v in vars(self).items()
+        if v is not None
+      }
+    else:
+      return {
+        k: v.as_dict() if isinstance(v, _Section) else v
+        for k, v in vars(self).items()
+      }
 
   @staticmethod
   def _process_value(formats, value):
