@@ -265,12 +265,12 @@ def cmdline_parser(parser=None):
         choices=['CRITICAL', 'ERROR', 'WARNING', 'INFO', 'DEBUG'],
         default='INFO', help='Logging level.')
 
-    parser.set_defaults(exec_fn=_prepare)
+    parser.set_defaults(exec_fn=cmdline_prepare)
 
     return parser
 
 
-def _prepare(cfg_file, log_level, num_threads=None):
+def cmdline_prepare(cfg_file, log_level, num_threads=None):
     """Functionality invoked via the command-line interface"""
 
     # Load config
