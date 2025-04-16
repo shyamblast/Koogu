@@ -21,7 +21,7 @@ def recursive_listing(root_dir, match_extensions=None):
     else:  # assuming now that it's a list/tuple of strings
         filtered = __rl_multi_filter
 
-    for parent, dirs, filenames in os.walk(root_dir):
+    for parent, dirs, filenames in os.walk(root_dir, followlinks=True):
 
         relpath = os.path.relpath(parent, start=root_dir)
         adjust = __rl_no_relpath if relpath == '.' else __rl_with_relpath
