@@ -6,6 +6,7 @@ import argparse
 from functools import partial
 
 from .data import annotations
+from .data.raw import Settings, Convert
 from .utils import processed_items_generator_mp
 from .utils.detections import LabelHelper
 from .utils.terminal import ArgparseConverters
@@ -573,6 +574,27 @@ def analyze_annotations(annot_root, annot_files, outfile,
           f'nnotations\' analysis written to\n  {outfile}')
 
 
+def _check_data_transformation(audio_settings, spec_settings):
+
+    a_c = Settings.Audio(**audio_settings)
+    _, F, T = Convert.audio2spectral(
+        np.random.random((a_c.clip_length,)),
+        a_c.fs,
+        Settings.Spectral(a_c.fs, **spec_settings),
+        return_f_axis=True,
+        return_t_axis=True)
+
+    print('\nData settings will transform audio into time-frequency '
+          'representations having:')
+    print(f'  {len(F):>4d} frequency points corresponding to -')
+    print(f'     - {F[0]:.4f}-{F[-1]:.4f} Hz bandwidth, and')
+    print(f'     - {F[1] - F[0]:.4f} Hz frequency resolution')
+    print(f'  {len(T):>4d} time points corresponding to -')
+    # print(f'     - {T[-1]:.4f} s duration, and')
+    print(f'     - {T[1]-T[0]:.4f} s time resolution')
+    print(f'Model inputs will be of shape {len(F)}x{len(T)}')
+
+
 __all__ = []
 
 
@@ -655,17 +677,25 @@ def cmdline_run(cfg_file, num_threads=None,
                        filelist_file=filelist_file,
                        annotation_reader=annotation_reader,
                        output_file=output_file)
+        as_project = False
     except Exception as exc:
         print(f'Error processing config file: {repr(exc)}', file=sys.stderr)
         exit(1)
     else:
         func = partial(_process_project_annotations, cfg=cfg)
+        as_project = True
 
     try:
         retval = func(num_threads=num_threads)
     except (FileNotFoundError, PermissionError) as exc:
         print(exc, file=sys.stderr)
         retval = exc.errno
+
+    if as_project:
+
+        # Test data transformation settings
+        _check_data_transformation(cfg.data.audio.as_dict(skip_invalid=True),
+                                   cfg.data.spec.as_dict(skip_invalid=True))
 
     exit(retval)
 
