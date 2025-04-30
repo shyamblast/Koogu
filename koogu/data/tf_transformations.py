@@ -81,7 +81,7 @@ class Audio2Spectral(tf.keras.layers.Layer):
           If True (default), NFFT will equal the number of samples resulting
           from `win_len`. If False, NFFT will be set to the next power of 2 that
           is ≥ the number of samples resulting from `win_len`.
-        * tf_rep_type: (optional)
+        * spec_type: (optional)
           A string specifying the transformation output. 'spec' results in a
           linear scale spectrogram. 'spec_db' (default) results in a
           logarithmic scale (dB) spectrogram.

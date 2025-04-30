@@ -23,7 +23,7 @@ _spec_settings = {
     'win_len': 0.128,
     'win_overlap_prc': 0.75,
     'nfft_equals_win_len': True,
-    'tf_rep_type': 'spec_db',
+    'spec_type': 'spec_db',
     'eps': 1e-10,
     'bandwidth_clip': [46, 391],
 }

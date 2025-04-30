@@ -6,6 +6,7 @@ import soundfile as sf
 import audioread
 import resampy
 import logging
+import warnings
 
 
 class Settings:
@@ -41,9 +42,10 @@ class Settings:
         def __init__(self, fs, win_len, win_overlap_prc,
                      nfft_equals_win_len=True,
                      bandwidth_clip=None,
-                     tf_rep_type=None,
+                     spec_type=None,
                      eps=None,
-                     num_mels=None):
+                     num_mels=None,
+                     tf_rep_type=None):
             """
             Validate parameters (usually as loaded from a config file) and set
             appropriate fields in terms of number of samples/points as would be
@@ -73,8 +75,20 @@ class Settings:
                 self.bandwidth_clip = bandwidth_clip
 
             # Set to default ('spec_db') if not provided
-            rep_type = tf_rep_type.lower() if tf_rep_type is not None \
-                else 'spec_db'
+            if spec_type is not None:
+                rep_type = spec_type.lower()
+            elif tf_rep_type is not None:
+                warnings.showwarning(
+                    'The field "tf_rep_type" in `spec_settings` is deprecated, '
+                    'and has been renamed to "spec_type". The value you '
+                    'specified for "tf_rep_type" will be used here for '
+                    '"spec_type". Please update your `spec_settings` to use '
+                    'the new field name, as "tf_rep_type" will be removed in a '
+                    'future release.',
+                    DeprecationWarning, __name__, '')
+                rep_type = tf_rep_type.lower()
+            else:
+                rep_type = 'spec_db'
             # Currently supported formats
             assert rep_type in ['spec', 'spec_db', 'spec_dbfs',
                                 'melspec', 'melspec_db', 'melspec_dbfs']

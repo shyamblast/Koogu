@@ -138,9 +138,9 @@ class Config:
         win_overlap_prc=NonNegFrac,
         nfft_equals_win_len=[bool, None],
         eps=[PosFloat, None],
-        bandwidth_clip=[(PosFloat, 2, 2), None],
-        type=[
-          Enum('spec_type', ['spec', 'spec_db', 'melspec', 'melspec_db']),
+        bandwidth_clip=[(NonNegFloat, 2, 2), None],
+        spec_type=[
+          Enum('tf_rep_type', ['spec', 'spec_db', 'melspec', 'melspec_db']),
           None
         ],
         num_mels=[PosInt, None]
