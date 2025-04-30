@@ -4,11 +4,13 @@ import json
 import numpy as np
 import tensorflow as tf
 import logging
+import warnings
 from functools import reduce
 
 from koogu.data import AssetsExtraNames, FilenameExtensions
 from koogu.data.raw import Convert
 from koogu.data.tf_transformations import NormalizeAudio, Audio2Spectral
+from koogu.data.augmentations import Temporal, SpectroTemporal
 from koogu.utils.filesystem import recursive_listing
 
 
@@ -79,7 +81,7 @@ class BaseFeeder(metaclass=abc.ABCMeta):
         :param is_training: (boolean) True if operating in training mode.
         :param kwargs: Any additional parameters.
 
-        :return: A 2-tuple containing transformed sample and label.
+        :return: A 2-tuple containing augmented sample and label.
         """
 
         raise NotImplementedError(
@@ -97,7 +99,7 @@ class BaseFeeder(metaclass=abc.ABCMeta):
         :param is_training: (boolean) True if operating in training mode.
         :param kwargs: Any additional parameters.
 
-        :return: A 2-tuple containing transformed sample and label.
+        :return: A 2-tuple containing augmented sample and label.
         """
 
         raise NotImplementedError(
@@ -248,8 +250,10 @@ class BaseFeeder(metaclass=abc.ABCMeta):
 
 class DataFeeder(BaseFeeder):
     """
-    A class for loading prepared data from numpy .npz files and feeding them
-    untransformed into the training/evaluation pipeline.
+    A class for loading preprocessed data from numpy .npz files and feeding them
+    (untransformed) into the training/evaluation pipeline. To apply any
+    transformations, create a subclass and override the method
+    :meth:`~koogu.data.feeder.DataFeeder.transform`.
 
     :param data_dir: Directory under which prepared data (.npz files) are
         available.
@@ -337,6 +341,11 @@ class DataFeeder(BaseFeeder):
                     f'"{background_class}" not in list of classes. ' +
                     'Ignoring parameter \'background_class\'.')
 
+        self._pre_probs = []
+        self._pre_augs = []
+        self._post_probs = []
+        self._post_augs = []
+
         super(DataFeeder, self).__init__(
             self._in_shape,
             num_per_class_samples_train,
@@ -345,16 +354,171 @@ class DataFeeder(BaseFeeder):
             **kwargs)
 
     def transform(self, sample, label, is_training, **kwargs):
+        """
+        Applies desired transformation(s) to a model input (audio clip). This
+        method is not intended to be invoked directly; it will be invoked
+        during model training/validation. Custom data transformations can be
+        implemented by subclassing :class:`~koogu.data.feeder.DataFeeder` and
+        overriding this method with an implementation of the desired operations
+        within the method.
+
+        :param sample: Raw clip, as loaded from the stored .npz file.
+        :param label: A one-hot styled label array corresponding to the sample,
+            as loaded form the stored .npz file.
+        :param is_training: Flag (boolean) indicating whether the method is
+            being invoked during training (True) or validation (False).
+
+        :return: A 2-tuple containing transformed sample and label.
+        """
+
         # Pass as-is, nothing to do
         return sample, label
 
     def pre_transform(self, sample, label, is_training, **kwargs):
-        # Pass as-is, nothing to do
+        """
+        Applies desired pre-transformation augmentations to a model input (i.e.,
+        to audio clip). This method is not intended to be invoked directly; it
+        will be invoked during model training/validation. Custom
+        pre-transformation augmentations can be implemented by subclassing
+        :class:`~koogu.data.feeder.DataFeeder` and overriding this method with
+        an implementation of the desired operations within the method.
+
+        :param sample: Raw clip, as loaded from the stored .npz file.
+        :param label: A one-hot styled label array corresponding to the sample,
+            as loaded form the stored .npz file.
+        :param is_training: Flag (boolean) indicating whether the method is
+            being invoked during training (True) or validation (False).
+
+        :return: A 2-tuple containing augmented sample and label.
+        """
+
+        if len(self._pre_probs) > 0:
+            sample = Temporal.apply_chain(
+                sample, self._pre_augs, self._pre_probs)
+
         return sample, label
 
     def post_transform(self, sample, label, is_training, **kwargs):
-        # Pass as-is, nothing to do
+        """
+        Applies desired post-transformation augmentations to a model input
+        (i.e., to transformed sample, such as a spectrogram). This method is not
+        intended to be invoked directly; it will be invoked during model
+        training/validation. Custom pre-transformation augmentations can be
+        implemented by subclassing :class:`~koogu.data.feeder.DataFeeder` and
+        overriding this method with an implementation of the desired operations
+        within the method.
+
+        :param sample: A transformed model input (e.g., spectrogram).
+        :param label: A one-hot styled label array corresponding to the sample.
+        :param is_training: Flag (boolean) indicating whether the method is
+            being invoked during training (True) or validation (False).
+
+        :return: A 2-tuple containing augmented sample and label.
+        """
+
+        if len(self._post_probs) > 0:
+            sample = SpectroTemporal.apply_chain(
+                sample, self._post_augs, self._post_probs)
+
         return sample, label
+
+    def add_pre_transform_augmentation(self, probability, augmentation,
+                                       *augmentation_args,
+                                       **augmentation_kwargs):
+        """
+        Add a temporal augmentation to the feeder.
+
+        :param probability: Probability (>0 & ≤ 1) of application.
+        :param augmentation: Name of or reference to one of the available
+            temporal augmentation classes, or reference to a user-implemented
+            augmentation class.
+        :param augmentation_args: Positional arguments passed as-is to the
+            augmentation class constructor.
+        :param augmentation_kwargs: Keyword arguments passed as-is to the
+            augmentation class constructor.
+
+        .. Note::
+            If you are subclassing :class:`~koogu.data.feeder.DataFeeder`, avoid
+            using this function. Instead, apply the desired augmentations
+            in the overridden implementation of
+            :meth:`~koogu.data.feeder.DataFeeder.pre_transform` directly.
+        """
+
+        assert 0 < probability <= 1.0, 'Invalid probability value specified'
+
+        if isinstance(augmentation, str):
+            try:
+                aug_c = getattr(Temporal, augmentation)
+            except AttributeError as _:
+                raise NameError(f'"{augmentation}" is not a valid temporal '
+                                'augmentation')
+        elif issubclass(augmentation, Temporal):
+            aug_c = augmentation
+        else:
+            raise TypeError('Specified `augmentation` must be the name of or '
+                            'a reference to a subclass of '
+                            'koogu.data.augmentations.Temporal')
+
+        # Instantiate augmentation class object
+        aug = aug_c(*augmentation_args, **augmentation_kwargs)
+        # Let exception raised (if any; will be of TypeError) to be handled by
+        # the caller
+
+        self._pre_probs.append(probability)
+        self._pre_augs.append(aug)
+
+    def add_post_transform_augmentation(self, probability, augmentation,
+                                        *augmentation_args,
+                                        **augmentation_kwargs):
+        """
+        Add a spectro-temporal augmentation to the feeder.
+
+        :param probability: Probability (>0 & ≤ 1) of application.
+        :param augmentation: Name of or reference to one of the available
+            spectro-temporal augmentation classes, or reference to a
+            user-implemented augmentation class.
+        :param augmentation_args: Positional arguments passed as-is to the
+            augmentation class constructor.
+        :param augmentation_kwargs: Keyword arguments passed as-is to the
+            augmentation class constructor.
+
+        .. Note::
+            If you are subclassing :class:`~koogu.data.feeder.DataFeeder`, avoid
+            using this function. Instead, apply the desired augmentations
+            in the overridden implementation of
+            :meth:`~koogu.data.feeder.DataFeeder.post_transform` directly.
+        """
+
+        # If not called on an inherited class, ignore request, since this
+        # class does not implement any transformations.
+        if type(self) == DataFeeder:
+            warnings.warn('Ignoring request to add post-transform augmentation '
+                          f'"{augmentation}" as the DataFeeder class does not '
+                          'implement any transformation(s).')
+            return
+
+        assert 0 < probability <= 1.0, 'Invalid probability value specified'
+
+        if isinstance(augmentation, str):
+            try:
+                aug_c = getattr(SpectroTemporal, augmentation)
+            except AttributeError as _:
+                raise NameError(f'"{augmentation}" is not a valid '
+                                'spectro-temporal augmentation')
+        elif issubclass(augmentation, SpectroTemporal):
+            aug_c = augmentation
+        else:
+            raise TypeError('Specified `augmentation` must be the name of or '
+                            'a reference to a subclass of '
+                            'koogu.data.augmentations.SpectroTemporal')
+
+        # Instantiate augmentation class object
+        aug = aug_c(*augmentation_args, **augmentation_kwargs)
+        # Let exception raised (if any; will be of TypeError) to be handled by
+        # the caller
+
+        self._post_probs.append(probability)
+        self._post_augs.append(aug)
 
     def make_dataset(self, is_training, batch_size, **kwargs):
         """
@@ -367,6 +531,8 @@ class DataFeeder(BaseFeeder):
         :param num_threads: (optional, int) Number of parallel read/transform
             threads. Generally tied to number of CPUs (default if unspecified)
         :param queue_capacity: (optional, int)
+
+        :meta private:
         """
 
         num_threads = kwargs.get('num_threads',  # default to num CPUs
@@ -632,6 +798,11 @@ class SpectralDataFeeder(DataFeeder):
             [self._in_shape] + self._transformation)
 
     def transform(self, clip, label, is_training, **kwargs):
+        """
+        Applies the 'to-spectrogram' transormation.
+
+        :meta private:
+        """
 
         output = clip
 
@@ -642,4 +813,7 @@ class SpectralDataFeeder(DataFeeder):
         return output, label
 
     def get_shape_transformation_info(self):
+        """
+        :meta private:
+        """
         return self._in_shape, self._transformation

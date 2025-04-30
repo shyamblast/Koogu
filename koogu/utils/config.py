@@ -6,6 +6,7 @@ import abc
 
 # Needed for validating some enumerated entries
 from ..data import annotations
+from ..data.augmentations import Temporal, SpectroTemporal
 from ..model import architectures
 
 
@@ -152,6 +153,12 @@ class Config:
         remap_labels_dict=[dict, None],
         raven_label_column_name=[str, None],
         raven_default_label=[str, None]
+      )
+
+    if section == 'data.augmentations':
+      return dict(
+        temporal=[(TemporalAugmentationSpec, 1, None), None],
+        spectrotemporal=[(SpectroTemporalAugmentationSpec, 1, None), None],
       )
 
     if section == 'model':
@@ -301,9 +308,11 @@ class _Section:
             if not all([isinstance(rv, list_content_fmt) for rv in retval]):
               raise ValueError(
                 f'List contents expected to be of {list_content_fmt} type.')
-          elif issubclass(list_content_fmt, _ConstrainedNumeric):
+          elif issubclass(list_content_fmt, (_ConstrainedNumeric,
+                                             _AugmentationSpec)):
             # Attempt converting all elements
-            for rv in retval: list_content_fmt.check(rv)
+            for rv_idx, rv in enumerate(retval):
+              retval[rv_idx] = list_content_fmt.check(rv)
           elif list_content_fmt is not tuple:
             raise ValueError(
               f'The template has an unsupported type: {repr(fmt)}.')
@@ -418,3 +427,46 @@ class NonNegFrac(_ConstrainedNumeric):
     if 0.0 <= retval <= 1.0:
       return retval
     raise ValueError(f'Expected value in the range [0.0-1.0], got {repr(val)}')
+
+
+class _AugmentationSpec:
+  @classmethod
+  def check(cls, val):
+    # `val` is a tuple comprising:
+    #     probability, aug. name, followed by aug. param(s)
+    if isinstance(val, str):  # Convert if necessary
+      val = eval(val)
+    prob = _AugmentationSpec.check_probability(val[0])
+    name = cls.check_name(val[1])
+    args = list(val[2:])
+    return (prob, name, args)
+
+  @staticmethod
+  def check_probability(prob):
+    if 0.0 < prob <= 1.0:
+      return prob
+    raise ValueError(f'Probability must be in the range 0 < p <= 1, got {prob}')
+
+  _factory = None   # Override in subclass
+  _available = []   # Override & populate in subclass
+
+  @classmethod
+  def check_name(cls, name):
+    if isinstance(name, str) and name in cls._available:
+      return getattr(cls._factory, name)
+    raise ValueError(f'Invalid augmentation "{name}" requested. '
+                     f'Available options are {cls._available}')
+
+
+class TemporalAugmentationSpec(_AugmentationSpec):
+
+  _factory = Temporal
+  _available = [k for k in Temporal.__dict__.keys()
+                if k[:1] != '_' and k != 'apply_chain']
+
+
+class SpectroTemporalAugmentationSpec(_AugmentationSpec):
+
+  _factory = SpectroTemporal
+  _available = [k for k in SpectroTemporal.__dict__.keys()
+                if k[:1] != '_' and k != 'apply_chain']
