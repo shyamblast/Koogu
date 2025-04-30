@@ -3,6 +3,7 @@ import configparser
 from enum import Enum
 import os
 import abc
+import ast
 
 # Needed for validating some enumerated entries
 from ..data import annotations
@@ -157,8 +158,10 @@ class Config:
 
     if section == 'data.augmentations':
       return dict(
-        temporal=[(TemporalAugmentationSpec, 1, None), None],
-        spectrotemporal=[(SpectroTemporalAugmentationSpec, 1, None), None],
+        temporal=[TemporalAugmentationSpec,
+                  (TemporalAugmentationSpec, 1, None), None],
+        spectrotemporal=[SpectroTemporalAugmentationSpec,
+                         (SpectroTemporalAugmentationSpec, 1, None), None],
       )
 
     if section == 'model':
@@ -241,10 +244,10 @@ class _Section:
         raise ConfigError(
           filepath, section_name, field_name,
           f'Error evaluating field value as Python code - {repr(field_val)}')
-      except SyntaxError as _:
+      except SyntaxError as exc:
         raise ConfigError(
           filepath, section_name, field_name,
-          f'Error evaluating field value as Python code - {repr(field_val)}')
+          f'Error ({exc.msg}) evaluating field -\n{field_val}')
       else:
         setattr(self, field_name, field_val)
 
@@ -275,10 +278,13 @@ class _Section:
           retval = fmt(value)
 
         elif fmt is bool:                       # bool
-          retval = bool(eval(value.title()))
+          retval = value.lower()
+          if retval not in ['true', 'false']:
+            raise ValueError(f'Expected boolean (true/false). Got "{value}"')
+          retval = (retval == 'true')
 
         elif fmt is dict:                       # dict
-          retval = eval(value)
+          retval = ast.literal_eval(value)
           # Make sure we're getting a dict
           if not isinstance(retval, dict):
             raise ValueError(
@@ -287,7 +293,7 @@ class _Section:
 
         elif isinstance(fmt, tuple):            # tuple
           list_content_fmt = fmt[0]
-          retval = eval(value)
+          retval = ast.literal_eval(value)
 
           # Verify and validate contents
           if not isinstance(retval, (list, tuple)):
@@ -320,6 +326,11 @@ class _Section:
         elif issubclass(fmt, _ConstrainedNumeric):
                                                 # constrained numeric type
           retval = fmt.check(value)
+
+        elif issubclass(fmt, _AugmentationSpec):
+                                                # augmentation spec type
+          # single spec, force to be in a list
+          retval = [fmt.check(ast.literal_eval(value))]
 
         elif issubclass(fmt, Enum):             # enumerated type
           supported_vals = [fm.name for fm in fmt]
@@ -434,8 +445,8 @@ class _AugmentationSpec:
   def check(cls, val):
     # `val` is a tuple comprising:
     #     probability, aug. name, followed by aug. param(s)
-    if isinstance(val, str):  # Convert if necessary
-      val = eval(val)
+    if not isinstance(val, list) or len(val) < 3:
+      raise TypeError('Malformed augmentation specification')
     prob = _AugmentationSpec.check_probability(val[0])
     name = cls.check_name(val[1])
     args = list(val[2:])
@@ -443,9 +454,10 @@ class _AugmentationSpec:
 
   @staticmethod
   def check_probability(prob):
-    if 0.0 < prob <= 1.0:
+    if isinstance(prob, (float, int)) and 0.0 < prob <= 1.0:
       return prob
-    raise ValueError(f'Probability must be in the range 0 < p <= 1, got {prob}')
+    raise ValueError('Probability must be a numeric value and in the range '
+                     f'0 < p <= 1, got {prob}')
 
   _factory = None   # Override in subclass
   _available = []   # Override & populate in subclass
