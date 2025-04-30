@@ -59,8 +59,7 @@ def aug_register():
 
 class Temporal(_Augmentation):
     """
-    Abstract base class for all time-domain augmentations.
-    Do not attempt to instantiate directly. Only use to invoke apply_chain().
+    Abstract base class for time-domain augmentations.
     """
 
     def __init__(self):
@@ -126,11 +125,27 @@ class Temporal(_Augmentation):
 
         return clip
 
+    @abc.abstractmethod
+    def build_graph(self, in_data, t_axis):
+        """
+        Method which implements the desired time-domain augmentation logic as a
+        Tensorflow (TF) graph.
+
+        :param in_data: A TF array representing a single training/validation
+            input (waveform).
+        :param t_axis: Index, into `in_data`, of the dimension in which the
+            waveform samples are.
+
+        :return: The leaf node of the TF graph that represents the output of
+            the implemented augmentation logic.
+        """
+        raise NotImplementedError(
+            'build_graph() method not implemented in Temporal')
+
 
 class SpectroTemporal(_Augmentation):
     """
-    Abstract base class for all spectro-temporal augmentations.
-    Do not attempt to instantiate directly. Only use to invoke apply_chain().
+    Abstract base class for spectro-temporal augmentations.
     """
 
     def __init__(self):
@@ -258,6 +273,23 @@ class SpectroTemporal(_Augmentation):
         spec = SpectroTemporal._resize(spec, orig_size)
 
         return spec
+
+    @abc.abstractmethod
+    def build_graph(self, in_data, f_axis, t_axis):
+        """
+        Method which implements the desired spectrotemporal augmentation logic
+        as a Tensorflow (TF) graph.
+
+        :param in_data: A TF array representing a single transformed
+            training/validation input (spectrogram).
+        :param f_axis: Index to the "frequency" dimension in `in_data`.
+        :param t_axis: Index to the "time" dimension in `in_data`.
+
+        :return: The leaf node of the TF graph that represents the output of
+            the implemented augmentation logic.
+        """
+        raise NotImplementedError(
+            'build_graph() method not implemented in SpectroTemporal')
 
 
 @aug_register()
