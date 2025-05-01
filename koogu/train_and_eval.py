@@ -192,30 +192,6 @@ def _get_learning_rate_fn(lr, lr_change_at_epochs=None,
     return get_learning_rate
 
 
-# def _validate_fcn_splitting(raw_data_shape, data_cfg, patch_size, patch_overlap):
-#
-#     patch_size = np.asarray(patch_size).astype(int)
-#     patch_overlap = np.asarray(patch_overlap if patch_overlap is not None else [0, 0]).astype(int)
-#
-#     model_input_feat_shp = transform_audio_to_spectral(
-#         data_cfg, tf.placeholder(tf.float32, raw_data_shape)).get_shape().as_list()
-#     model_input_feat_shp = model_input_feat_shp[0:2]
-#
-#     # Check along frequency axis
-#     remainder = spatial_split(int(model_input_feat_shp[0]), 1, patch_size[0], patch_overlap[0])
-#     if remainder > 0:
-#         logging.error('FCN patch splitting in frequency axis would leave {} remainders.'.format(remainder))
-#         return None, None
-#
-#     # Check along time axis
-#     remainder = spatial_split(int(model_input_feat_shp[1]), 2, patch_size[1], patch_overlap[1])
-#     if remainder > 0:
-#         logging.error('FCN patch splitting in time axis would leave {} remainders.'.format(remainder))
-#         return None, None
-#
-#     return patch_size, patch_overlap
-
-
 def _main(data_feeder, model_dir, data_cfg, model_arch, training_cfg,
           verbose=2,
           **kwargs):
@@ -226,26 +202,6 @@ def _main(data_feeder, model_dir, data_cfg, model_arch, training_cfg,
 
     if 'random_seed' in kwargs:
         tf.random.set_seed(kwargs.pop('random_seed'))
-
-#    # If patch splitting is enabled, validate it and set estimator params accordingly
-#    if model_cfg.fcn_patch_size is not None:
-#        patch_size, patch_overlap = \
-#            _validate_fcn_splitting(feature_shape, data_cfg, model_cfg.fcn_patch_size, model_cfg.fcn_patch_overlap)
-#        if patch_size is not None:
-#            # Update with corrected values
-#            model_cfg.fcn_patch_size = patch_size
-#            model_cfg.fcn_patch_overlap = patch_overlap
-#        else:
-#            print('MODEL:FCN splitting settings are invalid. See log file for details.', file=sys.stderr)
-#            return
-
-#    # Build estimator params
-#    estimator_params = dict()
-#    if model_cfg.fcn_patch_size is not None:
-#        estimator_params['FCN_patch_size'] = model_cfg.fcn_patch_size
-#        estimator_params['FCN_patch_overlap'] = model_cfg.fcn_patch_overlap
-
-    #print(data_feeder.data_shape)
 
     # Create a Classifier instance
     classifier = model_arch(input_shape=data_feeder.data_shape,
@@ -309,14 +265,8 @@ def _main(data_feeder, model_dir, data_cfg, model_arch, training_cfg,
         shuffle=False,
         verbose=verbose,
         class_weight=class_weights,
-#        steps_per_epoch=int(np.ceil(steps_per_epoch)),
-#        validation_steps=val_steps,
         callbacks=callbacks)
 
-    # Reset metrics before saving
-#    classifier.reset_metrics()
-#    classifier.trainable = False
-    #classifier.save(os.path.join(model_dir, 'classifier.h5'), include_optimizer=False)
     with open(os.path.join(model_dir, 'classifier.json'), 'w') as of:
         of.write(classifier.to_json())
     classifier.save_weights(os.path.join(model_dir, 'classifier_weights.h5'))
