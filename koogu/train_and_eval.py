@@ -272,15 +272,18 @@ def _main(data_feeder, model_dir, data_cfg, model_arch, training_cfg,
     classifier.save_weights(os.path.join(model_dir, 'classifier_weights.h5'))
 
     # Write out training history. Include epoch numbers for train & eval
+    history_c = {
+        key: ([float(v) for v in val] if hasattr(val, '__len__') else val)
+        for key, val in history.history.items()
+    }
+    history_c['train_epochs'] = \
+        [x for x in range(1, training_cfg['epochs'] + 1)]
+    history_c['eval_epochs'] = \
+        [x for x in range(training_cfg['epochs_between_evals'],
+                          training_cfg['epochs'] + 1,
+                          training_cfg['epochs_between_evals'])]
     with open(os.path.join(model_dir, 'training_history.json'), 'w') as of:
-        history_c = history.history.copy()
-        history_c['train_epochs'] = \
-            [x for x in range(1, training_cfg['epochs'] + 1)]
-        history_c['eval_epochs'] = \
-            [x for x in range(training_cfg['epochs_between_evals'],
-                              training_cfg['epochs'] + 1,
-                              training_cfg['epochs_between_evals'])]
-        of.write(json.dumps(eval(str(history_c))))
+        json.dump(history_c, of, indent=0)
 
     TrainedModel.finalize_and_save(classifier,
                                    model_dir,
