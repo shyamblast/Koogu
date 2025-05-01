@@ -152,6 +152,7 @@ class Config:
         annotation_reader=[Enum('reader', annotations.__all__), None],
         desired_labels=[(str, 1, None), None],
         remap_labels_dict=[dict, None],
+        background_class=[str, None],
         raven_label_column_name=[str, None],
         raven_default_label=[str, None]
       )
@@ -181,7 +182,10 @@ class Config:
         optimizer=[str, None],
         weighted_loss=[bool, None],
         l2_weight_decay=[PosFloat, None],
-        dropout_rate=[PosFrac, None]
+        dropout_rate=[PosFrac, None],
+        validation_split=[PosFrac, None],
+        min_clips_per_class=[PosInt, None],
+        max_clips_per_class=[PosInt, None]
       )
 
     # -- Optional sections --

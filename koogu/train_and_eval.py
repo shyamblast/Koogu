@@ -5,9 +5,10 @@ import logging
 from tensorflow.python.client import device_lib
 import argparse
 import json
+from datetime import datetime
 
 from koogu.model import architectures, TrainedModel
-from koogu.data.feeder import BaseFeeder
+from koogu.data import feeder
 from koogu.utils import instantiate_logging
 from koogu.utils.terminal import ArgparseConverters
 from koogu.utils.config import Config, ConfigError
@@ -97,12 +98,12 @@ def train_and_eval(data_feeder, model_dir,
         epoch.
     """
 
-    isinstance(data_feeder, BaseFeeder), 'data_feeder must be an instance ' + \
-        'of a class that implements koogu.data.feeder.BaseFeeder'
+    assert isinstance(data_feeder, feeder.BaseFeeder), '`data_feeder` must ' + \
+        'be an instance of a class that implements koogu.data.feeder.BaseFeeder'
 
-    isinstance(model_architecture, architectures.BaseArchitecture), \
-        'model_architecture must be an instance of a class that implements ' + \
-        'koogu.model.architectures.BaseArchitecture'
+    assert isinstance(model_architecture, architectures.BaseArchitecture), \
+        '`model_architecture` must be an instance of a class that ' + \
+        'implements koogu.model.architectures.BaseArchitecture'
 
     # Check fields in training_config
     required_fields = ['batch_size', 'epochs']
@@ -296,164 +297,133 @@ def _main(data_feeder, model_dir, data_cfg, model_arch, training_cfg,
     return history_c
 
 
-def _get_settings_from_config(args):
-    """Load config settings from the config file and return values from different sections."""
-
-    cfg = Config(args.cfg, ['DATA', 'MODEL', 'TRAINING'])
-
-    data_settings = datasection2dict(cfg.DATA)
-
-    # Handle overriding of training config values
-    if args.batch_size is not None:
-        cfg.TRAINING.batch_size = args.batch_size
-    if args.num_epochs is not None:
-        cfg.TRAINING.epochs = args.num_epochs
-    if args.epochs_between_evals is not None:
-        cfg.TRAINING.epochs_between_evals = args.epochs_between_evals
-    if args.dropout_rate is not None:
-        cfg.TRAINING.dropout_rate = args.dropout_rate / 100.    # Convert percent to fraction
-    if args.learning_rate is not None:
-        cfg.TRAINING.learning_rate = args.learning_rate
-
-    # Some run-time stuff couldn't have been eval'ed in utils.Config while loading config file. They were loaded as
-    # plain strings. eval() and process them now.
-
-    cfg.TRAINING.optimizer = eval(cfg.TRAINING.optimizer)       # This param has tensorflow stuff
-    assert isinstance(cfg.TRAINING.optimizer, tuple) and len(cfg.TRAINING.optimizer) == 2 and \
-        isinstance(cfg.TRAINING.optimizer[1], dict), '\'optimizer\' definition is invalid'
-
-#    # This param has data.feature_transformations and tensorflow stuff
-#    if cfg.TRAINING.augmentations_time_domain is not None:
-#        cfg.TRAINING.augmentations_time_domain = eval(cfg.TRAINING.augmentations_time_domain)
-#        if cfg.TRAINING.augmentations_time_domain is not None:
-#            if not isinstance(cfg.TRAINING.augmentations_time_domain, list):    # force to be a list
-#                cfg.TRAINING.augmentations_time_domain = [cfg.TRAINING.augmentations_time_domain]
-#            if len(cfg.TRAINING.augmentations_time_domain) == 0:
-#                cfg.TRAINING.augmentations_time_domain = None
-#
-#    # This param has data.feature_transformations and tensorflow stuff
-#    if cfg.TRAINING.augmentations_timefreq_domain is not None:
-#        cfg.TRAINING.augmentations_timefreq_domain = eval(cfg.TRAINING.augmentations_timefreq_domain)
-#        if cfg.TRAINING.augmentations_timefreq_domain is not None:
-#            if not isinstance(cfg.TRAINING.augmentations_timefreq_domain, list):  # force to be a list
-#                cfg.TRAINING.augmentations_timefreq_domain = [cfg.TRAINING.augmentations_timefreq_domain]
-#            if len(cfg.TRAINING.augmentations_timefreq_domain) == 0:
-#                cfg.TRAINING.augmentations_timefreq_domain = None
-#
-#    # This param has tensorflow stuff
-#    if cfg.TRAINING.background_infusion_params is not None and args.additive_backgrounds is not None:
-#        cfg.TRAINING.background_infusion_params = eval(cfg.TRAINING.background_infusion_params)
-#        assert isinstance(cfg.TRAINING.background_infusion_params, tuple) and \
-#            len(cfg.TRAINING.background_infusion_params) == 2 and \
-#            isinstance(cfg.TRAINING.background_infusion_params[1], tuple) and \
-#            len(cfg.TRAINING.background_infusion_params[1]) == 3
-
-    return data_settings, _ModelCFG(cfg.MODEL, args.arch), cfg.TRAINING
+__all__ = ['train_and_eval']
 
 
-if __name__ == '__main__':
+def cmdline_parser(parser=None):
 
-    parser = argparse.ArgumentParser(prog=_program_name, allow_abbrev=False,
-                                     description='Train a TF model.')
-    parser.add_argument('datadir', metavar='<DATA DIR>',
-                        help='Path to the root directory containing training and validation data.')
-    parser.add_argument('modeldir', metavar='<MODEL DIR>',
-                        help='Path to destination directory into which model-specific contents will be written out.')
-    parser.add_argument('cfg', metavar='<CONFIG FILE>',
-                        help='Path to config file.')
-    parser.add_argument('arch', metavar='<ARCHITECTURE>',
-                        choices=['convnet', 'densenet', 'resnet'],
-                        help='Model architecture.')
-    arg_group_train = parser.add_argument_group('Training config override',
-                                                'Overrides settings obtained from the config file.')
-    arg_group_train.add_argument('--batch-size', dest='batch_size', type=ArgparseConverters.positive_integer,
-                                 metavar='NUM',
-                                 help='Size to batch the inputs into.')
-    arg_group_train.add_argument('--epochs', dest='num_epochs', type=ArgparseConverters.positive_integer,
-                                 metavar='NUM',
-                                 help='Number of epochs to train for.')
-    arg_group_train.add_argument('--epochs-between-evals', dest='epochs_between_evals',
-                                 type=ArgparseConverters.positive_integer, metavar='NUM',
-                                 help='How often evaluation is to be performed.')
-    arg_group_train.add_argument('--dropout-rate', metavar='0-100', type=ArgparseConverters.valid_percent,
-                                 dest='dropout_rate',
-                                 help='Dropout probability (as a percent). Higher value = more regularization.')
-    arg_group_train.add_argument('--learning-rate', dest='learning_rate', type=ArgparseConverters.positive_float,
-                                 metavar='NUM',
-                                 help='Static (or initial value of) learning rate.')
-    arg_group_misc = parser.add_argument_group('Miscellaneous')
-#    arg_group_misc.add_argument('--preproc', choices=['DD', 'dB', 'dBFS'],
-#                                help='Include a pre-processing step for transforming features before they enter the ' +
-#                                     'network. Choices\' names are case sensitive. \'DD\': Double-differential; if ' +
-#                                     'choosing this preproc, (i) make sure dd_settings is defined in the config file,' +
-#                                     ' and (ii) it is advised that any pre-conv filters be disabled. \'dB\': convert ' +
-#                                     'linear spectral features to decibel scale. \'dBFS\': convert linear spectral ' +
-#                                     'features to normalized (in the range [0.0, 1.0]) decibel scale.')
-    arg_group_misc.add_argument('--seed', dest='random_state_seed', type=ArgparseConverters.positive_integer,
-                                metavar='NUM',
-                                help='Seed value (integer) for deterministic shuffling.')
-    arg_group_misc.add_argument('--dim-order', dest='dim_order', choices=['NCHW', 'NHWC'],
-                                help='Dimension ordering of data. \'NCHW\' (a.k.a channels first) is [batch, channels' +
-                                     ', height, width] which is good when training on GPU using cuDNN. \'NHWC\' (a.k.' +
-                                     'a channels last) is [batch, height, width, channels] which is good when ' +
-                                     'training on CPU. If unspecified, appropriate choice will be made depending on ' +
-                                     'GPU availability.')
-#    arg_group_misc.add_argument('--track-mismatches', metavar='0-1', type=ArgparseConverters.float_0_to_1,
-#                                dest='track_mismatches',
-#                                help='Enable tracking of mismatches during training and evaluation. Mismatches with ' +
-#                                     'confidence higher than the specified value, will be recorded for later ' +
-#                                     'debugging. If enabled, this setting may have no effect if the TFRecords do not ' +
-#                                     'contain any tracing info.')
-    arg_group_misc.add_argument('--non-augmented-class', dest='non_augmented_class', metavar='CLASS', nargs='+',
-                                help='Name (case sensitive) of the class (like \'Noise\' or \'Other\') that need not ' +
-                                     'be subject to data augmentation (if enabled). Can specify multiple (separated ' +
-                                     'by whitespaces).')
-#    arg_group_misc.add_argument('--additive-background', dest='additive_backgrounds', metavar='TFRECORD',
-#                                action='append', default=[],
-#                                help='Path to a TFRecord file containing data that will be randomly added to training' +
-#                                     ' inputs. Records in the TFRecord file must be of the same shape and format as ' +
-#                                     'those in the training data. Multiple TFRecord files can be supplied by ' +
-#                                     'specifying this argument multiple times. The probability and strength of the' +
-#                                     'additive background can be controlled with the \'background_infusion_params\' ' +
-#                                     'in the config file.')
-#    arg_group_misc.add_argument('--debug', action='store_true', dest='training_debug',
-#                                help='Enable this to allow additional summary and checkpoint outputs.')
+    if parser is None:
+        parser = argparse.ArgumentParser(
+            prog='koogu.train', allow_abbrev=True,
+            description='Train a model using prepared inputs.')
+
+    parser.add_argument(
+        'cfg_file', metavar='<CONFIG FILE>',
+        help='Path to config file.')
+
+    parser.add_argument(
+        '--seed', dest='random_state_seed',
+        type=ArgparseConverters.positive_integer, metavar='NUM',
+        help='Seed value (integer) for deterministic shuffling.')
+    parser.add_argument(
+        '--model_name', dest='model_name',
+        type=str, metavar='NUM',
+        help='Name of the trained model. Output directory will be given this '
+             'name.')
+
     arg_group_logging = parser.add_argument_group('Logging')
-    arg_group_logging.add_argument('--log', metavar='FILE',
-                                   help='Path to file to which logs will be written out.')
-    arg_group_logging.add_argument('--loglevel', choices=['CRITICAL', 'ERROR', 'WARNING', 'INFO', 'DEBUG'],
-                                   default='INFO',
-                                   help='Logging level.')
-    args = parser.parse_args()
+    arg_group_logging.add_argument(
+        '--loglevel', dest='log_level',
+        choices=['CRITICAL', 'ERROR', 'WARNING', 'INFO', 'DEBUG'],
+        default='INFO', help='Logging level.')
 
-    # Load section-specific config settings
+    parser.set_defaults(exec_fn=cmdline_train)
+
+    return parser
+
+
+def cmdline_train(cfg_file, log_level,
+                  model_name=None, random_state_seed=None,
+                  # Other overriding parameters not available via cmdline
+                  data_feeder=None
+                  ):
+    """Functionality invoked via the command-line interface"""
+
+    # Load config
     try:
-        data_cfg, model_cfg, training_cfg = _get_settings_from_config(args)
+        cfg = Config(cfg_file, 'data.audio', 'data.spec', 'data.annotations',
+                     'data.augmentations', 'train', 'model')
     except FileNotFoundError as exc:
-        print('Error loading config file: {}'.format(exc.strerror), file=sys.stderr)
+        print(f'Error loading config file: {exc.strerror}', file=sys.stderr)
         exit(exc.errno)
     except ConfigError as exc:
-        print('Error processing config file: {}'.format(str(exc)), file=sys.stderr)
+        print(f'Error processing config file: {str(exc)}', file=sys.stderr)
         exit(1)
     except Exception as exc:
-        print('Error processing config file: {}'.format(repr(exc)), file=sys.stderr)
+        print(f'Error processing config file: {repr(exc)}', file=sys.stderr)
         exit(1)
 
-    kwargs = {
-        'random_seed': args.random_state_seed,
-        'dim_order': args.dim_order,
-#        'track_mismatches_thld': args.track_mismatches,
-#        'training_debug': args.training_debug,
-        'non_augmented_class': args.non_augmented_class,
-#        'additive_backgrounds': args.additive_backgrounds
-    }
+    if not os.path.exists(cfg.paths.train_audio):
+        print('Error: Invalid path specified in train_audio', file=sys.stderr)
+        exit(2)
 
-    instantiate_logging(args.log if args.log is not None else
-                        os.path.join(args.model_dir, _program_name + '.log'),
-                        args.loglevel, args, filemode='a')
+    if cfg.paths.logs is not None:
+        instantiate_logging(os.path.join(cfg.paths.logs, 'train.log'),
+                            log_level, 'a')
 
-    _main(_get_default_data_feeder(args.data_dir, data_cfg, training_cfg['batch_size']),
-          args.modeldir, data_cfg, model_cfg, training_cfg,
-          verbose=1, **kwargs)
+    exit_code = 0
 
-    logging.shutdown()
+    logger = logging.getLogger(__name__)
+
+    if model_name is None or model_name == '':
+        model_name = datetime.now().strftime('%Y%m%dT%H%M%S')
+    logger.info(f'Model name: {model_name}')
+
+    spec_settings = cfg.data.spec.as_dict(skip_invalid=True)
+    training_config = cfg.train.as_dict(skip_invalid=True)
+
+    # ---- Instantiate feeder ----
+    # Pop out (if exists) hyperparameters that were meant for the feeder
+    val_split = training_config.pop('validation_split', 0.15)
+    min_clips_per_class = training_config.pop('min_clips_per_class', None)
+    max_clips_per_class = training_config.pop('max_clips_per_class', None)
+    if data_feeder is None:
+        data_feeder = feeder.SpectralDataFeeder(
+            data_dir=cfg.paths.training_samples,
+            fs=cfg.data.audio.desired_fs,
+            spec_settings=spec_settings,
+            validation_split=val_split,
+            min_clips_per_class=min_clips_per_class,
+            max_clips_per_class=max_clips_per_class,
+            random_state_seed=random_state_seed,
+            background_class=cfg.data.annotations.background_class
+        )
+
+    # Set up desired pre- and post-transform augmentations
+    if cfg.data.augmentations.temporal:
+        for (prob, aug, aug_args) in cfg.data.augmentations.temporal:
+            data_feeder.add_pre_transform_augmentation(prob, aug, *aug_args)
+    if cfg.data.augmentations.spectrotemporal:
+        for (prob, aug, aug_args) in cfg.data.augmentations.spectrotemporal:
+            data_feeder.add_post_transform_augmentation(prob, aug, *aug_args)
+
+    logger.info(f'Input shape: {data_feeder.data_shape}')
+    logger.info(f'{"Class":<35s} : {"Train":>5s} {"Eval":>5s}')
+    logger.info(f'{"-----":<35s} : {"-----":>5s} {"-----":>5s}')
+    for lbl, tr_samps, ev_samps in zip(
+            data_feeder.class_names,
+            data_feeder.training_samples_per_class,
+            data_feeder.validation_samples_per_class):
+        logger.info(f'{lbl:<35s} : {tr_samps:>5d} {ev_samps:>5d}')
+
+    # ---- Instantiate model ----
+    model = getattr(architectures, cfg.model.architecture)(
+        **cfg.model.architecture_params)
+
+    # ---- Train ----
+    history = train_and_eval(
+        data_feeder,
+        os.path.join(cfg.paths.model, model_name),
+        dict(audio_settings=cfg.data.audio.as_dict(skip_invalid=True),
+             spec_settings=spec_settings),
+        model,
+        training_config=training_config,
+        random_seed=random_state_seed
+    )
+
+    if cfg.paths.logs is not None:
+        logging.shutdown()
+
+    print(f'Trained model "{model_name}" saved at {cfg.paths.model}')
+
+    exit(exit_code)
