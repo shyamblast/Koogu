@@ -128,7 +128,7 @@ class Config:
     if section == 'data.audio':
       return dict(
         desired_fs=[PosInt, PosFloat],
-        filterspec=[(tuple, 3, 3), None],
+        filterspec=FilterSpec,
         clip_length=PosFloat,
         clip_advance=PosFloat
       )
@@ -179,7 +179,7 @@ class Config:
         learning_rate=[PosFloat, None],
         lr_change_at_epochs=[(PosInt, 1, None), None],
         lr_update_factors=[(PosFloat, 2, None), None],
-        optimizer=[str, None],
+        optimizer=[OptimizerSpec, None],
         weighted_loss=[bool, None],
         l2_weight_decay=[PosFloat, None],
         dropout_rate=[PosFrac, None],
@@ -278,16 +278,16 @@ class _Section:
     exceptions = []
     for fmt in formats:
       try:
-        if fmt in (int, float, complex, str):   # builtin types
+        if fmt in (int, float, complex, str):       # builtin types
           retval = fmt(value)
 
-        elif fmt is bool:                       # bool
+        elif fmt is bool:                           # bool
           retval = value.lower()
           if retval not in ['true', 'false']:
             raise ValueError(f'Expected boolean (true/false). Got "{value}"')
           retval = (retval == 'true')
 
-        elif fmt is dict:                       # dict
+        elif fmt is dict:                           # dict
           retval = ast.literal_eval(value)
           # Make sure we're getting a dict
           if not isinstance(retval, dict):
@@ -295,7 +295,7 @@ class _Section:
               'Expected Python dict type; ' +
               'couldn\'t convert value to a dict.')
 
-        elif isinstance(fmt, tuple):            # tuple
+        elif isinstance(fmt, tuple):                # tuple
           list_content_fmt = fmt[0]
           retval = ast.literal_eval(value)
 
@@ -323,27 +323,31 @@ class _Section:
             # Attempt converting all elements
             for rv_idx, rv in enumerate(retval):
               retval[rv_idx] = list_content_fmt.check(rv)
-          elif list_content_fmt is not tuple:
+          else:
             raise ValueError(
               f'The template has an unsupported type: {repr(fmt)}.')
 
-        elif issubclass(fmt, _ConstrainedNumeric):
-                                                # constrained numeric type
+        elif issubclass(fmt, _ConstrainedNumeric):  # constrained numeric type
           retval = fmt.check(value)
 
-        elif issubclass(fmt, _AugmentationSpec):
-                                                # augmentation spec type
+        elif issubclass(fmt, _AugmentationSpec):    # augmentation spec type
           # single spec, force to be in a list
           retval = [fmt.check(ast.literal_eval(value))]
 
-        elif issubclass(fmt, Enum):             # enumerated type
+        elif issubclass(fmt, FilterSpec):           # filter spec type
+          retval = fmt.check(ast.literal_eval(value))
+
+        elif issubclass(fmt, OptimizerSpec):        # optimizer spec type
+          retval = fmt.check(ast.literal_eval(value))
+
+        elif issubclass(fmt, Enum):                 # enumerated type
           supported_vals = [fm.name for fm in fmt]
           if value not in supported_vals:
             raise ValueError(
               f'Unsupported value. Supported values are {supported_vals}.')
           retval = value
 
-        else:                                   # None of the types matched
+        else:                                       # None of the types matched
           raise ValueError(
             f'The template has an unsupported type: {repr(fmt)}.')
 
@@ -486,3 +490,31 @@ class SpectroTemporalAugmentationSpec(_AugmentationSpec):
   _factory = SpectroTemporal
   _available = [k for k in SpectroTemporal.__dict__.keys()
                 if k[:1] != '_' and k != 'apply_chain']
+
+
+class FilterSpec:
+  _filter_types = ['bandpass', 'lowpass', 'highpass']
+  @staticmethod
+  def check(val):
+    if not (isinstance(val, (list, tuple)) and len(val) == 3):
+      raise ValueError('Expected three-field list [filter order, frequency(ies)'
+                       f', type]. Got: {val}')
+    if not isinstance(val[0], int):
+      raise TypeError(f'Integer expected for filter order, got {val[0]}')
+    if val[2] not in FilterSpec._filter_types:
+      raise ValueError(f'Expected one of {FilterSpec._filter_types}, got '
+                       f'{repr(val[2])}')
+    if not isinstance(val[1], (int, float)) and not (
+            isinstance(val[1], (list, tuple)) and 0 < len(val[1]) <= 2 and
+            all(map(lambda v: isinstance(v, (int, float)) and v >= 0, val[1]))):
+      raise ValueError(f'Upto 2 frequency values expected, got {val[1]}')
+    return (val[0], val[1], val[2])
+
+
+class OptimizerSpec:
+  @staticmethod
+  def check(val):
+    if isinstance(val, (list, tuple)) and len(val) == 2:
+      if isinstance(val[0], str) and isinstance(val[1], dict):
+        return (val[0], val[1])
+    raise ValueError(f'Expected "[optimizer name, args dict]", got: {val}')
