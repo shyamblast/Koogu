@@ -25,6 +25,11 @@ def instantiate_logging(log_file, log_level, filemode='w'):
         format='%(asctime)s[%(levelname).1s] %(name)s: %(message)s',
         datefmt='%Y%m%dT%H%M%S')
 
+    # Regardless of chosen log_level, reset level for numba so that our logs
+    # aren't inundated by numba DEBUG logs.
+    numba_logger = logging.getLogger('numba')
+    numba_logger.setLevel(logging.WARNING)
+
 
 def log_platform_info():
 
