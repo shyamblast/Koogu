@@ -487,8 +487,8 @@ class GroundTruthDataAggregatorWithAnnots(GroundTruthDataAggregator):
         else:
             retval = np.zeros((self._num_classes,), dtype=self.ret_counts_type)
 
-        logger.debug(file_str + f'{self._annots_times.shape[0]} annotations. ' +
-                    action_str + f'{num_clips} clips')
+        logger.debug(f'{file_str}{self._annots_times.shape[0]} annotations -> '
+                     f'{retval} -> {action_str}{num_clips} clips')
 
         return retval
 

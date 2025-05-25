@@ -278,7 +278,7 @@ def get_valid_audio_annot_entries(audio_annot_list_or_csv,
         )
         if not retval:
             logger.error(f'{f_type} file path "{lhs_fullname(entry)}" is either'
-                         'invalid or unreachable')
+                         ' invalid or unreachable')
         return retval
 
     def validate_rhs(entries, audio_f):
