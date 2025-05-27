@@ -51,7 +51,8 @@ def test_all_stages(dataroot, outputroot):
         audio_root=os.path.join(dataroot, 'narw_dclde', 'train_audio'),
         annot_root=os.path.join(dataroot, 'narw_dclde', 'train_annotations'),
         output_root=clips_dir,
-        negative_class_label='Other'
+        negative_class_label='Other',
+        ignore_zero_annot_files=True
     )
 
     assert class_clip_counts == {'NARW': 10265, 'Other': 583615}

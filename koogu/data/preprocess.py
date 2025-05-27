@@ -131,7 +131,7 @@ def _single_threaded_single_file_preprocess(
 
         if len(valid_annots_idxs) == 0 and (
                 label_helper.negative_class_index is None or
-                kwargs.pop('ignore_zero_annot_files', True)):
+                kwargs.get('ignore_zero_annot_files', False)):
             # Nothing to save, so no need to even load the audio file
             return np.zeros((len(label_helper.classes_list), ),
                             dtype=GroundTruthDataAggregator.ret_counts_type)
