@@ -166,8 +166,7 @@ class AudioFileList:
             if not is_multi_file:
                 # Individual audio file; return everything at once
 
-                if len(annots_times) > 0:
-                    yield audio_path, annots_times, annots_tags, annots_channels
+                yield audio_path, annots_times, annots_tags, annots_channels
 
             else:
                 # The annotation file applied to the directory's contents.
