@@ -22,7 +22,7 @@ set -x
 ###################
 
 apt-get update
-apt-get -y install git rsync python3-numpy python3-stemmer python3-git python3-pip python3-virtualenv python3-setuptools
+apt-get -y install git rsync python3-numpy python3-stemmer python3-git python3-pip python3-venv python3-setuptools
 
 # Create a new virtual environment and activate it
 python3 -m venv build_docs_env
