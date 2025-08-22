@@ -25,7 +25,7 @@ apt-get update
 apt-get -y install git rsync python3-numpy python3-stemmer python3-git python3-pip python3-venv python3-setuptools
 
 # Create a new virtual environment and activate it
-python3 -m venv build_docs_env
+python3 -m venv build_docs_venv
 source build_docs_venv/bin/activate
 
 python3 -m pip install --upgrade -r docs/requirements.txt
