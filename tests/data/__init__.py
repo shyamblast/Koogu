@@ -58,3 +58,4 @@ def save_display_to_disk(specs_dict, outputroot, test_mod_name, aug_name,
     plt.savefig(os.path.join(outdir, f'{aug_name}.png'), bbox_inches='tight')
     warnings.warn(
         f'{aug_name} outputs saved at {outdir} for manual validation.')
+    plt.close(fig)
