@@ -76,7 +76,11 @@ def _combine_and_write(raven_writer, out_file_info,
     if num_clips == 0:
         # Write the header only (if creating a new file) and return immediately
         if out_file_info[1]:
-            raven_writer(out_file_info[0], [], [])
+            raven_writer(
+                out_file_info[0], [], [],
+                file_offset=None if offset_info is None else offset_info[1],
+                begin_file=None if offset_info is None else offset_info[2]
+                )
         return 0
 
     # Mask out the ignore_class(es), so that we don't waste time post-processing
