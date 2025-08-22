@@ -1,0 +1,410 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Data feeder &mdash; Koogu  documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="Data transformation" href="transformations.html" />
+    <link rel="prev" title="Data augmentation" href="augmentation.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            Koogu
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../index.html">Koogu</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../quickstart.html">Quick-start guide</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../advanced/index.html">Advanced usage</a></li>
+</ul>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="../index.html">API</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="../top_level.html">koogu</a></li>
+<li class="toctree-l2 current"><a class="reference internal" href="index.html">koogu.data</a><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="annotations.html">annotations</a></li>
+<li class="toctree-l3"><a class="reference internal" href="augmentation.html">augmentations</a></li>
+<li class="toctree-l3 current"><a class="current reference internal" href="#">feeder</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#koogu.data.feeder.SpectralDataFeeder"><code class="docutils literal notranslate"><span class="pre">SpectralDataFeeder</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#koogu.data.feeder.DataFeeder"><code class="docutils literal notranslate"><span class="pre">DataFeeder</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="transformations.html">tf_transformations</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../model/index.html">koogu.model</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../misc/index.html">Misc</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../extensibles.html">Extensibles</a></li>
+</ul>
+</li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../integration.html">Integration with external software</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../genindex.html">Index</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">Koogu</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">API</a></li>
+          <li class="breadcrumb-item"><a href="index.html">Data</a></li>
+      <li class="breadcrumb-item active">Data feeder</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="data-feeder">
+<h1>Data feeder<a class="headerlink" href="#data-feeder" title="Link to this heading"></a></h1>
+<p>For most common applications in bioacoustics, <a class="reference internal" href="#koogu.data.feeder.SpectralDataFeeder" title="koogu.data.feeder.SpectralDataFeeder"><code class="xref py py-class docutils literal notranslate"><span class="pre">SpectralDataFeeder</span></code></a>
+offers a convenient way to convert prepared audio clips into spectrograms on-the-fly
+during training/validation. <a class="reference internal" href="#koogu.data.feeder.DataFeeder" title="koogu.data.feeder.DataFeeder"><code class="xref py py-class docutils literal notranslate"><span class="pre">DataFeeder</span></code></a> does not apply
+any transformations and feeds audio clips as-is. By default, both classes do not
+apply any augmentations.</p>
+<p>For processing prepared data generated by mechanisms outside of Koogu, extend
+<a class="reference internal" href="../extensibles.html#koogu.data.feeder.BaseFeeder" title="koogu.data.feeder.BaseFeeder"><code class="xref py py-class docutils literal notranslate"><span class="pre">koogu.data.feeder.BaseFeeder</span></code></a> to implement custom logic to feed your
+data into the Koogu training pipeline. See <a class="reference internal" href="../../advanced/custom_feeders.html"><span class="doc">Custom feeders</span></a>
+for guidance.</p>
+<p>Like <a class="reference internal" href="../extensibles.html#koogu.data.feeder.BaseFeeder" title="koogu.data.feeder.BaseFeeder"><code class="xref py py-class docutils literal notranslate"><span class="pre">koogu.data.feeder.BaseFeeder</span></code></a>, both <a class="reference internal" href="#koogu.data.feeder.DataFeeder" title="koogu.data.feeder.DataFeeder"><code class="xref py py-class docutils literal notranslate"><span class="pre">DataFeeder</span></code></a>
+and <a class="reference internal" href="#koogu.data.feeder.SpectralDataFeeder" title="koogu.data.feeder.SpectralDataFeeder"><code class="xref py py-class docutils literal notranslate"><span class="pre">SpectralDataFeeder</span></code></a> are extensible, and
+facilitate implementation of custom transformations and/or augmentations.</p>
+<p>To apply canned augmentations (either <a class="reference internal" href="augmentation.html"><span class="doc">those offered in Koogu</span></a>
+or any user-defined augmentations implemented by subclassing
+<a class="reference internal" href="../extensibles.html#koogu.data.augmentations.Temporal" title="koogu.data.augmentations.Temporal"><code class="xref py py-class docutils literal notranslate"><span class="pre">koogu.data.augmentations.Temporal</span></code></a> or
+<a class="reference internal" href="../extensibles.html#koogu.data.augmentations.SpectroTemporal" title="koogu.data.augmentations.SpectroTemporal"><code class="xref py py-class docutils literal notranslate"><span class="pre">koogu.data.augmentations.SpectroTemporal</span></code></a>) in a chained manner, use
+methods <a class="reference internal" href="#koogu.data.feeder.DataFeeder.add_pre_transform_augmentation" title="koogu.data.feeder.DataFeeder.add_pre_transform_augmentation"><code class="xref py py-meth docutils literal notranslate"><span class="pre">add_pre_transform_augmentation()</span></code></a>
+and <a class="reference internal" href="#koogu.data.feeder.DataFeeder.add_post_transform_augmentation" title="koogu.data.feeder.DataFeeder.add_post_transform_augmentation"><code class="xref py py-meth docutils literal notranslate"><span class="pre">add_post_transform_augmentation()</span></code></a> on
+instances of <a class="reference internal" href="#koogu.data.feeder.DataFeeder" title="koogu.data.feeder.DataFeeder"><code class="xref py py-class docutils literal notranslate"><span class="pre">DataFeeder</span></code></a> and
+<a class="reference internal" href="#koogu.data.feeder.SpectralDataFeeder" title="koogu.data.feeder.SpectralDataFeeder"><code class="xref py py-class docutils literal notranslate"><span class="pre">SpectralDataFeeder</span></code></a>. You may invoke these methods
+repeatedly to build your desired chaining of canned augmentations.
+For finer control with applying augmentations (i.e., implementing conditional
+branching and other logic), create a subclass and override the methods
+<a class="reference internal" href="#koogu.data.feeder.DataFeeder.pre_transform" title="koogu.data.feeder.DataFeeder.pre_transform"><code class="xref py py-meth docutils literal notranslate"><span class="pre">pre_transform()</span></code></a> and
+<a class="reference internal" href="#koogu.data.feeder.DataFeeder.post_transform" title="koogu.data.feeder.DataFeeder.post_transform"><code class="xref py py-meth docutils literal notranslate"><span class="pre">post_transform()</span></code></a> as needed.</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="koogu.data.feeder.SpectralDataFeeder">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">koogu.data.feeder.</span></span><span class="sig-name descname"><span class="pre">SpectralDataFeeder</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_dir</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">spec_settings</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#koogu.data.feeder.SpectralDataFeeder" title="Link to this definition"></a></dt>
+<dd><p>Bases: <a class="reference internal" href="#koogu.data.feeder.DataFeeder" title="koogu.data.feeder.DataFeeder"><code class="xref py py-class docutils literal notranslate"><span class="pre">DataFeeder</span></code></a></p>
+<p>A handy data feeder, which converts prepared audio clips into power spectral
+density spectrograms.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>data_dir</strong> – Directory under which prepared data (.npz files) are
+available.</p></li>
+<li><p><strong>fs</strong> – Sampling frequency of the prepared data.</p></li>
+<li><p><strong>spec_settings</strong> – A Python dictionary. For a list of possible keys and
+values, see parameters to
+<a class="reference internal" href="transformations.html#koogu.data.tf_transformations.Audio2Spectral" title="koogu.data.tf_transformations.Audio2Spectral"><code class="xref py py-class docutils literal notranslate"><span class="pre">Audio2Spectral</span></code></a>.</p></li>
+<li><p><strong>normalize_clips</strong> – (optional; boolean) If True (default), input clips
+will be normalized before applying transform (computing spectrograms).</p></li>
+</ul>
+</dd>
+</dl>
+<p>Other parameters applicable to the parent <a class="reference internal" href="#koogu.data.feeder.DataFeeder" title="koogu.data.feeder.DataFeeder"><code class="xref py py-class docutils literal notranslate"><span class="pre">DataFeeder</span></code></a> class may also
+be specified.</p>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="koogu.data.feeder.DataFeeder">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">koogu.data.feeder.</span></span><span class="sig-name descname"><span class="pre">DataFeeder</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_dir</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">validation_split</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">min_clips_per_class</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_clips_per_class</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">random_state_seed</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#koogu.data.feeder.DataFeeder" title="Link to this definition"></a></dt>
+<dd><p>Bases: <a class="reference internal" href="../extensibles.html#koogu.data.feeder.BaseFeeder" title="koogu.data.feeder.BaseFeeder"><code class="xref py py-class docutils literal notranslate"><span class="pre">BaseFeeder</span></code></a></p>
+<p>A class for loading preprocessed data from numpy .npz files and feeding them
+(untransformed) into the training/evaluation pipeline. To apply any
+transformations, create a subclass and override the method
+<a class="reference internal" href="#koogu.data.feeder.DataFeeder.transform" title="koogu.data.feeder.DataFeeder.transform"><code class="xref py py-meth docutils literal notranslate"><span class="pre">transform()</span></code></a>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>data_dir</strong> – Directory under which prepared data (.npz files) are
+available.</p></li>
+<li><p><strong>validation_split</strong> – (default: None) Fraction of the available data that
+must be held out for validation. If None, all available data will be
+used as training samples.</p></li>
+<li><p><strong>min_clips_per_class</strong> – (default: None) The minimum number of per-class
+samples that must be available. If fewer samples are available for a
+class, the class will be omitted. If None, no classes will be omitted.</p></li>
+<li><p><strong>max_clips_per_class</strong> – (default: None) The maximum number of per-class
+samples to consider among what is available, for each class. If more
+samples are available for any class, the specified number of samples
+will be randomly selected. If None, no limits will be imposed.</p></li>
+<li><p><strong>random_state_seed</strong> – (default: None) A seed (integer) used to
+initialize the pseudo-random number generator that makes shuffling and
+other randomizing operations repeatable.</p></li>
+<li><p><strong>cache</strong> – (optional; boolean) If True (default), the logic to ‘queue &amp;
+batch’ training/evaluation samples (loaded from disk) will also cache
+the samples. Helps speed up processing.</p></li>
+<li><p><strong>suppress_nonmax</strong> – (optional; boolean) If True, the class labels will
+be one-hot type arrays, useful for training single-class prediction
+models. Otherwise (default is False), they will be suitable for training
+multi-class prediction models, giving values in the range 0-1 for each
+class.</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="koogu.data.feeder.DataFeeder.add_post_transform_augmentation">
+<span class="sig-name descname"><span class="pre">add_post_transform_augmentation</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">probability</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">augmentation</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">augmentation_args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">augmentation_kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#koogu.data.feeder.DataFeeder.add_post_transform_augmentation" title="Link to this definition"></a></dt>
+<dd><p>Add a spectro-temporal augmentation to the feeder.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>probability</strong> – Probability (&gt;0 &amp; ≤ 1) of application.</p></li>
+<li><p><strong>augmentation</strong> – Name of or reference to one of the available
+spectro-temporal augmentation classes, or reference to a
+user-implemented augmentation class.</p></li>
+<li><p><strong>augmentation_args</strong> – Positional arguments passed as-is to the
+augmentation class constructor.</p></li>
+<li><p><strong>augmentation_kwargs</strong> – Keyword arguments passed as-is to the
+augmentation class constructor.</p></li>
+</ul>
+</dd>
+</dl>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>If you are subclassing <a class="reference internal" href="#koogu.data.feeder.DataFeeder" title="koogu.data.feeder.DataFeeder"><code class="xref py py-class docutils literal notranslate"><span class="pre">DataFeeder</span></code></a>, avoid
+using this function. Instead, apply the desired augmentations
+in the overridden implementation of
+<a class="reference internal" href="#koogu.data.feeder.DataFeeder.post_transform" title="koogu.data.feeder.DataFeeder.post_transform"><code class="xref py py-meth docutils literal notranslate"><span class="pre">post_transform()</span></code></a> directly.</p>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="koogu.data.feeder.DataFeeder.add_pre_transform_augmentation">
+<span class="sig-name descname"><span class="pre">add_pre_transform_augmentation</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">probability</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">augmentation</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">augmentation_args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">augmentation_kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#koogu.data.feeder.DataFeeder.add_pre_transform_augmentation" title="Link to this definition"></a></dt>
+<dd><p>Add a temporal augmentation to the feeder.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>probability</strong> – Probability (&gt;0 &amp; ≤ 1) of application.</p></li>
+<li><p><strong>augmentation</strong> – Name of or reference to one of the available
+temporal augmentation classes, or reference to a user-implemented
+augmentation class.</p></li>
+<li><p><strong>augmentation_args</strong> – Positional arguments passed as-is to the
+augmentation class constructor.</p></li>
+<li><p><strong>augmentation_kwargs</strong> – Keyword arguments passed as-is to the
+augmentation class constructor.</p></li>
+</ul>
+</dd>
+</dl>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>If you are subclassing <a class="reference internal" href="#koogu.data.feeder.DataFeeder" title="koogu.data.feeder.DataFeeder"><code class="xref py py-class docutils literal notranslate"><span class="pre">DataFeeder</span></code></a>, avoid
+using this function. Instead, apply the desired augmentations
+in the overridden implementation of
+<a class="reference internal" href="#koogu.data.feeder.DataFeeder.pre_transform" title="koogu.data.feeder.DataFeeder.pre_transform"><code class="xref py py-meth docutils literal notranslate"><span class="pre">pre_transform()</span></code></a> directly.</p>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="koogu.data.feeder.DataFeeder.post_transform">
+<span class="sig-name descname"><span class="pre">post_transform</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">sample</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">label</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">is_training</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#koogu.data.feeder.DataFeeder.post_transform" title="Link to this definition"></a></dt>
+<dd><p>Applies desired post-transformation augmentations to a model input
+(i.e., to transformed sample, such as a spectrogram). This method is not
+intended to be invoked directly; it will be invoked during model
+training/validation. Custom pre-transformation augmentations can be
+implemented by subclassing <a class="reference internal" href="#koogu.data.feeder.DataFeeder" title="koogu.data.feeder.DataFeeder"><code class="xref py py-class docutils literal notranslate"><span class="pre">DataFeeder</span></code></a> and
+overriding this method with an implementation of the desired operations
+within the method.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>sample</strong> – A transformed model input (e.g., spectrogram).</p></li>
+<li><p><strong>label</strong> – A one-hot styled label array corresponding to the sample.</p></li>
+<li><p><strong>is_training</strong> – Flag (boolean) indicating whether the method is
+being invoked during training (True) or validation (False).</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A 2-tuple containing augmented sample and label.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="koogu.data.feeder.DataFeeder.pre_transform">
+<span class="sig-name descname"><span class="pre">pre_transform</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">sample</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">label</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">is_training</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#koogu.data.feeder.DataFeeder.pre_transform" title="Link to this definition"></a></dt>
+<dd><p>Applies desired pre-transformation augmentations to a model input (i.e.,
+to audio clip). This method is not intended to be invoked directly; it
+will be invoked during model training/validation. Custom
+pre-transformation augmentations can be implemented by subclassing
+<a class="reference internal" href="#koogu.data.feeder.DataFeeder" title="koogu.data.feeder.DataFeeder"><code class="xref py py-class docutils literal notranslate"><span class="pre">DataFeeder</span></code></a> and overriding this method with
+an implementation of the desired operations within the method.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>sample</strong> – Raw clip, as loaded from the stored .npz file.</p></li>
+<li><p><strong>label</strong> – A one-hot styled label array corresponding to the sample,
+as loaded form the stored .npz file.</p></li>
+<li><p><strong>is_training</strong> – Flag (boolean) indicating whether the method is
+being invoked during training (True) or validation (False).</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A 2-tuple containing augmented sample and label.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="koogu.data.feeder.DataFeeder.transform">
+<span class="sig-name descname"><span class="pre">transform</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">sample</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">label</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">is_training</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#koogu.data.feeder.DataFeeder.transform" title="Link to this definition"></a></dt>
+<dd><p>Applies desired transformation(s) to a model input (audio clip). This
+method is not intended to be invoked directly; it will be invoked
+during model training/validation. Custom data transformations can be
+implemented by subclassing <a class="reference internal" href="#koogu.data.feeder.DataFeeder" title="koogu.data.feeder.DataFeeder"><code class="xref py py-class docutils literal notranslate"><span class="pre">DataFeeder</span></code></a> and
+overriding this method with an implementation of the desired operations
+within the method.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>sample</strong> – Raw clip, as loaded from the stored .npz file.</p></li>
+<li><p><strong>label</strong> – A one-hot styled label array corresponding to the sample,
+as loaded form the stored .npz file.</p></li>
+<li><p><strong>is_training</strong> – Flag (boolean) indicating whether the method is
+being invoked during training (True) or validation (False).</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A 2-tuple containing transformed sample and label.</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="augmentation.html" class="btn btn-neutral float-left" title="Data augmentation" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="transformations.html" class="btn btn-neutral float-right" title="Data transformation" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2020–present, Shyam Madhusudhana.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  
+
+  <div class="rst-versions" data-toggle="rst-versions" role="note" aria-label="versions">
+    <span class="rst-current-version" data-toggle="rst-current-version">
+      <span class="fa fa-book"> Alternate Versions</span>
+      v: dev
+      <span class="fa fa-caret-down"></span>
+    </span>
+    <div class="rst-other-versions">
+      
+      
+      <dl>
+        <dt>Versions</dt>
+        
+           <strong> 
+          <dd><a href="/Koogu/en/dev/">dev</a></dd>
+           </strong> 
+        
+          
+          <dd><a href="/Koogu/en/stable/">stable</a></dd>
+          
+        
+          
+          <dd><a href="/Koogu/en/v0.7.2/">v0.7.2</a></dd>
+          
+        
+          
+          <dd><a href="/Koogu/en/v0.7.1/">v0.7.1</a></dd>
+          
+        
+          
+          <dd><a href="/Koogu/en/v0.7.0/">v0.7.0</a></dd>
+          
+        
+          
+          <dd><a href="/Koogu/en/v0.6.5/">v0.6.5</a></dd>
+          
+        
+          
+          <dd><a href="/Koogu/en/v0.6.4/">v0.6.4</a></dd>
+          
+        
+      </dl>
+      
+      
+      
+      <hr/>
+      Free theme by <a href="http://www.readthedocs.org">Read the Docs</a>.
+
+    </div>
+  </div>
+
+<script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

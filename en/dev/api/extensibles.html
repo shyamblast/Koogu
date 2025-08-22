@@ -1,0 +1,645 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Extensibles &mdash; Koogu  documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Integration with external software" href="../integration.html" />
+    <link rel="prev" title="Low-level inferencing interface" href="misc/low_inference.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            Koogu
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../index.html">Koogu</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../quickstart.html">Quick-start guide</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../advanced/index.html">Advanced usage</a></li>
+</ul>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">API</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="top_level.html">koogu</a></li>
+<li class="toctree-l2"><a class="reference internal" href="data/index.html">koogu.data</a></li>
+<li class="toctree-l2"><a class="reference internal" href="model/index.html">koogu.model</a></li>
+<li class="toctree-l2"><a class="reference internal" href="misc/index.html">Misc</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Extensibles</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#annotations">Annotations</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#koogu.data.annotations.BaseAnnotationReader"><code class="docutils literal notranslate"><span class="pre">BaseAnnotationReader</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#koogu.data.annotations.BaseAnnotationWriter"><code class="docutils literal notranslate"><span class="pre">BaseAnnotationWriter</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#feeder">Feeder</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#koogu.data.feeder.BaseFeeder"><code class="docutils literal notranslate"><span class="pre">BaseFeeder</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#augmentations">Augmentations</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#koogu.data.augmentations.Temporal"><code class="docutils literal notranslate"><span class="pre">Temporal</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#koogu.data.augmentations.SpectroTemporal"><code class="docutils literal notranslate"><span class="pre">SpectroTemporal</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#model-architecture">Model architecture</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#koogu.model.architectures.BaseArchitecture"><code class="docutils literal notranslate"><span class="pre">BaseArchitecture</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#assessment-metric">Assessment metric</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#koogu.utils.assessments.BaseMetric"><code class="docutils literal notranslate"><span class="pre">BaseMetric</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../integration.html">Integration with external software</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../genindex.html">Index</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">Koogu</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="index.html">API</a></li>
+      <li class="breadcrumb-item active">Extensibles</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="extensibles">
+<h1>Extensibles<a class="headerlink" href="#extensibles" title="Link to this heading"></a></h1>
+<section id="annotations">
+<h2>Annotations<a class="headerlink" href="#annotations" title="Link to this heading"></a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="koogu.data.annotations.BaseAnnotationReader">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">koogu.data.annotations.</span></span><span class="sig-name descname"><span class="pre">BaseAnnotationReader</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">fetch_frequencies</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#koogu.data.annotations.BaseAnnotationReader" title="Link to this definition"></a></dt>
+<dd><p>Base class for reading annotations from storage.</p>
+<p>Within Koogu, the method <a class="reference internal" href="#koogu.data.annotations.BaseAnnotationReader.__call__" title="koogu.data.annotations.BaseAnnotationReader.__call__"><code class="xref py py-meth docutils literal notranslate"><span class="pre">__call__()</span></code></a> (and others in chain) will be
+invoked from parallel threads of execution. Exercise caution if an
+implementation of this class needs to use and alter any member variables.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>fetch_frequencies</strong> – (boolean; default: False) If True, will also
+attempt to read annotations’ frequency bounds. NaNs will be returned
+for any missing values. If False, the respective item in the tuple
+returned from <a class="reference internal" href="#koogu.data.annotations.BaseAnnotationReader.__call__" title="koogu.data.annotations.BaseAnnotationReader.__call__"><code class="xref py py-meth docutils literal notranslate"><span class="pre">__call__()</span></code></a> will be set to None.</p>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="koogu.data.annotations.BaseAnnotationReader.__call__">
+<span class="sig-name descname"><span class="pre">__call__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">source</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#koogu.data.annotations.BaseAnnotationReader.__call__" title="Link to this definition"></a></dt>
+<dd><p>Read annotations from file/database/etc., process as appropriate and
+return a 5-element tuple (see below).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>source</strong> – Identifier of an annotation source (e.g., path to an
+annotation file).</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><p>A 5-element tuple</p>
+<ul class="simple">
+<li><p>N-length list of 2-element tuples denoting annotations’ start and
+end times</p></li>
+<li><p>Either None or an N-length list of 2-element tuples denoting
+annotations’ frequency bounds</p></li>
+<li><p>N-length list of tags/class labels</p></li>
+<li><p>N-length list of channel indices (0-based)</p></li>
+<li><p>(optional; set to None if not returning) N-length list of audio
+sources corresponding to the returned annotations</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="koogu.data.annotations.BaseAnnotationReader._fetch">
+<em class="property"><span class="pre">abstract</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">_fetch</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">source</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#koogu.data.annotations.BaseAnnotationReader._fetch" title="Link to this definition"></a></dt>
+<dd><p>Read annotations from file/database/etc., process as appropriate and
+return a 5-element tuple (see below).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>source</strong> – Identifier of an annotation source (e.g., path to an
+annotation file).</p>
+</dd>
+</dl>
+<dl class="simple">
+<dt>Implementations must return a 5-element tuple -</dt><dd><ul class="simple">
+<li><p>N-length list of 2-element tuples denoting annotations’ start and
+end times</p></li>
+<li><p>None if load_frequencies=False, otherwise an N-length list of
+2-element tuples denoting annotations’ frequency bounds</p></li>
+<li><p>N-length list of tags/class labels</p></li>
+<li><p>N-length list of channel indices (0-based)</p></li>
+<li><p>(optional; set to None if not returning) N-length list of audio
+sources corresponding to the returned annotations</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="koogu.data.annotations.BaseAnnotationWriter">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">koogu.data.annotations.</span></span><span class="sig-name descname"><span class="pre">BaseAnnotationWriter</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">write_frequencies</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#koogu.data.annotations.BaseAnnotationWriter" title="Link to this definition"></a></dt>
+<dd><p>Base class for writing annotations/detections to storage.</p>
+<p>Within Koogu, the method <a class="reference internal" href="#koogu.data.annotations.BaseAnnotationWriter.__call__" title="koogu.data.annotations.BaseAnnotationWriter.__call__"><code class="xref py py-meth docutils literal notranslate"><span class="pre">__call__()</span></code></a> (and others in chain) will be
+invoked from parallel threads of execution. Exercise caution if an
+implementation of this class needs to use and alter any member variables.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>write_frequencies</strong> – (boolean; default: False) If True, will also
+write out annotations’ frequency bounds. Based on the implementation
+appropriate defaults (blank spaces, NaNs, negative values, etc.)
+will be written when missing frequency values. If False, frequency
+values, even if provided, will not be written out, and relevant
+structural constructs will not be created in the output file.</p>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="koogu.data.annotations.BaseAnnotationWriter.__call__">
+<span class="sig-name descname"><span class="pre">__call__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">destination</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">times</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">labels</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#koogu.data.annotations.BaseAnnotationWriter.__call__" title="Link to this definition"></a></dt>
+<dd><p>Write out annotations/detections to destination.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>destination</strong> – Identifier of the target where
+annotations/detections will be written to (e.g., path to an
+annotation file).</p></li>
+<li><p><strong>times</strong> – An N-length list of 2-element list/tuple of start and end
+times.</p></li>
+<li><p><strong>labels</strong> – An N-length list of annotation/detection labels.</p></li>
+<li><p><strong>frequencies</strong> – An N-length list of 2-element list/tuple of low and
+high frequencies.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Number of annotations/detections written.</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="feeder">
+<h2>Feeder<a class="headerlink" href="#feeder" title="Link to this heading"></a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="koogu.data.feeder.BaseFeeder">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">koogu.data.feeder.</span></span><span class="sig-name descname"><span class="pre">BaseFeeder</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_shape</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_training_samples</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_validation_samples</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">class_names</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#koogu.data.feeder.BaseFeeder" title="Link to this definition"></a></dt>
+<dd><p>Base class defining the interface for implementing feeder classes for
+building data pipelines in Koogu.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>data_shape</strong> – Shape of the input samples presented to the model.</p></li>
+<li><p><strong>num_training_samples</strong> – List of per-class counts of training samples
+available.</p></li>
+<li><p><strong>num_validation_samples</strong> – List of per-class counts of validation
+samples available.</p></li>
+<li><p><strong>class_names</strong> – List of names (str) corresponding to the different
+classes in the problem space.</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="koogu.data.feeder.BaseFeeder.get_shape_transformation_info">
+<span class="sig-name descname"><span class="pre">get_shape_transformation_info</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#koogu.data.feeder.BaseFeeder.get_shape_transformation_info" title="Link to this definition"></a></dt>
+<dd><p>Override in inherited class if its <a class="reference internal" href="#koogu.data.feeder.BaseFeeder.transform" title="koogu.data.feeder.BaseFeeder.transform"><code class="xref py py-meth docutils literal notranslate"><span class="pre">transform()</span></code></a> alters the shape of
+the read/input data before a dataset is returned. If not None, must
+return a tuple where:</p>
+<ul class="simple">
+<li><p>first value is the untransformed input shape,</p></li>
+<li><p>second is the actual transformation function.</p></li>
+</ul>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="koogu.data.feeder.BaseFeeder.make_dataset">
+<em class="property"><span class="pre">abstract</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">make_dataset</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">is_training</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">batch_size</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#koogu.data.feeder.BaseFeeder.make_dataset" title="Link to this definition"></a></dt>
+<dd><p>This function must be implemented in the derived class.</p>
+<p>It should contain logic to load training &amp; validation data (usually
+from stored files) and construct a TensorFlow Dataset.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>is_training</strong> – (boolean) True if operating in training mode.</p></li>
+<li><p><strong>batch_size</strong> – (integer) Number of input samples from the dataset to
+combine in a single batch.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A tf.data.Dataset</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="koogu.data.feeder.BaseFeeder.post_transform">
+<em class="property"><span class="pre">abstract</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">post_transform</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">sample</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">label</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">is_training</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#koogu.data.feeder.BaseFeeder.post_transform" title="Link to this definition"></a></dt>
+<dd><p>Implement this method in the derived class to apply any
+post-transformation augmentations to a single input to the model (during
+training and validation).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>sample</strong> – The transformed sample to which to apply augmentations.</p></li>
+<li><p><strong>label</strong> – The class info pertaining to <code class="docutils literal notranslate"><span class="pre">sample</span></code>.</p></li>
+<li><p><strong>is_training</strong> – (boolean) True if operating in training mode.</p></li>
+<li><p><strong>kwargs</strong> – Any additional parameters.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A 2-tuple containing augmented sample and label.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="koogu.data.feeder.BaseFeeder.pre_transform">
+<em class="property"><span class="pre">abstract</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">pre_transform</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">sample</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">label</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">is_training</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#koogu.data.feeder.BaseFeeder.pre_transform" title="Link to this definition"></a></dt>
+<dd><p>Implement this method in the derived class to apply any
+pre-transformation augmentations to a single input to the model (during
+training and validation).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>sample</strong> – The untransformed sample to which to apply augmentations.</p></li>
+<li><p><strong>label</strong> – The class info pertaining to <code class="docutils literal notranslate"><span class="pre">sample</span></code>.</p></li>
+<li><p><strong>is_training</strong> – (boolean) True if operating in training mode.</p></li>
+<li><p><strong>kwargs</strong> – Any additional parameters.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A 2-tuple containing augmented sample and label.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="koogu.data.feeder.BaseFeeder.transform">
+<em class="property"><span class="pre">abstract</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">transform</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">sample</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">label</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">is_training</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#koogu.data.feeder.BaseFeeder.transform" title="Link to this definition"></a></dt>
+<dd><p>This function must be implemented in the derived class.</p>
+<p>It should contain logic to apply any transformations to a single input
+to the model (during training and validation).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>sample</strong> – The sample that must be ‘transformed’ before
+consumption by a model.</p></li>
+<li><p><strong>label</strong> – The class info pertaining to <code class="docutils literal notranslate"><span class="pre">sample</span></code>.</p></li>
+<li><p><strong>is_training</strong> – (boolean) True if operating in training mode.</p></li>
+<li><p><strong>kwargs</strong> – Any additional parameters.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A 2-tuple containing transformed sample and label.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="koogu.data.feeder.BaseFeeder.class_names">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">class_names</span></span><a class="headerlink" href="#koogu.data.feeder.BaseFeeder.class_names" title="Link to this definition"></a></dt>
+<dd><p>List of names (str) of the classes in the application.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="koogu.data.feeder.BaseFeeder.data_shape">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">data_shape</span></span><a class="headerlink" href="#koogu.data.feeder.BaseFeeder.data_shape" title="Link to this definition"></a></dt>
+<dd><p>The shape of an input sample.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="koogu.data.feeder.BaseFeeder.num_classes">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">num_classes</span></span><a class="headerlink" href="#koogu.data.feeder.BaseFeeder.num_classes" title="Link to this definition"></a></dt>
+<dd><p>The number of classes in the application.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="koogu.data.feeder.BaseFeeder.training_samples">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">training_samples</span></span><a class="headerlink" href="#koogu.data.feeder.BaseFeeder.training_samples" title="Link to this definition"></a></dt>
+<dd><p>List of per-class training samples available.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="koogu.data.feeder.BaseFeeder.training_samples_per_class">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">training_samples_per_class</span></span><a class="headerlink" href="#koogu.data.feeder.BaseFeeder.training_samples_per_class" title="Link to this definition"></a></dt>
+<dd><p>List of per-class validation samples available.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="koogu.data.feeder.BaseFeeder.validation_samples">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">validation_samples</span></span><a class="headerlink" href="#koogu.data.feeder.BaseFeeder.validation_samples" title="Link to this definition"></a></dt>
+<dd><p>Total number of training samples available.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="koogu.data.feeder.BaseFeeder.validation_samples_per_class">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">validation_samples_per_class</span></span><a class="headerlink" href="#koogu.data.feeder.BaseFeeder.validation_samples_per_class" title="Link to this definition"></a></dt>
+<dd><p>Total number of validation samples available.</p>
+</dd></dl>
+
+</dd></dl>
+
+<div class="admonition seealso">
+<p class="admonition-title">See also</p>
+<p>See <a class="reference internal" href="../advanced/custom_feeders.html"><span class="doc">Custom feeders</span></a> for example pseudo-code.</p>
+<p>Subclasses <a class="reference internal" href="data/feeder.html#koogu.data.feeder.DataFeeder" title="koogu.data.feeder.DataFeeder"><code class="xref py py-class docutils literal notranslate"><span class="pre">koogu.data.feeder.DataFeeder</span></code></a> and
+<a class="reference internal" href="data/feeder.html#koogu.data.feeder.SpectralDataFeeder" title="koogu.data.feeder.SpectralDataFeeder"><code class="xref py py-class docutils literal notranslate"><span class="pre">koogu.data.feeder.SpectralDataFeeder</span></code></a> are also further extensible.</p>
+</div>
+</section>
+<section id="augmentations">
+<h2>Augmentations<a class="headerlink" href="#augmentations" title="Link to this heading"></a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="koogu.data.augmentations.Temporal">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">koogu.data.augmentations.</span></span><span class="sig-name descname"><span class="pre">Temporal</span></span><a class="headerlink" href="#koogu.data.augmentations.Temporal" title="Link to this definition"></a></dt>
+<dd><p>Abstract base class for time-domain augmentations.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="koogu.data.augmentations.Temporal.build_graph">
+<em class="property"><span class="pre">abstract</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">build_graph</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">in_data</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">t_axis</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#koogu.data.augmentations.Temporal.build_graph" title="Link to this definition"></a></dt>
+<dd><p>Method which implements the desired time-domain augmentation logic as a
+Tensorflow (TF) graph.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>in_data</strong> – A TF array representing a single training/validation
+input (waveform).</p></li>
+<li><p><strong>t_axis</strong> – Index, into <cite>in_data</cite>, of the dimension in which the
+waveform samples are.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The leaf node of the TF graph that represents the output of
+the implemented augmentation logic.</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="koogu.data.augmentations.SpectroTemporal">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">koogu.data.augmentations.</span></span><span class="sig-name descname"><span class="pre">SpectroTemporal</span></span><a class="headerlink" href="#koogu.data.augmentations.SpectroTemporal" title="Link to this definition"></a></dt>
+<dd><p>Abstract base class for spectro-temporal augmentations.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="koogu.data.augmentations.SpectroTemporal.build_graph">
+<em class="property"><span class="pre">abstract</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">build_graph</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">in_data</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">f_axis</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">t_axis</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#koogu.data.augmentations.SpectroTemporal.build_graph" title="Link to this definition"></a></dt>
+<dd><p>Method which implements the desired spectrotemporal augmentation logic
+as a Tensorflow (TF) graph.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>in_data</strong> – A TF array representing a single transformed
+training/validation input (spectrogram).</p></li>
+<li><p><strong>f_axis</strong> – Index to the “frequency” dimension in <cite>in_data</cite>.</p></li>
+<li><p><strong>t_axis</strong> – Index to the “time” dimension in <cite>in_data</cite>.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The leaf node of the TF graph that represents the output of
+the implemented augmentation logic.</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="model-architecture">
+<h2>Model architecture<a class="headerlink" href="#model-architecture" title="Link to this heading"></a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="koogu.model.architectures.BaseArchitecture">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">koogu.model.architectures.</span></span><span class="sig-name descname"><span class="pre">BaseArchitecture</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">multilabel</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dtype</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#koogu.model.architectures.BaseArchitecture" title="Link to this definition"></a></dt>
+<dd><p>Base class for implementing custom user-defined architectures.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>multilabel</strong> – (bool; default: True) Set appropriately so that the
+loss function and accuracy metrics can be chosen correctly. A multilabel
+model’s Logits (final) layer will have Sigmoid activation whereas a
+single-label model’s will have SoftMax activation.</p></li>
+<li><p><strong>dtype</strong> – Tensorflow data type of the model’s weights (default:
+tf.float32).</p></li>
+<li><p><strong>name</strong> – Name of the model.</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="koogu.model.architectures.BaseArchitecture.build_network">
+<em class="property"><span class="pre">abstract</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">build_network</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">input_tensor</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">is_training</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#koogu.model.architectures.BaseArchitecture.build_network" title="Link to this definition"></a></dt>
+<dd><p>This method must be implemented in the derived class.</p>
+<p>It should contain logic to construct the desired sequential or
+functional model network starting from the <code class="docutils literal notranslate"><span class="pre">input_tensor</span></code>.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Do not add the Logits layer in your implementation. It will be
+added by internal code.</p>
+</div>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>input_tensor</strong> – The Keras tensor to use as the input placeholder
+in model that will be built.</p></li>
+<li><p><strong>is_training</strong> – (boolean) Indicates if operating in training mode.
+Certain elements of the network (e.g., dropout layers) may be
+excluded when not in training mode.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Must return a Keras tensor corresponding to outputs of the
+architecture.</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<div class="admonition seealso">
+<p class="admonition-title">See also</p>
+<p>Implementing <a class="reference internal" href="../advanced/transfer_learning.html"><span class="doc">Transfer learning</span></a> models.</p>
+</div>
+</section>
+<section id="assessment-metric">
+<h2>Assessment metric<a class="headerlink" href="#assessment-metric" title="Link to this heading"></a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="koogu.utils.assessments.BaseMetric">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">koogu.utils.assessments.</span></span><span class="sig-name descname"><span class="pre">BaseMetric</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">audio_annot_list</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">raw_results_root</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">annots_root</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">annotation_reader</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">reject_classes</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">remap_labels_dict</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">negative_class_label</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#koogu.utils.assessments.BaseMetric" title="Link to this definition"></a></dt>
+<dd><p>Base class for implementing performance assessment logic.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>audio_annot_list</strong> – A list containing pairs (tuples or sub-lists) of
+relative paths to audio files and the corresponding annotation files.
+Alternatively, you could also specify (path to) a 2-column csv file
+containing these pairs of entries (in the same order). Only use the csv
+option if the paths are simple (i.e., the filenames do not contain
+commas or other special characters).</p></li>
+<li><p><strong>raw_results_root</strong> – The full paths of the raw result container files
+whose filenames will be derived from the audio files listed in
+<code class="docutils literal notranslate"><span class="pre">audio_annot_list</span></code> will be resolved using this as base directory.</p></li>
+<li><p><strong>annots_root</strong> – The full paths of annotations files listed in
+<code class="docutils literal notranslate"><span class="pre">audio_annot_list</span></code> will be resolved using this as base directory.</p></li>
+<li><p><strong>annotation_reader</strong> – If not None, must be an annotation reader instance
+from <a class="reference internal" href="data/annotations.html#module-koogu.data.annotations" title="koogu.data.annotations"><code class="xref py py-mod docutils literal notranslate"><span class="pre">annotations</span></code></a>. Defaults to Raven
+<a class="reference internal" href="data/annotations.html#koogu.data.annotations.Raven.Reader" title="koogu.data.annotations.Raven.Reader"><code class="xref py py-class docutils literal notranslate"><span class="pre">Reader</span></code></a>.</p></li>
+<li><p><strong>reject_classes</strong> – Name (case sensitive) of the class (like ‘Noise’ or
+‘Other’) for which performance assessments are not to be computed. Can
+specify multiple classes for rejection, as a list.</p></li>
+<li><p><strong>remap_labels_dict</strong> – If not None, must be a Python dictionary
+describing mapping of class labels. For details, see similarly named
+parameter to the constructor of
+<a class="reference internal" href="misc/detections.html#koogu.utils.detections.LabelHelper" title="koogu.utils.detections.LabelHelper"><code class="xref py py-class docutils literal notranslate"><span class="pre">koogu.utils.detections.LabelHelper</span></code></a>.</p></li>
+<li><p><strong>negative_class_label</strong> – A string (e.g. ‘Other’, ‘Noise’) which will be
+used as a label to identify the negative class clips (those that did
+not match any annotations), if an inherited class deals with those. If
+specified, will be used in conjunction with <code class="docutils literal notranslate"><span class="pre">remap_labels_dict</span></code>.</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="koogu.utils.assessments.BaseMetric.assess">
+<span class="sig-name descname"><span class="pre">assess</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#koogu.utils.assessments.BaseMetric.assess" title="Link to this definition"></a></dt>
+<dd><p>Perform the desired assessments.</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="misc/low_inference.html" class="btn btn-neutral float-left" title="Low-level inferencing interface" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="../integration.html" class="btn btn-neutral float-right" title="Integration with external software" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2020–present, Shyam Madhusudhana.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  
+
+  <div class="rst-versions" data-toggle="rst-versions" role="note" aria-label="versions">
+    <span class="rst-current-version" data-toggle="rst-current-version">
+      <span class="fa fa-book"> Alternate Versions</span>
+      v: dev
+      <span class="fa fa-caret-down"></span>
+    </span>
+    <div class="rst-other-versions">
+      
+      
+      <dl>
+        <dt>Versions</dt>
+        
+           <strong> 
+          <dd><a href="/Koogu/en/dev/">dev</a></dd>
+           </strong> 
+        
+          
+          <dd><a href="/Koogu/en/stable/">stable</a></dd>
+          
+        
+          
+          <dd><a href="/Koogu/en/v0.7.2/">v0.7.2</a></dd>
+          
+        
+          
+          <dd><a href="/Koogu/en/v0.7.1/">v0.7.1</a></dd>
+          
+        
+          
+          <dd><a href="/Koogu/en/v0.7.0/">v0.7.0</a></dd>
+          
+        
+          
+          <dd><a href="/Koogu/en/v0.6.5/">v0.6.5</a></dd>
+          
+        
+          
+          <dd><a href="/Koogu/en/v0.6.4/">v0.6.4</a></dd>
+          
+        
+      </dl>
+      
+      
+      
+      <hr/>
+      Free theme by <a href="http://www.readthedocs.org">Read the Docs</a>.
+
+    </div>
+  </div>
+
+<script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

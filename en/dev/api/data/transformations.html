@@ -1,0 +1,354 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Data transformation &mdash; Koogu  documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="Model" href="../model/index.html" />
+    <link rel="prev" title="Data feeder" href="feeder.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            Koogu
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../index.html">Koogu</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../quickstart.html">Quick-start guide</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../advanced/index.html">Advanced usage</a></li>
+</ul>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="../index.html">API</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="../top_level.html">koogu</a></li>
+<li class="toctree-l2 current"><a class="reference internal" href="index.html">koogu.data</a><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="annotations.html">annotations</a></li>
+<li class="toctree-l3"><a class="reference internal" href="augmentation.html">augmentations</a></li>
+<li class="toctree-l3"><a class="reference internal" href="feeder.html">feeder</a></li>
+<li class="toctree-l3 current"><a class="current reference internal" href="#">tf_transformations</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#koogu.data.tf_transformations.Audio2Spectral"><code class="docutils literal notranslate"><span class="pre">Audio2Spectral</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#koogu.data.tf_transformations.GaussianBlur"><code class="docutils literal notranslate"><span class="pre">GaussianBlur</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#koogu.data.tf_transformations.Linear2dB"><code class="docutils literal notranslate"><span class="pre">Linear2dB</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#koogu.data.tf_transformations.LoG"><code class="docutils literal notranslate"><span class="pre">LoG</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#koogu.data.tf_transformations.NormalizeAudio"><code class="docutils literal notranslate"><span class="pre">NormalizeAudio</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#koogu.data.tf_transformations.Spec2Img"><code class="docutils literal notranslate"><span class="pre">Spec2Img</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../model/index.html">koogu.model</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../misc/index.html">Misc</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../extensibles.html">Extensibles</a></li>
+</ul>
+</li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../integration.html">Integration with external software</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../genindex.html">Index</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">Koogu</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">API</a></li>
+          <li class="breadcrumb-item"><a href="index.html">Data</a></li>
+      <li class="breadcrumb-item active">Data transformation</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="data-transformation">
+<h1>Data transformation<a class="headerlink" href="#data-transformation" title="Link to this heading"></a></h1>
+<p>Certain data transformations that are unavailable in TensorFlow/Keras are implemented as custom Keras layers in Koogu.</p>
+<dl class="py class" id="module-koogu.data.tf_transformations">
+<dt class="sig sig-object py" id="koogu.data.tf_transformations.Audio2Spectral">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">koogu.data.tf_transformations.</span></span><span class="sig-name descname"><span class="pre">Audio2Spectral</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Any</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Any</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#koogu.data.tf_transformations.Audio2Spectral" title="Link to this definition"></a></dt>
+<dd><p>Layer for converting waveforms into time-frequency representations.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>fs</strong> – sampling frequency of the data in the last dimension of inputs.</p></li>
+<li><p><strong>spec_settings</strong> – <p>A Python dictionary describing the settings to be used
+for producing spectrograms. Supported keys in the dictionary include:</p>
+<ul>
+<li><p>win_len: (required)
+Length of the analysis window (in seconds)</p></li>
+<li><p>win_overlap_prc: (required)
+Fraction of the analysis window to have as overlap between successive
+analysis windows. Commonly, a 50% (or 0.50) overlap is considered.</p></li>
+<li><p>nfft_equals_win_len: (optional; boolean)
+If True (default), NFFT will equal the number of samples resulting
+from <cite>win_len</cite>. If False, NFFT will be set to the next power of 2 that
+is ≥ the number of samples resulting from <cite>win_len</cite>.</p></li>
+<li><p>spec_type: (optional)
+A string specifying the transformation output. ‘spec’ results in a
+linear scale spectrogram. ‘spec_db’ (default) results in a
+logarithmic scale (dB) spectrogram.</p></li>
+<li><p>eps: (default: 1e-10)
+A small positive quantity added to avoid computing log(0.0).</p></li>
+<li><p>bandwidth_clip: (optional; 2-element list/tuple)
+If specified, the generated spectrogram will be clipped along the
+frequency axis to only include components in the specified bandwidth.</p></li>
+</ul>
+</p></li>
+<li><p><strong>eps</strong> – (optional) If specified, will override the <cite>eps</cite> value in
+<code class="docutils literal notranslate"><span class="pre">spec_settings</span></code>.</p></li>
+<li><p><strong>name</strong> – (optional; string) Name for the layer.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="koogu.data.tf_transformations.GaussianBlur">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">koogu.data.tf_transformations.</span></span><span class="sig-name descname"><span class="pre">GaussianBlur</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Any</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Any</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#koogu.data.tf_transformations.GaussianBlur" title="Link to this definition"></a></dt>
+<dd><p>Layer for applying Gaussian blur to time-frequency representations.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>sigma</strong> – Scalar value defining the Gaussian kernel.</p></li>
+<li><p><strong>apply_2d</strong> – (boolean; default: True) If True, will apply smoothing
+along both time- and frequency axes. Otherwise, smoothing is only
+applied along the frequency axis.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="koogu.data.tf_transformations.Linear2dB">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">koogu.data.tf_transformations.</span></span><span class="sig-name descname"><span class="pre">Linear2dB</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Any</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Any</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#koogu.data.tf_transformations.Linear2dB" title="Link to this definition"></a></dt>
+<dd><p>Layer for converting time-frequency representations from linear to
+decibel scale.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>eps</strong> – Epsilon value to add, for avoiding computing log(0.0).</p></li>
+<li><p><strong>full_scale</strong> – (boolean) Whether to convert to dB full-scale.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="koogu.data.tf_transformations.LoG">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">koogu.data.tf_transformations.</span></span><span class="sig-name descname"><span class="pre">LoG</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Any</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Any</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#koogu.data.tf_transformations.LoG" title="Link to this definition"></a></dt>
+<dd><p>Layer for applying Laplacian of Gaussian (LoG) operator(s) to
+time-frequency representations (<a class="reference external" href="https://doi.org/10.1098/rsif.2021.0297">Madhusudhana et al. 2021</a>).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>scales_sigmas</strong> – <p>Must be a tuple or list of sigma values at different
+(usually, geometrically progressing) scales. You may use this formula
+to determine the possible set of sigma values beyond the <cite>lowest_sigma</cite>:</p>
+<blockquote>
+<div><div class="line-block">
+<div class="line-block">
+<div class="line"><cite>lowest_sigma * (2 ^ (range(2, floor(</cite></div>
+<div class="line-block">
+<div class="line"><cite>log2((max_len - 1) / ((2 x 3) x lowest_sigma)) + 1) + 1) - 1))</cite></div>
+</div>
+</div>
+<div class="line">For example, if <cite>lowest_sigma</cite> is 4 &amp; <cite>max_len</cite> is 243, the</div>
+<div class="line">resulting set of sigma values should be (4, 8, 16, 32).</div>
+</div>
+</div></blockquote>
+</p></li>
+<li><p><strong>add_offsets</strong> – If True (default is False), add a trainable offset value
+to LoG responses.</p></li>
+<li><p><strong>conv_filters</strong> – If not None, must either be a single integer
+(applicable to outputs of all scales) or a list-like group of integers
+(one per scale, applicable to outputs of respective scales). As many 3x3
+filters (trainable) will be created and will be applied to the final
+outputs of this layer.</p></li>
+<li><p><strong>retain_LoG</strong> – If True, and if conv_filters is enabled, the LoG outputs
+will be included in the outputs.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="koogu.data.tf_transformations.NormalizeAudio">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">koogu.data.tf_transformations.</span></span><span class="sig-name descname"><span class="pre">NormalizeAudio</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Any</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Any</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#koogu.data.tf_transformations.NormalizeAudio" title="Link to this definition"></a></dt>
+<dd><p>Layer for applying normalization to audio. Normalization (means subtraction
+followed by scaling to the range [-1.0, 1.0]) is applied by determining the
+mean and range along the last axis of the inputs.</p>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="koogu.data.tf_transformations.Spec2Img">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">koogu.data.tf_transformations.</span></span><span class="sig-name descname"><span class="pre">Spec2Img</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Any</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Any</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#koogu.data.tf_transformations.Spec2Img" title="Link to this definition"></a></dt>
+<dd><p>Layer for converting time-frequency representations into images. The layer’s
+inputs can either be a single spectrogram (shape: H x W) or a batch of B
+spectrograms (shape: B x H x W).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>cmap</strong> – An Nx3 array of RGB color values. Typically, N is 256. If
+<cite>cmap</cite> also contains alpha values (Nx4 instead of Nx3), the last channel
+will be discarded. For example, to specify a ‘jet’ colorscale, you could
+use <cite>matplotlib.colormaps[‘jet’](range(256))</cite>.</p></li>
+<li><p><strong>vmin</strong> – (optional; default: None) If specified along with <cite>vmax</cite>,
+spectrogram values will be scaled to the range [<cite>vmin</cite>, <cite>vmax</cite>].</p></li>
+<li><p><strong>vmax</strong> – (optional; default: None) If specified along with <cite>vmin</cite>,
+spectrogram values will be scaled to the range [<cite>vmin</cite>, <cite>vmax</cite>].</p></li>
+<li><p><strong>img_size</strong> – (optional; default: None) If not None, must specify a
+2-element tuple (new H, new W) that indicates the shape that the output
+image must be resized to.</p></li>
+<li><p><strong>resize_method</strong> – (optional; default: ‘bilinear’) If resizing of
+spectrogram(s) is enabled (via <cite>img_size</cite>), this parameter will define
+the method used for resizing. For available options, see TensorFlow’s
+tf.image.resize().</p></li>
+</ul>
+</dd>
+</dl>
+<p>If only one of <cite>vmin</cite> or <cite>vmax</cite> is specified, it will be ignored and
+spectrogram values will be scaled relative to the minimum and maximum values
+within each spectrogram. If both <cite>vmin</cite> and <cite>vmax</cite> are specified, <cite>vmin</cite>
+must be &lt; <cite>vmax</cite>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>If <cite>img_size</cite> was None, will return a tensor of shape [H x W x 3]
+or [B x H x W x 3]. If <cite>img_size</cite> was specified, then replace H with
+<cite>img_size[0]</cite> and W with <cite>img_size[1]</cite>.</p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="feeder.html" class="btn btn-neutral float-left" title="Data feeder" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="../model/index.html" class="btn btn-neutral float-right" title="Model" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2020–present, Shyam Madhusudhana.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  
+
+  <div class="rst-versions" data-toggle="rst-versions" role="note" aria-label="versions">
+    <span class="rst-current-version" data-toggle="rst-current-version">
+      <span class="fa fa-book"> Alternate Versions</span>
+      v: dev
+      <span class="fa fa-caret-down"></span>
+    </span>
+    <div class="rst-other-versions">
+      
+      
+      <dl>
+        <dt>Versions</dt>
+        
+           <strong> 
+          <dd><a href="/Koogu/en/dev/">dev</a></dd>
+           </strong> 
+        
+          
+          <dd><a href="/Koogu/en/stable/">stable</a></dd>
+          
+        
+          
+          <dd><a href="/Koogu/en/v0.7.2/">v0.7.2</a></dd>
+          
+        
+          
+          <dd><a href="/Koogu/en/v0.7.1/">v0.7.1</a></dd>
+          
+        
+          
+          <dd><a href="/Koogu/en/v0.7.0/">v0.7.0</a></dd>
+          
+        
+          
+          <dd><a href="/Koogu/en/v0.6.5/">v0.6.5</a></dd>
+          
+        
+          
+          <dd><a href="/Koogu/en/v0.6.4/">v0.6.4</a></dd>
+          
+        
+      </dl>
+      
+      
+      
+      <hr/>
+      Free theme by <a href="http://www.readthedocs.org">Read the Docs</a>.
+
+    </div>
+  </div>
+
+<script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

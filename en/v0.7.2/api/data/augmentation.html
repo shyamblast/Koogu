@@ -1,0 +1,410 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Data augmentation &mdash; Koogu  documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="Model" href="../model/index.html" />
+    <link rel="prev" title="Data feeder" href="feeder.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            Koogu
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../index.html">Koogu</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../quickstart.html">Quick-start guide</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../advanced/index.html">Advanced usage</a></li>
+</ul>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="../index.html">API documentation</a><ul class="current">
+<li class="toctree-l2 current"><a class="reference internal" href="index.html">Data</a><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="annotations.html">Annotation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="preprocess.html">Pre-processing</a></li>
+<li class="toctree-l3"><a class="reference internal" href="transformations.html">Transformation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="feeder.html">Feeder</a></li>
+<li class="toctree-l3 current"><a class="current reference internal" href="#">Augmentation</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#time-domain-augmentations">Time-domain augmentations</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#spectro-temporal-augmentations">Spectro-temporal augmentations</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#convenience-interface">Convenience interface</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../model/index.html">Model</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../training.html">Training</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../inference.html">Inferencing</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utils/index.html">Misc</a></li>
+</ul>
+</li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../genindex.html">Index</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">Koogu</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">API documentation</a></li>
+          <li class="breadcrumb-item"><a href="index.html">Data</a></li>
+      <li class="breadcrumb-item active">Data augmentation</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="data-augmentation">
+<h1>Data augmentation<a class="headerlink" href="#data-augmentation" title="Link to this heading"></a></h1>
+<p>Koogu supports applying randomized on-the-fly augmentations to input samples during training/validation.</p>
+<section id="time-domain-augmentations">
+<h2>Time-domain augmentations<a class="headerlink" href="#time-domain-augmentations" title="Link to this heading"></a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="koogu.data.augmentations.Temporal.AddEcho">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">koogu.data.augmentations.Temporal.</span></span><span class="sig-name descname"><span class="pre">AddEcho</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">delay_range</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">level_range</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#koogu.data.augmentations.Temporal.AddEcho" title="Link to this definition"></a></dt>
+<dd><p>Add echo. Produce echo effect by adding a dampened and delayed copy of the
+input to the input. The dampened copy is produced by using a random
+attenuation factor, and the phase of the dampened copy is also randomly
+inverted.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>delay_range</strong> – A 2-element list/tuple, values specified in seconds. The
+delay amount will be randomly chosen from this range.</p></li>
+<li><p><strong>fs</strong> – Sampling frequency of the input. The chosen delay amount will be
+converted to number of samples using this value.</p></li>
+<li><p><strong>level_range</strong> – A 2-element list/tuple or None (default). The
+attenuation factor is derived from this range. If None, it will default
+to [-18 dB, -12 dB].</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="koogu.data.augmentations.Temporal.AddGaussianNoise">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">koogu.data.augmentations.Temporal.</span></span><span class="sig-name descname"><span class="pre">AddGaussianNoise</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">val_range</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#koogu.data.augmentations.Temporal.AddGaussianNoise" title="Link to this definition"></a></dt>
+<dd><p>Add Gaussian noise.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>val_range</strong> – A 2-element list/tuple. The level of the added noise will
+be randomly chosen from the range val_range[0] dB to val_range[1] dB
+(both must be non-positive). The peak noise level will approximately be
+as many dB below the peak level of the input signal.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="koogu.data.augmentations.Temporal.RampVolume">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">koogu.data.augmentations.Temporal.</span></span><span class="sig-name descname"><span class="pre">RampVolume</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">val_range</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#koogu.data.augmentations.Temporal.RampVolume" title="Link to this definition"></a></dt>
+<dd><p>Alter the volume of signal by ramping up/down its amplitude linearly across
+the duration of the signal. In a way simulates the effect of the source
+moving away or towards the receiver.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>val_range</strong> – A 2-element list/tuple. Ramp factor will be randomly
+chosen in the range val_range[0] dB to val_range[1] dB. If the chosen
+factor is non-negative, will ramp up from ~-val dB. If the chosen factor
+is negative, will ramp down to -abs(~val) dB.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="koogu.data.augmentations.Temporal.ShiftPitch">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">koogu.data.augmentations.Temporal.</span></span><span class="sig-name descname"><span class="pre">ShiftPitch</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">val_range</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#koogu.data.augmentations.Temporal.ShiftPitch" title="Link to this definition"></a></dt>
+<dd><p>Shift the pitch of the contained sound(s) up or down.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>val_range</strong> – A 2-element list/tuple. The factor by which the pitch will
+be shifted will be chosen randomly from the range val_range[0] to
+val_range[1]. Set the range around 1.0. If the chosen value is above
+1.0, pitch will be shifted upwards. If the chosen value is below 1.0,
+pitch will be shifted downwards. If the chosen value equals 1.0, there
+will be no change.</p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+<section id="spectro-temporal-augmentations">
+<h2>Spectro-temporal augmentations<a class="headerlink" href="#spectro-temporal-augmentations" title="Link to this heading"></a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="koogu.data.augmentations.SpectroTemporal.AlterDistance">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">koogu.data.augmentations.SpectroTemporal.</span></span><span class="sig-name descname"><span class="pre">AlterDistance</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">val_range</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#koogu.data.augmentations.SpectroTemporal.AlterDistance" title="Link to this definition"></a></dt>
+<dd><p>Mimic the effect of increasing/reducing the distance between a source and
+receiver by attenuating/amplifying higher frequencies while keeping lower
+frequencies relatively unchanged.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>val_range</strong> – A 2-element list/tuple. The attenuation/amplification
+factor will be randomly chosen from the range val_range[0] dB to
+val_range[1] dB. A negative value chosen effects attenuation, while a
+positive value chosen effects amplification.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="koogu.data.augmentations.SpectroTemporal.SmearFrequency">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">koogu.data.augmentations.SpectroTemporal.</span></span><span class="sig-name descname"><span class="pre">SmearFrequency</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">val_range</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#koogu.data.augmentations.SpectroTemporal.SmearFrequency" title="Link to this definition"></a></dt>
+<dd><p>Smear the spectrogram along the frequency axis. Can have the effect of
+shifting the pitch of the contained sounds.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>val_range</strong> – A 2-element integer list/tuple. The amount to smear is
+derived from a value chosen in the integer range val_range[0] to
+val_range[1]. Specify the range to reflect the number of frequency bins
+that will be involved in the smearing operation. If a positive value is
+chosen, the smearing occurs upwards. If a negative value is chosen,
+the smearing occurs downwards.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="koogu.data.augmentations.SpectroTemporal.SmearTime">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">koogu.data.augmentations.SpectroTemporal.</span></span><span class="sig-name descname"><span class="pre">SmearTime</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">val_range</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#koogu.data.augmentations.SpectroTemporal.SmearTime" title="Link to this definition"></a></dt>
+<dd><p>Smear the spectrogram along the time axis. Can have the effect of
+elongating the duration of the contained sounds.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>val_range</strong> – A 2-element integer list/tuple. The amount to smear is
+derived from a value chosen in the integer range val_range[0] to
+val_range[1]. Specify the range to reflect the number of time windows
+that will be involved in the smearing operation. If a positive value is
+chosen, the smearing occurs forwards. If a negative value is chosen, the
+smearing occurs backwards.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="koogu.data.augmentations.SpectroTemporal.SquishFrequency">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">koogu.data.augmentations.SpectroTemporal.</span></span><span class="sig-name descname"><span class="pre">SquishFrequency</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">val_range</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#koogu.data.augmentations.SpectroTemporal.SquishFrequency" title="Link to this definition"></a></dt>
+<dd><p>Squish the spectrogram along the frequency axis. Can have the effect of
+shifting the pitch of the contained sounds.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>val_range</strong> – A 2-element integer list/tuple. The amount to squish is
+derived from a value chosen in the integer range val_range[0] to
+val_range[1]. Specify the range to reflect the number of frequency bins
+that will be involved in the squishing operation. If a positive value is
+chosen, the squishing occurs upwards. If a negative value is chosen, the
+squishing occurs downwards.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="koogu.data.augmentations.SpectroTemporal.SquishTime">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">koogu.data.augmentations.SpectroTemporal.</span></span><span class="sig-name descname"><span class="pre">SquishTime</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">val_range</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#koogu.data.augmentations.SpectroTemporal.SquishTime" title="Link to this definition"></a></dt>
+<dd><p>Squish the spectrogram along the time axis. Can have the effect of
+compressing the duration of the contained sounds.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>val_range</strong> – A 2-element integer list/tuple. The amount to squish is
+derived from a value chosen in the integer range val_range[0] to
+val_range[1]. Specify the range to reflect the number of time windows
+that will be involved in the squishing operation. If a positive value is
+chosen, the squishing occurs forwards. If a negative value is chosen,
+the squishing occurs backwards.</p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+<section id="convenience-interface">
+<span id="augmentation-convenience-interface"></span><h2>Convenience interface<a class="headerlink" href="#convenience-interface" title="Link to this heading"></a></h2>
+<dl class="py method">
+<dt class="sig sig-object py" id="koogu.data.augmentations.Temporal.apply_chain">
+<em class="property"><span class="pre">static</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">Temporal.</span></span><span class="sig-name descname"><span class="pre">apply_chain</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">clip</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">augmentations</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">probabilities</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">t_axis</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">-1</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#koogu.data.augmentations.Temporal.apply_chain" title="Link to this definition"></a></dt>
+<dd><p>Apply a chain of Temporal augmentations.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>clip</strong> – The audio clip to apply the augmentations to.</p></li>
+<li><p><strong>augmentations</strong> – List of the Temporal augmentations to apply.</p></li>
+<li><p><strong>probabilities</strong> – List of probabilities (each in the range 0-1), one
+per augmentation listed in <cite>augmentations</cite>.</p></li>
+<li><p><strong>t_axis</strong> – (Defaults to -1, the last dimension) Index of the axis in
+<cite>clip</cite> corresponding to its time axis.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The tensor <cite>clip</cite> after applying the specified augmentations.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="koogu.data.augmentations.SpectroTemporal.apply_chain">
+<em class="property"><span class="pre">static</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">SpectroTemporal.</span></span><span class="sig-name descname"><span class="pre">apply_chain</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">spec</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">augmentations</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">probabilities</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">f_axis</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">t_axis</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#koogu.data.augmentations.SpectroTemporal.apply_chain" title="Link to this definition"></a></dt>
+<dd><p>Apply a chain of SpectroTemporal augmentations.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>spec</strong> – The spectrogram to apply the augmentations to.</p></li>
+<li><p><strong>augmentations</strong> – List of the SpectroTemporal augmentations to
+apply.</p></li>
+<li><p><strong>probabilities</strong> – List of probabilities (each in the range 0-1), one
+per augmentation listed in <cite>augmentations</cite>.</p></li>
+<li><p><strong>f_axis</strong> – (Defaults to 0) Index of the axis in <cite>spec</cite> corresponding
+to its frequency axis.</p></li>
+<li><p><strong>t_axis</strong> – (Defaults to 1) Index of the axis in <cite>spec</cite> corresponding
+to its time axis.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The tensor <cite>spec</cite> after applying the specified augmentations.</p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="feeder.html" class="btn btn-neutral float-left" title="Data feeder" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="../model/index.html" class="btn btn-neutral float-right" title="Model" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2020–present, Shyam Madhusudhana.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  
+
+  <div class="rst-versions" data-toggle="rst-versions" role="note" aria-label="versions">
+    <span class="rst-current-version" data-toggle="rst-current-version">
+      <span class="fa fa-book"> Alternate Versions</span>
+      v: v0.7.2
+      <span class="fa fa-caret-down"></span>
+    </span>
+    <div class="rst-other-versions">
+      
+      
+      <dl>
+        <dt>Versions</dt>
+        
+          
+          <dd><a href="/Koogu/en/dev/">dev</a></dd>
+          
+        
+          
+          <dd><a href="/Koogu/en/stable/">stable</a></dd>
+          
+        
+           <strong> 
+          <dd><a href="/Koogu/en/v0.7.2/">v0.7.2</a></dd>
+           </strong> 
+        
+          
+          <dd><a href="/Koogu/en/v0.7.1/">v0.7.1</a></dd>
+          
+        
+          
+          <dd><a href="/Koogu/en/v0.7.0/">v0.7.0</a></dd>
+          
+        
+          
+          <dd><a href="/Koogu/en/v0.6.5/">v0.6.5</a></dd>
+          
+        
+          
+          <dd><a href="/Koogu/en/v0.6.4/">v0.6.4</a></dd>
+          
+        
+          
+          <dd><a href="/Koogu/en/v0.6.3/">v0.6.3</a></dd>
+          
+        
+      </dl>
+      
+      
+      <dl>
+        <dt>Downloads</dt>
+        
+          <dd><a href="/Koogu/en/v0.7.2/Koogu-docs_en_v0.7.2.epub">epub</a></dd>
+        
+      </dl>
+      
+      
+      <hr/>
+      Free theme by <a href="http://www.readthedocs.org">Read the Docs</a>.
+
+    </div>
+  </div>
+
+<script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

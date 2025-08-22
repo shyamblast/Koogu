@@ -1,0 +1,281 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Training &mdash; Koogu  documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Inferencing" href="inference.html" />
+    <link rel="prev" title="Available architectures" href="model/architectures.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            Koogu
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../index.html">Koogu</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../quickstart.html">Quick-start guide</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../advanced/index.html">Advanced usage</a></li>
+</ul>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">API documentation</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="data/index.html">Data</a></li>
+<li class="toctree-l2"><a class="reference internal" href="model/index.html">Model</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Training</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#koogu.train"><code class="docutils literal notranslate"><span class="pre">train()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="inference.html">Inferencing</a></li>
+<li class="toctree-l2"><a class="reference internal" href="utils/index.html">Misc</a></li>
+</ul>
+</li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../genindex.html">Index</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">Koogu</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="index.html">API documentation</a></li>
+      <li class="breadcrumb-item active">Training</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="training">
+<h1>Training<a class="headerlink" href="#training" title="Link to this heading"></a></h1>
+<dl class="py function">
+<dt class="sig sig-object py" id="koogu.train">
+<span class="sig-prename descclassname"><span class="pre">koogu.</span></span><span class="sig-name descname"><span class="pre">train</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_feeder</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_dir</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">data_settings</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_architecture</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">training_config</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">2</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#koogu.train" title="Link to this definition"></a></dt>
+<dd><p>Perform training and evaluation.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>data_feeder</strong> – An instance of a <a class="reference internal" href="data/feeder.html#koogu.data.feeder.BaseFeeder" title="koogu.data.feeder.BaseFeeder"><code class="xref py py-class docutils literal notranslate"><span class="pre">BaseFeeder</span></code></a>
+implementation (e.g., <a class="reference internal" href="data/feeder.html#koogu.data.feeder.SpectralDataFeeder" title="koogu.data.feeder.SpectralDataFeeder"><code class="xref py py-class docutils literal notranslate"><span class="pre">SpectralDataFeeder</span></code></a>).</p></li>
+<li><p><strong>model_dir</strong> – Path to the directory into which the trained model and its
+supporting files will be written.</p></li>
+<li><p><strong>data_settings</strong> – <p>A Python dictionary containing -</p>
+<ul>
+<li><p><cite>audio_settings</cite> : a sub-dictionary specifying parameters considered
+in data pre-processing,</p></li>
+<li><p><cite>spec_settings</cite> : (optional) a sub-dictionary specifying parameters
+considered in data transformation (if any considered).</p></li>
+</ul>
+<p>These settings are not used during training, but must be specified so
+that they will be saved along with the trained model after training
+completes.</p>
+</p></li>
+<li><p><strong>model_architecture</strong> – An instance of a
+<a class="reference internal" href="model/index.html#koogu.model.architectures.BaseArchitecture" title="koogu.model.architectures.BaseArchitecture"><code class="xref py py-class docutils literal notranslate"><span class="pre">BaseArchitecture</span></code></a> implementation (e.g.,
+<a class="reference internal" href="model/architectures.html#koogu.model.architectures.DenseNet" title="koogu.model.architectures.DenseNet"><code class="xref py py-class docutils literal notranslate"><span class="pre">DenseNet</span></code></a>).</p></li>
+<li><p><strong>training_settings</strong> – <p>Training hyperparameters. A Python dictionary
+containing settings for defining the training process, controlling
+regularization, etc.</p>
+<p><cite>Required fields</cite></p>
+<ul>
+<li><p><cite>batch_size</cite>: (integer) Number of input samples from the dataset to
+combine in a single batch.</p></li>
+<li><p><cite>epochs</cite>: (integer) Number of epochs to perform the training for.</p></li>
+</ul>
+<p><cite>Optional fields</cite></p>
+<ul>
+<li><p><cite>optimizer</cite>: The optimizer to use during training. Must be a 2-element
+tuple specifying the name (string) of the optimizer and its
+parameters (a Python dictionary containing key-value pairs). Defaults
+to <code class="docutils literal notranslate"><span class="pre">['Adam',</span> <span class="pre">{}]</span></code>.</p></li>
+<li><p><cite>weighted_loss</cite>: (boolean; default: True) When enabled, loss function
+during training will be weighted based on the disparities in
+per-class training samples available.</p></li>
+<li><p><cite>l2_weight_decay</cite>: To enable, set to a reasonable value (e.g., 1e-4).
+Enabling it will add L2 regularization, with the specified decay.</p></li>
+<li><p><cite>learning_rate</cite>: Learning rate for training (default: 0.001). Can also
+specify dynamic rates, in one of two ways:</p>
+<ul>
+<li><p>set this key to a static value, and specify both
+<cite>lr_change_at_epochs</cite> and <cite>lr_update_factors</cite> (see below), or</p></li>
+<li><p>set this key to be a callable (e.g., function) which takes the
+current epoch number as input and returns the desired learning rate
+for the epoch.</p></li>
+</ul>
+</li>
+<li><p><cite>lr_change_at_epochs</cite>: List of integers specifying the epochs at which
+the learning rate must be updated. If specifying this, <cite>learning_rate</cite>
+must be static.</p></li>
+<li><p><cite>lr_update_factors</cite>: List of integers (one element more than
+lr_change_at_epochs) specifying the decimation factor of the current
+learning rate at the set epochs. If specifying this, <cite>learning_rate</cite>
+must be static.</p></li>
+<li><p><cite>dropout_rate</cite>: Helps the model generalize better. Set to a small
+positive quantity (e.g., 0.05). Functionality is disabled by default.</p></li>
+<li><p><cite>epochs_between_evals</cite>: (optional; integer) Number of epochs to wait
+before performing another validation run. (default: 5)</p></li>
+</ul>
+</p></li>
+<li><p><strong>verbose</strong> – <p>Level of information to display. Set to -</p>
+<div class="line-block">
+<div class="line">0 - for no display</div>
+<div class="line">1 - to display progress bars for each epoch</div>
+<div class="line">2 - to display one-line summary per epoch (default)</div>
+</div>
+</p></li>
+<li><p><strong>random_seed</strong> – (optional) A seed (integer) used to initialize the
+psuedo-random number generator that makes setting randomized initial
+values for model parameters repeatable.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A Python dictionary containing a record of the training history,
+including the “training” and “evaluation” accuracies and losses at each
+epoch.</p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="model/architectures.html" class="btn btn-neutral float-left" title="Available architectures" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="inference.html" class="btn btn-neutral float-right" title="Inferencing" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2020–present, Shyam Madhusudhana.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  
+
+  <div class="rst-versions" data-toggle="rst-versions" role="note" aria-label="versions">
+    <span class="rst-current-version" data-toggle="rst-current-version">
+      <span class="fa fa-book"> Alternate Versions</span>
+      v: v0.7.1
+      <span class="fa fa-caret-down"></span>
+    </span>
+    <div class="rst-other-versions">
+      
+      
+      <dl>
+        <dt>Versions</dt>
+        
+          
+          <dd><a href="/Koogu/en/dev/">dev</a></dd>
+          
+        
+          
+          <dd><a href="/Koogu/en/stable/">stable</a></dd>
+          
+        
+          
+          <dd><a href="/Koogu/en/v0.7.2/">v0.7.2</a></dd>
+          
+        
+           <strong> 
+          <dd><a href="/Koogu/en/v0.7.1/">v0.7.1</a></dd>
+           </strong> 
+        
+          
+          <dd><a href="/Koogu/en/v0.7.0/">v0.7.0</a></dd>
+          
+        
+          
+          <dd><a href="/Koogu/en/v0.6.5/">v0.6.5</a></dd>
+          
+        
+          
+          <dd><a href="/Koogu/en/v0.6.4/">v0.6.4</a></dd>
+          
+        
+          
+          <dd><a href="/Koogu/en/v0.6.3/">v0.6.3</a></dd>
+          
+        
+      </dl>
+      
+      
+      <dl>
+        <dt>Downloads</dt>
+        
+          <dd><a href="/Koogu/en/v0.7.1/Koogu-docs_en_v0.7.1.epub">epub</a></dd>
+        
+      </dl>
+      
+      
+      <hr/>
+      Free theme by <a href="http://www.readthedocs.org">Read the Docs</a>.
+
+    </div>
+  </div>
+
+<script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

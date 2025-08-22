@@ -1,0 +1,389 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Handling Annotations/Detections &mdash; Koogu  documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="Data augmentation" href="augmentation.html" />
+    <link rel="prev" title="Data" href="index.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            Koogu
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../index.html">Koogu</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../quickstart.html">Quick-start guide</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../advanced/index.html">Advanced usage</a></li>
+</ul>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="../index.html">API</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="../top_level.html">koogu</a></li>
+<li class="toctree-l2 current"><a class="reference internal" href="index.html">koogu.data</a><ul class="current">
+<li class="toctree-l3 current"><a class="current reference internal" href="#">annotations</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#audacity">Audacity</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#raven-pro">Raven Pro</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sonic-visualiser">Sonic Visualiser</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="augmentation.html">augmentations</a></li>
+<li class="toctree-l3"><a class="reference internal" href="feeder.html">feeder</a></li>
+<li class="toctree-l3"><a class="reference internal" href="transformations.html">tf_transformations</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../model/index.html">koogu.model</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../misc/index.html">Misc</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../extensibles.html">Extensibles</a></li>
+</ul>
+</li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../integration.html">Integration with external software</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../genindex.html">Index</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">Koogu</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">API</a></li>
+          <li class="breadcrumb-item"><a href="index.html">Data</a></li>
+      <li class="breadcrumb-item active">Handling Annotations/Detections</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="module-koogu.data.annotations">
+<span id="handling-annotations-detections"></span><h1>Handling Annotations/Detections<a class="headerlink" href="#module-koogu.data.annotations" title="Link to this heading"></a></h1>
+<p>Format-specific Readers and Writers for managing annotations and detections.
+Currently supported formats include:</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="#audacity">Audacity</a></p></li>
+<li><p><a class="reference internal" href="#raven-pro">Raven Pro</a></p></li>
+<li><p><a class="reference internal" href="#sonic-visualiser">Sonic Visualiser</a></p></li>
+</ul>
+<p>Custom Readers/Writers to handle yet-unsupported formats can be implemented, in
+ways compatible for use within the Koogu ecosystem as a drop-in replacement to
+existing Readers/Writers, by extending the
+<a class="reference internal" href="../extensibles.html#koogu.data.annotations.BaseAnnotationReader" title="koogu.data.annotations.BaseAnnotationReader"><code class="xref py py-class docutils literal notranslate"><span class="pre">BaseAnnotationReader</span></code></a> and
+<a class="reference internal" href="../extensibles.html#koogu.data.annotations.BaseAnnotationWriter" title="koogu.data.annotations.BaseAnnotationWriter"><code class="xref py py-class docutils literal notranslate"><span class="pre">BaseAnnotationWriter</span></code></a> classes.</p>
+<section id="audacity">
+<h2>Audacity<a class="headerlink" href="#audacity" title="Link to this heading"></a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="koogu.data.annotations.Audacity.Reader">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">koogu.data.annotations.Audacity.</span></span><span class="sig-name descname"><span class="pre">Reader</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">fetch_frequencies</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#koogu.data.annotations.Audacity.Reader" title="Link to this definition"></a></dt>
+<dd><p>Reader class for reading Audacity format annotation files.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>fetch_frequencies</strong> – (boolean; default: False) If True, will also
+attempt to read annotations’ frequency bounds. NaNs will be returned
+for any missing values. If False, the respective item in the tuple
+returned will be set to None.</p>
+</dd>
+</dl>
+<p>Example:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># Create a reader instance</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">reader</span> <span class="o">=</span> <span class="n">Audacity</span><span class="o">.</span><span class="n">Reader</span><span class="p">()</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1"># Read annotations from file and display</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="p">(</span><span class="n">times</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">tags</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span><span class="p">)</span> <span class="o">=</span> <span class="n">reader</span><span class="p">(</span><span class="s1">&#39;my_audacity_annots.txt&#39;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Start time, End time, Label&#39;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span><span class="p">(</span><span class="s1">&#39;----------, --------, -----&#39;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">for</span> <span class="n">idx</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">times</span><span class="p">)):</span>
+<span class="gp">... </span>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">times</span><span class="p">[</span><span class="n">idx</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s1">, </span><span class="si">{</span><span class="n">times</span><span class="p">[</span><span class="n">idx</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s1">, </span><span class="si">{</span><span class="n">tags</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="koogu.data.annotations.Audacity.Writer">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">koogu.data.annotations.Audacity.</span></span><span class="sig-name descname"><span class="pre">Writer</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">write_frequencies</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#koogu.data.annotations.Audacity.Writer" title="Link to this definition"></a></dt>
+<dd><p>Writer class for writing annotations/detections to Audacity format files.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>write_frequencies</strong> – Boolean (default: False) directing whether to
+include bounding (lower and higher) frequency info in the outputs.</p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+<section id="raven-pro">
+<h2>Raven Pro<a class="headerlink" href="#raven-pro" title="Link to this heading"></a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="koogu.data.annotations.Raven.Reader">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">koogu.data.annotations.Raven.</span></span><span class="sig-name descname"><span class="pre">Reader</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">fetch_frequencies</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">label_column_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#koogu.data.annotations.Raven.Reader" title="Link to this definition"></a></dt>
+<dd><p>Reader class for reading Raven selection table format files.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>fetch_frequencies</strong> – (boolean; default: False) If True, will also
+return annotations’ frequency bounds. NaNs will be returned for any
+missing values in file. If False, the respective return value will be
+set to None.</p></li>
+<li><p><strong>label_column_name</strong> – A string (e.g., “Tags”) identifying the header
+of the column in the selection table file(s) from which class labels are
+to be extracted. If None (default), will look for a column with the
+header “Tags”.</p></li>
+</ul>
+</dd>
+</dl>
+<p>Example:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># Create a reader instance</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">reader</span> <span class="o">=</span> <span class="n">Raven</span><span class="o">.</span><span class="n">Reader</span><span class="p">(</span><span class="n">fetch_frequencies</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1"># Read annotations from file and display</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="p">(</span><span class="n">times</span><span class="p">,</span> <span class="n">freqs</span><span class="p">,</span> <span class="n">tags</span><span class="p">,</span> <span class="n">chs</span><span class="p">,</span> <span class="n">_</span><span class="p">)</span> <span class="o">=</span> \
+<span class="gp">... </span>    <span class="n">reader</span><span class="p">(</span><span class="s1">&#39;20180212_060000.selections.txt&#39;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Start time, Upper freq, Channel, Tag&#39;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span><span class="p">(</span><span class="s1">&#39;----------, ----------, -------, ---&#39;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">for</span> <span class="n">idx</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">times</span><span class="p">)):</span>
+<span class="gp">... </span>    <span class="nb">print</span><span class="p">(</span>
+<span class="gp">... </span>        <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">times</span><span class="p">[</span><span class="n">idx</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s1">, </span><span class="si">{</span><span class="n">freqs</span><span class="p">[</span><span class="n">idx</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s1">, </span><span class="si">{</span><span class="n">chs</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span><span class="si">}</span><span class="s1">, </span><span class="si">{</span><span class="n">tags</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span><span class="si">}</span><span class="s1">&#39;</span>
+<span class="gp">... </span>    <span class="p">)</span>
+</pre></div>
+</div>
+<dl class="py method">
+<dt class="sig sig-object py" id="koogu.data.annotations.Raven.Reader.get_annotations_from_file">
+<em class="property"><span class="pre">classmethod</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">get_annotations_from_file</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">seltab_file</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fields_spec</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">delimiter</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'\t'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#koogu.data.annotations.Raven.Reader.get_annotations_from_file" title="Link to this definition"></a></dt>
+<dd><p>A generator for reading Raven selection tables. A simple, fast yet
+efficient way for processing selection tables. Pass in the path to the
+file and a list containing field specifications, and retrieve table
+entries iteratively, without having to load the entire selection table
+file into memory.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>seltab_file</strong> – Path to a Raven selection table file.</p></li>
+<li><p><strong>fields_spec</strong> – <p>A list of field specifiers. A field specifier must
+be a tuple containing -</p>
+<ul>
+<li><p>the name of the field (column header),</p></li>
+<li><p>the corresponding data type, and</p></li>
+<li><p>optionally, a default value.</p></li>
+</ul>
+<p>The field names (case-sensitive) should match the actual column
+headers in the selection table file. If no matching column header is
+found for aspecified field, then the respective value will be None
+in every returned output. If an annotation entry is blank for a
+specified field, then the respective value returned will be set to
+either the default (if specified) or to None.</p>
+</p></li>
+<li><p><strong>delimiter</strong> – (optional; default is the tab character) The delimiter
+in the selection table file.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The generator iteratively yields tuples containing
+type-converted values corresponding to the chosen fields from each
+annotation read. The fields in the tuple will be in the same order
+as that of <code class="docutils literal notranslate"><span class="pre">fields_spec</span></code>.</p>
+</dd>
+</dl>
+<p>Example:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">file_fields_spec</span> <span class="o">=</span> <span class="p">[(</span><span class="s1">&#39;Selection&#39;</span><span class="p">,</span> <span class="nb">int</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span>
+<span class="gp">... </span>                    <span class="p">(</span><span class="s1">&#39;Begin Time (s)&#39;</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span>
+<span class="gp">... </span>                    <span class="p">(</span><span class="s1">&#39;Tags&#39;</span><span class="p">,</span> <span class="nb">str</span><span class="p">),</span>
+<span class="gp">... </span>                    <span class="p">(</span><span class="s1">&#39;Score&#39;</span><span class="p">,</span> <span class="nb">float</span><span class="p">)]</span>
+<span class="gp">...</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">for</span> <span class="n">entry</span> <span class="ow">in</span> <span class="n">Raven</span><span class="o">.</span><span class="n">Reader</span><span class="o">.</span><span class="n">get_annotations_from_file</span><span class="p">(</span>
+<span class="gp">... </span>        <span class="s1">&#39;my_annots.selection.txt&#39;</span><span class="p">,</span> <span class="n">file_fields_spec</span><span class="p">):</span>
+<span class="gp">... </span>    <span class="nb">print</span><span class="p">(</span><span class="n">entry</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">entry</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">entry</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span> <span class="n">entry</span><span class="p">[</span><span class="mi">3</span><span class="p">])</span>
+</pre></div>
+</div>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="koogu.data.annotations.Raven.Writer">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">koogu.data.annotations.Raven.</span></span><span class="sig-name descname"><span class="pre">Writer</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">write_frequencies</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">extra_fields_spec</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#koogu.data.annotations.Raven.Writer" title="Link to this definition"></a></dt>
+<dd><p>Writer class for writing annotations/detections to Raven selection table
+format files.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>write_frequencies</strong> – Boolean (default: False) directing whether to
+include the “Low Freq (Hz)” and “High Freq (Hz)” fields in the outputs.</p></li>
+<li><p><strong>extra_fields_spec</strong> – Optional list of 2-element tuples identifying any
+additional fields to add to the output and their respective formats.
+E.g., [(‘Model used’, ‘s’)] will add an extra field named “Model used”
+and set the values in the fields to be formatted as strings.</p></li>
+<li><p><strong>add_selection_number</strong> – Boolean (default: True) directing whether to
+include the “Selection” field.</p></li>
+<li><p><strong>add_channel</strong> – Boolean (default: True) directing whether to include the
+“Channel” field.</p></li>
+<li><p><strong>add_score</strong> – Boolean (default: False) directing whether to include the
+“Scores” field. Use when saving detections.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+<section id="sonic-visualiser">
+<h2>Sonic Visualiser<a class="headerlink" href="#sonic-visualiser" title="Link to this heading"></a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="koogu.data.annotations.SonicVisualiser.Reader">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">koogu.data.annotations.SonicVisualiser.</span></span><span class="sig-name descname"><span class="pre">Reader</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">fetch_frequencies</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#koogu.data.annotations.SonicVisualiser.Reader" title="Link to this definition"></a></dt>
+<dd><p>Reader class for reading Sonic Visualiser format annotation files.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>fetch_frequencies</strong> – (boolean; default: False) If True, will also
+attempt to read annotations’ frequency bounds. NaNs will be returned
+for any missing values. If False, the respective item in the tuple
+returned will be set to None.</p>
+</dd>
+</dl>
+<p>Example:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># Create a reader instance</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">reader</span> <span class="o">=</span> <span class="n">SonicVisualiser</span><span class="o">.</span><span class="n">Reader</span><span class="p">()</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1"># Read annotations from file and display</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="p">(</span><span class="n">times</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">tags</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span><span class="p">)</span> <span class="o">=</span> <span class="n">reader</span><span class="p">(</span><span class="s1">&#39;my_annots.svl&#39;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Start time, End time, Label&#39;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span><span class="p">(</span><span class="s1">&#39;----------, --------, -----&#39;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">for</span> <span class="n">idx</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">times</span><span class="p">)):</span>
+<span class="gp">... </span>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">times</span><span class="p">[</span><span class="n">idx</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s1">, </span><span class="si">{</span><span class="n">times</span><span class="p">[</span><span class="n">idx</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s1">, </span><span class="si">{</span><span class="n">tags</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="index.html" class="btn btn-neutral float-left" title="Data" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="augmentation.html" class="btn btn-neutral float-right" title="Data augmentation" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2020–present, Shyam Madhusudhana.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  
+
+  <div class="rst-versions" data-toggle="rst-versions" role="note" aria-label="versions">
+    <span class="rst-current-version" data-toggle="rst-current-version">
+      <span class="fa fa-book"> Alternate Versions</span>
+      v: dev
+      <span class="fa fa-caret-down"></span>
+    </span>
+    <div class="rst-other-versions">
+      
+      
+      <dl>
+        <dt>Versions</dt>
+        
+           <strong> 
+          <dd><a href="/Koogu/en/dev/">dev</a></dd>
+           </strong> 
+        
+          
+          <dd><a href="/Koogu/en/stable/">stable</a></dd>
+          
+        
+          
+          <dd><a href="/Koogu/en/v0.7.2/">v0.7.2</a></dd>
+          
+        
+          
+          <dd><a href="/Koogu/en/v0.7.1/">v0.7.1</a></dd>
+          
+        
+          
+          <dd><a href="/Koogu/en/v0.7.0/">v0.7.0</a></dd>
+          
+        
+          
+          <dd><a href="/Koogu/en/v0.6.5/">v0.6.5</a></dd>
+          
+        
+          
+          <dd><a href="/Koogu/en/v0.6.4/">v0.6.4</a></dd>
+          
+        
+      </dl>
+      
+      
+      
+      <hr/>
+      Free theme by <a href="http://www.readthedocs.org">Read the Docs</a>.
+
+    </div>
+  </div>
+
+<script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

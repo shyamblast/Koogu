@@ -1,0 +1,553 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Quick-start guide &mdash; Koogu  documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="_static/doctools.js?v=9bcbadda"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Advanced usage" href="advanced/index.html" />
+    <link rel="prev" title="Koogu" href="index.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            Koogu
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="index.html">Koogu</a></li>
+</ul>
+<ul class="current">
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Quick-start guide</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#imports">Imports</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#data-preparation">1. Data preparation</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#preprocess">1.1 Preprocess</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#feeder-setup">1.2. Feeder setup</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#training">2. Training</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#performance-assessment">3. Performance assessment</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#run-on-test-dataset">3.1. Run on test dataset</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#determine-performance">3.2. Determine performance</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#use-the-trained-model">4. Use the trained model</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#batch-processing">4.1. Batch processing</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#custom-processing">4.2 Custom processing</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="advanced/index.html">Advanced usage</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="api/index.html">API documentation</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="genindex.html">Index</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">Koogu</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Quick-start guide</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="quick-start-guide">
+<h1>Quick-start guide<a class="headerlink" href="#quick-start-guide" title="Link to this heading"></a></h1>
+<p>We present here a recipe for a full bioacoustics ML workflow, from data
+pre-processing to training, to performance assessments, and finally, to
+using a trained model for analyzing soundscape/field recordings.</p>
+<p>As an example, we considered the North Atlantic Right Whale (NARW) up-call dataset
+from the <a class="reference external" href="https://doi.org/10.17630/62c3eebc-5574-4ec0-bfef-367ad839fe1a">DCLDE 2013 challenge</a>. The dataset
+contained 7 days of round-the-clock recordings out of which recordings from the
+first 4 days were earmarked as a <em>training set</em> and recordings from the remaining
+3 days were set aside as a <em>test set</em>. Each audio file was 15 minutes in
+duration, and files from each day were organized in day-specific subdirectories.
+The original dataset contained annotations in the legacy Xbat format, which we
+converted to <a class="reference external" href="https://ravensoundsoftware.com/software/raven-pro/">RavenPro</a>
+selection table format for compatibility with Koogu. A sample of the dataset,
+with converted annotations, can be accessed <a class="reference external" href="https://tinyurl.com/koogu-demo-data">here</a>.</p>
+<p>You may test the below code snippets yourself, using the sample dataset. Once, you
+have it working, you could modify the program to suit your own dataset.</p>
+<p>The code sections below expect the training and test audio files and corresponding
+annotation files to be organized in a directory structure as shown below:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>📁 projects
+└─ 📁 NARW
+   └─ 📁 data
+      ├─ 📁 train_audio
+      ├─ 📁 train_annotations
+      ├─ 📁 test_audio
+      └─ 📁 test_annotations
+</pre></div>
+</div>
+<section id="imports">
+<h2>Imports<a class="headerlink" href="#imports" title="Link to this heading"></a></h2>
+<p>First, import the necessary modules and functions from the Koogu package.</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="linenos">1</span><span class="kn">from</span><span class="w"> </span><span class="nn">koogu.data</span><span class="w"> </span><span class="kn">import</span> <span class="n">preprocess</span><span class="p">,</span> <span class="n">feeder</span>
+<span class="linenos">2</span><span class="kn">from</span><span class="w"> </span><span class="nn">koogu.model</span><span class="w"> </span><span class="kn">import</span> <span class="n">architectures</span>
+<span class="linenos">3</span><span class="kn">from</span><span class="w"> </span><span class="nn">koogu</span><span class="w"> </span><span class="kn">import</span> <span class="n">train</span><span class="p">,</span> <span class="n">assessments</span><span class="p">,</span> <span class="n">recognize</span>
+<span class="linenos">4</span>
+<span class="linenos">5</span><span class="kn">from</span><span class="w"> </span><span class="nn">matplotlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">pyplot</span> <span class="k">as</span> <span class="n">plt</span>           <span class="c1"># used for plotting graphs</span>
+<span class="linenos">6</span>
+</pre></div>
+</div>
+</section>
+<section id="data-preparation">
+<h2>1. Data preparation<a class="headerlink" href="#data-preparation" title="Link to this heading"></a></h2>
+<p>Point out where to fetch the training dataset from.</p>
+<p>We also need to specify which annotation files correspond to which audio files
+(or, in this example, to sub-directories containing a collection of files).</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="linenos"> 8</span><span class="c1"># The root directories under which the training data (audio files and</span>
+<span class="linenos"> 9</span><span class="c1"># corresponding annotation files) are available.</span>
+<span class="linenos">10</span><span class="n">audio_root</span> <span class="o">=</span> <span class="s1">&#39;/home/shyam/projects/NARW/data/train_audio&#39;</span>
+<span class="linenos">11</span><span class="n">annots_root</span> <span class="o">=</span> <span class="s1">&#39;/home/shyam/projects/NARW/data/train_annotations&#39;</span>
+<span class="linenos">12</span>
+<span class="linenos">13</span><span class="c1"># Map audio files (or containing folders) to respective annotation files</span>
+<span class="linenos">14</span><span class="n">audio_annot_list</span> <span class="o">=</span> <span class="p">[</span>
+<span class="linenos">15</span>    <span class="p">[</span><span class="s1">&#39;NOPP6_EST_20090328&#39;</span><span class="p">,</span> <span class="s1">&#39;NOPP6_20090328_RW_upcalls.selections.txt&#39;</span><span class="p">],</span>
+<span class="linenos">16</span>    <span class="p">[</span><span class="s1">&#39;NOPP6_EST_20090329&#39;</span><span class="p">,</span> <span class="s1">&#39;NOPP6_20090329_RW_upcalls.selections.txt&#39;</span><span class="p">],</span>
+<span class="linenos">17</span>    <span class="p">[</span><span class="s1">&#39;NOPP6_EST_20090330&#39;</span><span class="p">,</span> <span class="s1">&#39;NOPP6_20090330_RW_upcalls.selections.txt&#39;</span><span class="p">],</span>
+<span class="linenos">18</span>    <span class="p">[</span><span class="s1">&#39;NOPP6_EST_20090331&#39;</span><span class="p">,</span> <span class="s1">&#39;NOPP6_20090331_RW_upcalls.selections.txt&#39;</span><span class="p">],</span>
+<span class="linenos">19</span><span class="p">]</span>
+</pre></div>
+</div>
+<p>Define parameters for preparing training audio, and for converting them to
+spectrograms.</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="linenos">23</span><span class="n">data_settings</span> <span class="o">=</span> <span class="p">{</span>
+<span class="linenos">24</span>    <span class="c1"># Settings for handling raw audio</span>
+<span class="linenos">25</span>    <span class="s1">&#39;audio_settings&#39;</span><span class="p">:</span> <span class="p">{</span>
+<span class="linenos">26</span>        <span class="s1">&#39;clip_length&#39;</span><span class="p">:</span> <span class="mf">2.0</span><span class="p">,</span>
+<span class="linenos">27</span>        <span class="s1">&#39;clip_advance&#39;</span><span class="p">:</span> <span class="mf">0.4</span><span class="p">,</span>
+<span class="linenos">28</span>        <span class="s1">&#39;desired_fs&#39;</span><span class="p">:</span> <span class="mi">1000</span>
+<span class="linenos">29</span>    <span class="p">},</span>
+<span class="linenos">30</span>
+<span class="linenos">31</span>    <span class="c1"># Settings for converting audio to a time-frequency representation</span>
+<span class="linenos">32</span>    <span class="s1">&#39;spec_settings&#39;</span><span class="p">:</span> <span class="p">{</span>
+<span class="linenos">33</span>        <span class="s1">&#39;win_len&#39;</span><span class="p">:</span> <span class="mf">0.128</span><span class="p">,</span>
+<span class="linenos">34</span>        <span class="s1">&#39;win_overlap_prc&#39;</span><span class="p">:</span> <span class="mf">0.75</span><span class="p">,</span>
+<span class="linenos">35</span>        <span class="s1">&#39;bandwidth_clip&#39;</span><span class="p">:</span> <span class="p">[</span><span class="mi">46</span><span class="p">,</span> <span class="mi">391</span><span class="p">]</span>
+<span class="linenos">36</span>    <span class="p">}</span>
+<span class="linenos">37</span><span class="p">}</span>
+</pre></div>
+</div>
+<section id="preprocess">
+<h3>1.1 Preprocess<a class="headerlink" href="#preprocess" title="Link to this heading"></a></h3>
+<p>The preprocessing step will split up the audio files into clips (defined by
+<code class="docutils literal notranslate"><span class="pre">data_settings['audio_settings']</span></code>), match available annotations to the clips,
+and mark each clip to indicate if it matched one or more annotations.</p>
+<p>We believe that the available annotations in the training set covered almost
+all occurrences of the target <cite>NARW up-calls</cite> in the recordings, with no (or
+only a small number of) missed calls. As such, we can consider all un-annotated
+time periods in the recordings as inputs for the <em>negative</em> class (by setting the
+parameter <code class="docutils literal notranslate"><span class="pre">negative_class_label</span></code>).</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="linenos">41</span><span class="c1"># Path to the directory where pre-processed data will be written.</span>
+<span class="linenos">42</span><span class="c1"># Directory will be created if it doesn&#39;t exist.</span>
+<span class="linenos">43</span><span class="n">prepared_audio_dir</span> <span class="o">=</span> <span class="s1">&#39;/home/shyam/projects/NARW/prepared_data&#39;</span>
+<span class="linenos">44</span>
+<span class="linenos">45</span><span class="c1"># Convert audio files into prepared data</span>
+<span class="linenos">46</span><span class="n">clip_counts</span> <span class="o">=</span> <span class="n">preprocess</span><span class="o">.</span><span class="n">from_selection_table_map</span><span class="p">(</span>
+<span class="linenos">47</span>    <span class="n">data_settings</span><span class="p">[</span><span class="s1">&#39;audio_settings&#39;</span><span class="p">],</span>
+<span class="linenos">48</span>    <span class="n">audio_annot_list</span><span class="p">,</span>
+<span class="linenos">49</span>    <span class="n">audio_root</span><span class="p">,</span> <span class="n">annots_root</span><span class="p">,</span>
+<span class="linenos">50</span>    <span class="n">output_root</span><span class="o">=</span><span class="n">prepared_audio_dir</span><span class="p">,</span>
+<span class="linenos">51</span>    <span class="n">negative_class_label</span><span class="o">=</span><span class="s1">&#39;Other&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="admonition seealso">
+<p class="admonition-title">See also</p>
+<p>Koogu supports annotations in different popular formats, besides the default RavenPro format.
+See <a class="reference internal" href="api/data/annotations.html#module-koogu.data.annotations" title="koogu.data.annotations"><code class="xref py py-mod docutils literal notranslate"><span class="pre">koogu.data.annotations</span></code></a> for a list of supported formats.</p>
+</div>
+<div class="admonition seealso">
+<p class="admonition-title">See also</p>
+<p>If your project does not have annotations, but you have audio files corresponding
+to each species/call type organized under separate directories, you can
+pre-process the data using <a class="reference internal" href="api/data/preprocess.html#koogu.data.preprocess.from_top_level_dirs" title="koogu.data.preprocess.from_top_level_dirs"><code class="xref py py-func docutils literal notranslate"><span class="pre">from_top_level_dirs()</span></code></a>
+instead of <a class="reference internal" href="api/data/preprocess.html#koogu.data.preprocess.from_selection_table_map" title="koogu.data.preprocess.from_selection_table_map"><code class="xref py py-func docutils literal notranslate"><span class="pre">from_selection_table_map()</span></code></a>.</p>
+</div>
+<p>You can check how many clips were generated for each class -</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="linenos">54</span><span class="c1"># Display counts of how many inputs we got per class</span>
+<span class="linenos">55</span><span class="k">for</span> <span class="n">label</span><span class="p">,</span> <span class="n">count</span> <span class="ow">in</span> <span class="n">clip_counts</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+<span class="linenos">56</span>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">label</span><span class="si">:</span><span class="s1">&lt;10s</span><span class="si">}</span><span class="s1">: </span><span class="si">{</span><span class="n">count</span><span class="si">:</span><span class="s1">d</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="feeder-setup">
+<h3>1.2. Feeder setup<a class="headerlink" href="#feeder-setup" title="Link to this heading"></a></h3>
+<p>Now, we define a feeder that efficiently feeds all the pre-processed clips, in
+batches, to the training/validation pipeline. The feeder is also transforms the
+audio clips into spectrograms.</p>
+<p>Typically, model training is performed on computers having one or more GPUs.
+While the GPUs consume data at extreme speeds during training, it is imperative
+that the mechanism to feed the training data doesn’t keep the GPUs waiting for
+inputs. The feeders provided in Koogu utilize all available CPU cores to ensure
+that GPU utilization remains high during training.</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="linenos">61</span><span class="n">data_feeder</span> <span class="o">=</span> <span class="n">feeder</span><span class="o">.</span><span class="n">SpectralDataFeeder</span><span class="p">(</span>
+<span class="linenos">62</span>    <span class="n">prepared_audio_dir</span><span class="p">,</span>                        <span class="c1"># where the prepared clips are at</span>
+<span class="linenos">63</span>    <span class="n">data_settings</span><span class="p">[</span><span class="s1">&#39;audio_settings&#39;</span><span class="p">][</span><span class="s1">&#39;desired_fs&#39;</span><span class="p">],</span>
+<span class="linenos">64</span>    <span class="n">data_settings</span><span class="p">[</span><span class="s1">&#39;spec_settings&#39;</span><span class="p">],</span>
+<span class="linenos">65</span>    <span class="n">validation_split</span><span class="o">=</span><span class="mf">0.15</span><span class="p">,</span>                     <span class="c1"># set aside 15% for validation</span>
+<span class="linenos">66</span>    <span class="n">max_clips_per_class</span><span class="o">=</span><span class="mi">20000</span>                  <span class="c1"># use up to 20k inputs per class</span>
+<span class="linenos">67</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>The considered sample dataset contains very many annotated calls, covering a
+reasonable range of input variations. As such, in this example we do not employ
+any data augmentation techniques. However, you could easily add some of the
+pre-canned <a class="reference internal" href="advanced/data_augmentation.html"><span class="doc">data augmentations</span></a> when you
+adopt this example to work with your dataset.</p>
+</section>
+</section>
+<section id="training">
+<h2>2. Training<a class="headerlink" href="#training" title="Link to this heading"></a></h2>
+<p>First, describe the architecture of the model that is to be used. With Koogu,
+you do not need to write lot’s of code to build custom models; simply chose an
+exiting/available architecture (e.g., ConvNet, DenseNet) and specify how you’d
+want it customized.</p>
+<p>In this example, we use a light-weight custom
+<a class="reference internal" href="api/model/architectures.html#koogu.model.architectures.DenseNet" title="koogu.model.architectures.DenseNet"><code class="xref py py-class docutils literal notranslate"><span class="pre">DenseNet</span></code></a> architecture.</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="linenos">71</span><span class="n">model</span> <span class="o">=</span> <span class="n">architectures</span><span class="o">.</span><span class="n">DenseNet</span><span class="p">(</span>
+<span class="linenos">72</span>    <span class="p">[</span><span class="mi">4</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">4</span><span class="p">],</span>                                 <span class="c1"># 3 dense-blocks, 4 layers each</span>
+<span class="linenos">73</span>    <span class="n">preproc</span><span class="o">=</span><span class="p">[</span> <span class="p">(</span><span class="s1">&#39;Conv2D&#39;</span><span class="p">,</span> <span class="p">{</span><span class="s1">&#39;filters&#39;</span><span class="p">:</span> <span class="mi">16</span><span class="p">})</span> <span class="p">],</span>   <span class="c1"># Add a 16-filter pre-conv layer</span>
+<span class="linenos">74</span>    <span class="n">dense_layers</span><span class="o">=</span><span class="p">[</span><span class="mi">32</span><span class="p">]</span>                          <span class="c1"># End with a 32-node dense layer</span>
+<span class="linenos">75</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>The training process can be controlled, along with hyperparameter and
+regularization settings, by setting appropriate values in the Python
+dictionary that is input to <a class="reference internal" href="api/training.html#koogu.train" title="koogu.train"><code class="xref py py-func docutils literal notranslate"><span class="pre">train()</span></code></a>. See the function API
+documentation for all available options.</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="linenos"> 79</span><span class="c1"># Settings that control the training process</span>
+<span class="linenos"> 80</span><span class="n">training_settings</span> <span class="o">=</span> <span class="p">{</span>
+<span class="linenos"> 81</span>    <span class="s1">&#39;batch_size&#39;</span><span class="p">:</span> <span class="mi">64</span><span class="p">,</span>
+<span class="linenos"> 82</span>    <span class="s1">&#39;epochs&#39;</span><span class="p">:</span> <span class="mi">50</span><span class="p">,</span>                              <span class="c1"># run for 50 epochs</span>
+<span class="linenos"> 83</span>
+<span class="linenos"> 84</span>    <span class="c1"># Start with a learning rate of 0.01, and drop it to a tenth of its value,</span>
+<span class="linenos"> 85</span>    <span class="c1"># successively, at epochs 20 &amp; 40.</span>
+<span class="linenos"> 86</span>    <span class="s1">&#39;learning_rate&#39;</span><span class="p">:</span> <span class="mf">0.01</span><span class="p">,</span>
+<span class="linenos"> 87</span>    <span class="s1">&#39;lr_change_at_epochs&#39;</span><span class="p">:</span> <span class="p">[</span><span class="mi">20</span><span class="p">,</span> <span class="mi">40</span><span class="p">],</span>
+<span class="linenos"> 88</span>    <span class="s1">&#39;lr_update_factors&#39;</span><span class="p">:</span> <span class="p">[</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">1e-1</span><span class="p">,</span> <span class="mf">1e-2</span><span class="p">],</span>    <span class="c1"># up to 20, beyond 20, beyond 40</span>
+<span class="linenos"> 89</span>
+<span class="linenos"> 90</span>    <span class="s1">&#39;dropout_rate&#39;</span><span class="p">:</span> <span class="mf">0.05</span>                       <span class="c1"># Helps model generalize better</span>
+<span class="linenos"> 91</span><span class="p">}</span>
+<span class="linenos"> 92</span>
+<span class="linenos"> 93</span><span class="c1"># Path to the directory where model files will be written</span>
+<span class="linenos"> 94</span><span class="n">model_dir</span> <span class="o">=</span> <span class="s1">&#39;/home/shyam/projects/NARW/models/my_first_model&#39;</span>
+<span class="linenos"> 95</span>
+<span class="linenos"> 96</span><span class="c1"># Perform training</span>
+<span class="linenos"> 97</span><span class="n">history</span> <span class="o">=</span> <span class="n">train</span><span class="p">(</span>
+<span class="linenos"> 98</span>    <span class="n">data_feeder</span><span class="p">,</span>
+<span class="linenos"> 99</span>    <span class="n">model_dir</span><span class="p">,</span>
+<span class="linenos">100</span>    <span class="n">data_settings</span><span class="p">,</span>
+<span class="linenos">101</span>    <span class="n">model</span><span class="p">,</span>
+<span class="linenos">102</span>    <span class="n">training_settings</span>
+<span class="linenos">103</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>You can visualize how well the training progressed by plotting the contents of
+the <code class="docutils literal notranslate"><span class="pre">history</span></code> variable returned.</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="linenos">106</span><span class="c1"># Plot training &amp; validation history</span>
+<span class="linenos">107</span><span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="n">sharex</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">12</span><span class="p">,</span> <span class="mi">9</span><span class="p">))</span>
+<span class="linenos">108</span><span class="n">ax</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span>
+<span class="linenos">109</span>    <span class="n">history</span><span class="p">[</span><span class="s1">&#39;train_epochs&#39;</span><span class="p">],</span> <span class="n">history</span><span class="p">[</span><span class="s1">&#39;binary_accuracy&#39;</span><span class="p">],</span> <span class="s1">&#39;r&#39;</span><span class="p">,</span>
+<span class="linenos">110</span>    <span class="n">history</span><span class="p">[</span><span class="s1">&#39;eval_epochs&#39;</span><span class="p">],</span> <span class="n">history</span><span class="p">[</span><span class="s1">&#39;val_binary_accuracy&#39;</span><span class="p">],</span> <span class="s1">&#39;g&#39;</span><span class="p">)</span>
+<span class="linenos">111</span><span class="n">ax</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="s1">&#39;Accuracy&#39;</span><span class="p">)</span>
+<span class="linenos">112</span><span class="n">ax</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span>
+<span class="linenos">113</span>    <span class="n">history</span><span class="p">[</span><span class="s1">&#39;train_epochs&#39;</span><span class="p">],</span> <span class="n">history</span><span class="p">[</span><span class="s1">&#39;loss&#39;</span><span class="p">],</span> <span class="s1">&#39;r&#39;</span><span class="p">,</span>
+<span class="linenos">114</span>    <span class="n">history</span><span class="p">[</span><span class="s1">&#39;eval_epochs&#39;</span><span class="p">],</span> <span class="n">history</span><span class="p">[</span><span class="s1">&#39;val_loss&#39;</span><span class="p">],</span> <span class="s1">&#39;g&#39;</span><span class="p">)</span>
+<span class="linenos">115</span><span class="n">ax</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">set_yscale</span><span class="p">(</span><span class="s1">&#39;log&#39;</span><span class="p">)</span>
+<span class="linenos">116</span><span class="n">ax</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="s1">&#39;Epoch&#39;</span><span class="p">)</span>
+<span class="linenos">117</span><span class="n">ax</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="s1">&#39;Loss&#39;</span><span class="p">)</span>
+<span class="linenos">118</span><span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>You may tune the training parameters above and repeat the training step until
+the training and validation accuracy/loss reach desired levels.</p>
+</section>
+<section id="performance-assessment">
+<h2>3. Performance assessment<a class="headerlink" href="#performance-assessment" title="Link to this heading"></a></h2>
+<section id="run-on-test-dataset">
+<h3>3.1. Run on test dataset<a class="headerlink" href="#run-on-test-dataset" title="Link to this heading"></a></h3>
+<p>If you have a test dataset available for assessing performance, you can easily
+run the trained model on that dataset. Simply point out where to fetch the test
+dataset from.</p>
+<p>Similar to how training annotation data were presented (by associating annotation
+files to audio files), we also need to specify which test annotation files
+correspond to which test audio files (or, in this example, to sub-directories
+containing a collection of test files).</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="linenos">122</span><span class="c1"># The root directories under which the test data (audio files and</span>
+<span class="linenos">123</span><span class="c1"># corresponding annotation files) are available.</span>
+<span class="linenos">124</span><span class="n">test_audio_root</span> <span class="o">=</span> <span class="s1">&#39;/home/shyam/projects/NARW/data/test_audio&#39;</span>
+<span class="linenos">125</span><span class="n">test_annots_root</span> <span class="o">=</span> <span class="s1">&#39;/home/shyam/projects/NARW/data/test_annotations&#39;</span>
+<span class="linenos">126</span>
+<span class="linenos">127</span><span class="c1"># Map audio files to corresponding annotation files</span>
+<span class="linenos">128</span><span class="n">test_audio_annot_list</span> <span class="o">=</span> <span class="p">[</span>
+<span class="linenos">129</span>    <span class="p">[</span><span class="s1">&#39;NOPP6_EST_20090401&#39;</span><span class="p">,</span> <span class="s1">&#39;NOPP6_20090401_RW_upcalls.selections.txt&#39;</span><span class="p">],</span>
+<span class="linenos">130</span>    <span class="p">[</span><span class="s1">&#39;NOPP6_EST_20090402&#39;</span><span class="p">,</span> <span class="s1">&#39;NOPP6_20090402_RW_upcalls.selections.txt&#39;</span><span class="p">],</span>
+<span class="linenos">131</span>    <span class="p">[</span><span class="s1">&#39;NOPP6_EST_20090403&#39;</span><span class="p">,</span> <span class="s1">&#39;NOPP6_20090403_RW_upcalls.selections.txt&#39;</span><span class="p">],</span>
+<span class="linenos">132</span><span class="p">]</span>
+</pre></div>
+</div>
+<p>Now apply the trained model to this test dataset. During testing, it is useful
+to save raw per-clip recognition scores which can be subsequently analyzed for
+assessing the model’s recognition performance.</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="linenos">135</span><span class="c1"># Directory in which raw detection scores will be saved</span>
+<span class="linenos">136</span><span class="n">raw_detections_root</span> <span class="o">=</span> <span class="s1">&#39;/home/shyam/projects/NARW/test_audio_raw_detections&#39;</span>
+<span class="linenos">137</span>
+<span class="linenos">138</span><span class="c1"># Run the model (detector/classifier)</span>
+<span class="linenos">139</span><span class="n">recognize</span><span class="p">(</span>
+<span class="linenos">140</span>    <span class="n">model_dir</span><span class="p">,</span>
+<span class="linenos">141</span>    <span class="n">test_audio_root</span><span class="p">,</span>
+<span class="linenos">142</span>    <span class="n">raw_detections_dir</span><span class="o">=</span><span class="n">raw_detections_root</span><span class="p">,</span>
+<span class="linenos">143</span>    <span class="n">batch_size</span><span class="o">=</span><span class="mi">64</span><span class="p">,</span>     <span class="c1"># Increasing this may improve speed if there&#39;s enough RAM</span>
+<span class="linenos">144</span>    <span class="n">recursive</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>    <span class="c1"># Process subdirectories also</span>
+<span class="linenos">145</span>    <span class="n">show_progress</span><span class="o">=</span><span class="kc">True</span>
+<span class="linenos">146</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>The <a class="reference internal" href="api/inference.html#koogu.inference.recognize" title="koogu.inference.recognize"><code class="xref py py-func docutils literal notranslate"><span class="pre">recognize()</span></code></a> function supports many customizations.
+See function API documentation for more details.</p>
+</section>
+<section id="determine-performance">
+<h3>3.2. Determine performance<a class="headerlink" href="#determine-performance" title="Link to this heading"></a></h3>
+<p>Now, compute performance metrics.</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="linenos">149</span><span class="c1"># Initialize a metric object with the above info</span>
+<span class="linenos">150</span><span class="n">metric</span> <span class="o">=</span> <span class="n">assessments</span><span class="o">.</span><span class="n">PrecisionRecall</span><span class="p">(</span>
+<span class="linenos">151</span>    <span class="n">test_audio_annot_list</span><span class="p">,</span>
+<span class="linenos">152</span>    <span class="n">raw_detections_root</span><span class="p">,</span> <span class="n">test_annots_root</span><span class="p">)</span>
+<span class="linenos">153</span><span class="c1"># The metric supports several options (including setting explicit thresholds).</span>
+<span class="linenos">154</span><span class="c1"># Refer to class documentation for more details.</span>
+<span class="linenos">155</span>
+<span class="linenos">156</span><span class="c1"># Run the assessments and gather results</span>
+<span class="linenos">157</span><span class="n">per_class_pr</span><span class="p">,</span> <span class="n">overall_pr</span> <span class="o">=</span> <span class="n">metric</span><span class="o">.</span><span class="n">assess</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>And, visualize the assessments.</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="linenos">160</span><span class="c1"># Plot PR curves.</span>
+<span class="linenos">161</span><span class="k">for</span> <span class="n">class_name</span><span class="p">,</span> <span class="n">pr</span> <span class="ow">in</span> <span class="n">per_class_pr</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+<span class="linenos">162</span>    <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;-----&#39;</span><span class="p">,</span> <span class="n">class_name</span><span class="p">,</span> <span class="s1">&#39;-----&#39;</span><span class="p">)</span>
+<span class="linenos">163</span>    <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">pr</span><span class="p">[</span><span class="s1">&#39;recall&#39;</span><span class="p">],</span> <span class="n">pr</span><span class="p">[</span><span class="s1">&#39;precision&#39;</span><span class="p">],</span> <span class="s1">&#39;rd-&#39;</span><span class="p">)</span>
+<span class="linenos">164</span>    <span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="s1">&#39;Recall&#39;</span><span class="p">)</span>
+<span class="linenos">165</span>    <span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="s1">&#39;Precision&#39;</span><span class="p">)</span>
+<span class="linenos">166</span>    <span class="n">plt</span><span class="o">.</span><span class="n">grid</span><span class="p">()</span>
+<span class="linenos">167</span>    <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+<span class="linenos">168</span>
+<span class="linenos">169</span><span class="c1"># Similarly, you could plot the contents of &#39;overall_pr&#39; too</span>
+</pre></div>
+</div>
+<p>By analyzing the precision-recall curve, you can pick an operational threshold
+that yields the desired precision vs. recall trade-off.</p>
+</section>
+</section>
+<section id="use-the-trained-model">
+<h2>4. Use the trained model<a class="headerlink" href="#use-the-trained-model" title="Link to this heading"></a></h2>
+<p>Once you are settled on a choice of detection threshold that yields a suitable
+precision-recall trade-off, you can apply the trained model on new recordings.</p>
+<p>Koogu supports two ways of using a trained model.</p>
+<section id="batch-processing">
+<h3>4.1. Batch processing<a class="headerlink" href="#batch-processing" title="Link to this heading"></a></h3>
+<p>In most common applications, one would want to be able to <strong>batch process</strong>
+large collections of audio files with a trained model.</p>
+<p>In this mode, automatic recognition results are written out in <a class="reference external" href="https://ravensoundsoftware.com/software/raven-pro/">RavenPro</a> selection table format
+after applying an algorithm to group together detections of the same class across
+contiguous clips.</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="linenos">173</span><span class="c1"># Path to directory containing audio files (may contain subdirectories too)</span>
+<span class="linenos">174</span><span class="n">field_recordings_root</span> <span class="o">=</span> <span class="s1">&#39;/home/shyam/projects/NARW/field_recordings&#39;</span>
+<span class="linenos">175</span><span class="n">field_rec_detections_root</span> <span class="o">=</span> <span class="s1">&#39;/home/shyam/projects/NARW/field_rec_detections&#39;</span>
+<span class="linenos">176</span>
+<span class="linenos">177</span><span class="n">chosen_threshold</span> <span class="o">=</span> <span class="mf">0.75</span>
+<span class="linenos">178</span>
+<span class="linenos">179</span><span class="n">recognize</span><span class="p">(</span>
+<span class="linenos">180</span>    <span class="n">model_dir</span><span class="p">,</span>
+<span class="linenos">181</span>    <span class="n">field_recordings_root</span><span class="p">,</span>
+<span class="linenos">182</span>    <span class="n">output_dir</span><span class="o">=</span><span class="n">field_rec_detections_root</span><span class="p">,</span>
+<span class="linenos">183</span>    <span class="n">threshold</span><span class="o">=</span><span class="n">chosen_threshold</span><span class="p">,</span>
+<span class="linenos">184</span>    <span class="n">reject_class</span><span class="o">=</span><span class="s1">&#39;Other&#39;</span><span class="p">,</span>                      <span class="c1"># Only output target class dets</span>
+<span class="linenos">185</span>    <span class="c1">#clip_advance=0.5,                         # Can use different clip advance</span>
+<span class="linenos">186</span>    <span class="n">batch_size</span><span class="o">=</span><span class="mi">64</span><span class="p">,</span>                             <span class="c1"># Can go higher on good computers</span>
+<span class="linenos">187</span>    <span class="n">num_fetch_threads</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span>                       <span class="c1"># Parallel-process for speed</span>
+<span class="linenos">188</span>    <span class="n">recursive</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>                            <span class="c1"># Process subdirectories also</span>
+<span class="linenos">189</span>    <span class="n">show_progress</span><span class="o">=</span><span class="kc">True</span>
+<span class="linenos">190</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>The <a class="reference internal" href="api/inference.html#koogu.inference.recognize" title="koogu.inference.recognize"><code class="xref py py-func docutils literal notranslate"><span class="pre">recognize()</span></code></a> function supports many customizations.
+See function API documentation for more details.</p>
+</section>
+<section id="custom-processing">
+<h3>4.2 Custom processing<a class="headerlink" href="#custom-processing" title="Link to this heading"></a></h3>
+<p>Sometimes, one may need to process audio data that is not available in the form
+of audio files (or in unsupported formats). For example, one may want to apply
+a trained model to live-stream acoustic feeds. Koogu facilitates such use of a
+trained model via an additional interface in which you implement the task of
+preparing the data (breaking up into clips) in the format that a model expects.
+Then, you simply pass the clips to <a class="reference internal" href="api/inference.html#koogu.inference.analyze_clips" title="koogu.inference.analyze_clips"><code class="xref py py-func docutils literal notranslate"><span class="pre">analyze_clips()</span></code></a>.</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">koogu.model</span><span class="w"> </span><span class="kn">import</span> <span class="n">TrainedModel</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">koogu.inference</span><span class="w"> </span><span class="kn">import</span> <span class="n">analyze_clips</span>
+
+<span class="c1"># Load the trained model</span>
+<span class="n">trained_model</span> <span class="o">=</span> <span class="n">TrainedModel</span><span class="p">(</span><span class="n">model_dir</span><span class="p">)</span>
+
+<span class="c1"># Read in the audio samples from a file (using one of SoundFile, AudioRead,</span>
+<span class="c1"># scipy.io.wavfile, etc.), or buffer-in from a live stream.</span>
+
+<span class="c1"># As with the model trained in the above example, you may need to resample the</span>
+<span class="c1"># new data to 1 kHz, and then break them up into clips of length 2 s to match</span>
+<span class="c1"># the trained model&#39;s input size.</span>
+
+<span class="n">not_end</span> <span class="o">=</span> <span class="kc">True</span>
+
+<span class="k">while</span> <span class="n">not_end</span><span class="p">:</span>
+
+    <span class="n">my_clips</span> <span class="o">=</span> <span class="o">...</span>
+    <span class="c1"># say we got 6 clips, making it a 6 x 2000 numpy array</span>
+
+    <span class="c1"># Run detections and get per-clip scores for each class</span>
+    <span class="n">scores</span><span class="p">,</span> <span class="n">processing_time</span> <span class="o">=</span> <span class="n">analyze_clips</span><span class="p">(</span><span class="n">trained_model</span><span class="p">,</span> <span class="n">my_clips</span><span class="p">)</span>
+    <span class="c1"># Given 6 clips, we get &#39;scores&#39; to be a 6 x 2 array</span>
+
+    <span class="c1"># ... do something with the results</span>
+    <span class="o">...</span>
+
+</pre></div>
+</div>
+</section>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="index.html" class="btn btn-neutral float-left" title="Koogu" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="advanced/index.html" class="btn btn-neutral float-right" title="Advanced usage" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2020–present, Shyam Madhusudhana.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  
+
+  <div class="rst-versions" data-toggle="rst-versions" role="note" aria-label="versions">
+    <span class="rst-current-version" data-toggle="rst-current-version">
+      <span class="fa fa-book"> Alternate Versions</span>
+      v: stable
+      <span class="fa fa-caret-down"></span>
+    </span>
+    <div class="rst-other-versions">
+      
+      
+      <dl>
+        <dt>Versions</dt>
+        
+          
+          <dd><a href="/Koogu/en/dev/">dev</a></dd>
+          
+        
+           <strong> 
+          <dd><a href="/Koogu/en/stable/">stable</a></dd>
+           </strong> 
+        
+          
+          <dd><a href="/Koogu/en/v0.7.2/">v0.7.2</a></dd>
+          
+        
+          
+          <dd><a href="/Koogu/en/v0.7.1/">v0.7.1</a></dd>
+          
+        
+          
+          <dd><a href="/Koogu/en/v0.7.0/">v0.7.0</a></dd>
+          
+        
+          
+          <dd><a href="/Koogu/en/v0.6.5/">v0.6.5</a></dd>
+          
+        
+          
+          <dd><a href="/Koogu/en/v0.6.4/">v0.6.4</a></dd>
+          
+        
+          
+          <dd><a href="/Koogu/en/v0.6.3/">v0.6.3</a></dd>
+          
+        
+      </dl>
+      
+      
+      
+      <hr/>
+      Free theme by <a href="http://www.readthedocs.org">Read the Docs</a>.
+
+    </div>
+  </div>
+
+<script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
