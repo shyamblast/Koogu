@@ -109,6 +109,7 @@ class Config:
           test_audio_annotations_map=[str, None],
           test_detections=[str, None],
           model=[str, None],
+          export=[str, None],
           logs=[str, None]
         ), dict(
           train_audio='train_audio',
@@ -120,6 +121,7 @@ class Config:
           test_audio_annotations_map='test_audio_annot_map.csv',
           test_detections='test_detections',
           model='model',
+          export='export',
           logs='logs'
         )
 

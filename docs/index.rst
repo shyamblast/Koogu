@@ -104,4 +104,9 @@ available computational resources.
 .. toctree::
    :hidden:
 
+   integration
+
+.. toctree::
+   :hidden:
+
    genindex
