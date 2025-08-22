@@ -17,18 +17,6 @@ set -x
 #                                 MAIN BODY                                    #
 ################################################################################
 
-###################
-# INSTALL DEPENDS #
-###################
-
-apt-get update
-apt-get -y install git rsync python3-numpy python3-stemmer python3-git python3-pip python3-virtualenv python3-setuptools
-
-python3 -m pip install --upgrade -r docs/requirements.txt
-
-# Workaround for github action issue with different user vs owner
-git config --global --add safe.directory `pwd`
-
 #####################
 # DECLARE VARIABLES #
 #####################
@@ -52,8 +40,15 @@ echo "Repo: ${REPO_NAME} - TempDir: ${docroot}"
 # first, cleanup any old builds' static assets
 make -C docs clean
 
-# get a list of branches, excluding 'HEAD' and 'gh-pages'
-versions="`git for-each-ref '--format=%(refname:lstrip=-1)' refs/remotes/origin/ | grep -viE '^(HEAD|gh-pages)$'`"
+# Get all branches excluding HEAD and gh-pages
+all_branches=$(git for-each-ref --format='%(refname:lstrip=-1)' refs/remotes/origin/ | grep -viE '^(HEAD|gh-pages)$')
+# Separate release branches (v#.#.#) and keep only latest 5
+release_branches=$(echo "$all_branches" | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 5)
+# Non-release branches
+other_branches=$(echo "$all_branches" | grep -v -E '^v[0-9]+\.[0-9]+\.[0-9]+$')
+# Combine: non-release branches + latest 5 releases
+versions=$(echo -e "${other_branches}\n${release_branches}")
+
 for current_version in ${versions}; do
 
 	# make the current language available to conf.py
@@ -87,15 +82,15 @@ for current_version in ${versions}; do
 		# HTML #
 		sphinx-build -b html docs/ docs/_build/html/${current_language}/${current_version} -D language="${current_language}"
 
-		# PDF #
-		sphinx-build -b rinoh docs/ docs/_build/rinoh -D language="${current_language}"
-		mkdir -p "${docroot}/${current_language}/${current_version}"
-		cp "docs/_build/rinoh/target.pdf" "${docroot}/${current_language}/${current_version}/${REPO_NAME}-docs_${current_language}_${current_version}.pdf"
+		# # PDF #
+		# sphinx-build -b rinoh docs/ docs/_build/rinoh -D language="${current_language}"
+		# mkdir -p "${docroot}/${current_language}/${current_version}"
+		# cp "docs/_build/rinoh/target.pdf" "${docroot}/${current_language}/${current_version}/${REPO_NAME}-docs_${current_language}_${current_version}.pdf"
 
-		# EPUB #
-		sphinx-build -b epub docs/ docs/_build/epub -D language="${current_language}"
-		mkdir -p "${docroot}/${current_language}/${current_version}"
-		cp "docs/_build/epub/target.epub" "${docroot}/${current_language}/${current_version}/${REPO_NAME}-docs_${current_language}_${current_version}.epub"
+		# # EPUB #
+		# sphinx-build -b epub docs/ docs/_build/epub -D language="${current_language}"
+		# mkdir -p "${docroot}/${current_language}/${current_version}"
+		# cp "docs/_build/epub/target.epub" "${docroot}/${current_language}/${current_version}/${REPO_NAME}-docs_${current_language}_${current_version}.epub"
 
 		# copy the static assets produced by the above build into our docroot
 		rsync -av "docs/_build/html/" "${docroot}/"

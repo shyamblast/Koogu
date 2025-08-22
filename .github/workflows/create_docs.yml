@@ -11,24 +11,37 @@ jobs:
  
   build_docs_job:
     runs-on: ubuntu-latest
-    container: debian:buster-slim
- 
+
     steps:
- 
-    - name: Prereqs
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    # 1. Checkout the repository
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0      # full history
+        ref: master         # start from master branch
+        fetch-tags: true    # optional: fetch tags if needed
+
+    # 2. Fetch all remote branches (so build_docs.sh can iterate)
+    - name: Fetch all remote branches
+      run: git fetch --all
+
+    # 3. Set up Python 3.13
+    - name: Set up Python 3.13
+      uses: actions/setup-python@v5
+      with:
+        python-version: 3.13
+
+    # 4. Install dependencies
+    - name: Install dependencies
       run: |
-        set -x
-        apt-get update
-        apt-get install -y git
-        git clone "https://token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" .
-        git config --global --add safe.directory .
-      shell: bash
- 
+        python -m pip install --upgrade pip
+        pip install -r docs/requirements.txt
+
+    # 5. Build and push documentation
     - name: Execute script to build documentation and update pages
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: "docs/build_docs.sh"
-      shell: bash
-
+      run: |
+        # Run your build_docs.sh script
+        bash docs/build_docs.sh

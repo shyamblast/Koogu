@@ -152,27 +152,27 @@ for ver in (main_versions + sorted(branch_versions)[::-1]):
 # POPULATE LINKS TO OTHER FORMATS/DOWNLOADS
  
 # settings for creating PDF with rinoh
-rinoh_documents = [(
-    master_doc,
-    'target',
-    '{} Documentation'.format(REPO_NAME),
-    '© {}'.format(copyright),
-)]
+# rinoh_documents = [(
+#     master_doc,
+#     'target',
+#     '{} Documentation'.format(REPO_NAME),
+#     '© {}'.format(copyright),
+# )]
 today_fmt = "%B %d, %Y"
 
 download_filepath = '/{}/{}/{}/{}-docs_{}_{}'.format(
     REPO_NAME, current_language, current_version, REPO_NAME, current_language, current_version)
 
-html_context['downloads'] = list()
-#html_context['downloads'].append( ('pdf', download_filepath + '.pdf') )    # disable for now since rinoh is failing
-html_context['downloads'].append( ('epub', download_filepath + '.epub') )
+# html_context['downloads'] = list()
+# #html_context['downloads'].append( ('pdf', download_filepath + '.pdf') )    # disable for now since rinoh is failing
+# html_context['downloads'].append( ('epub', download_filepath + '.epub') )
  
 
 
 # -- Autodoc options ---------------------------------------------------------
 autodoc_member_order = 'groupwise'
 autodoc_mock_imports = [
-    #'numpy',
+    #'numpy',   # This is EVIL. Do not ever add this back
     'scipy',
     'soundfile',
     'audioread',
