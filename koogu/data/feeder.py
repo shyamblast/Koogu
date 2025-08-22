@@ -312,8 +312,8 @@ class DataFeeder(BaseFeeder):
         self._data_dir = data_dir
         self._cache = kwargs.pop('cache', True)
 
-        if 'background_class' in kwargs:
-            background_class = kwargs.pop('background_class')
+        background_class = kwargs.pop('background_class', None)
+        if background_class is not None:
 
             if background_class in class_names:
                 bg_class_idx = class_names.index(background_class)
