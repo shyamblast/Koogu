@@ -28,7 +28,7 @@ class Config:
     # Read the file contents
     cfg_parser = configparser.ConfigParser(inline_comment_prefixes='#',
                                            delimiters='=')
-    with open(cfg_file, 'r') as f:
+    with open(cfg_file, 'r', encoding='utf8') as f:
       cfg_parser.read_file(f, source=cfg_file)
 
     section = 'paths'
