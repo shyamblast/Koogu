@@ -114,11 +114,11 @@ class Config:
         ), dict(
           train_audio='train_audio',
           train_annotations='train_annotations',
-          train_audio_annotations_map='train_audio_annot_map.csv',
+          # train_audio_annotations_map='train_audio_annot_map.csv',
           training_samples='prepared_clips',
           test_audio='test_audio',
           test_annotations='test_annotations',
-          test_audio_annotations_map='test_audio_annot_map.csv',
+          # test_audio_annotations_map='test_audio_annot_map.csv',
           test_detections='test_detections',
           model='model',
           export='export',
