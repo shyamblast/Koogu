@@ -24,6 +24,10 @@ set -x
 apt-get update
 apt-get -y install git rsync python3-numpy python3-stemmer python3-git python3-pip python3-virtualenv python3-setuptools
 
+# Create a new virtual environment and activate it
+python3 -m venv build_docs_env
+source build_docs_venv/bin/activate
+
 python3 -m pip install --upgrade -r docs/requirements.txt
 
 # Workaround for github action issue with different user vs owner
@@ -166,6 +170,9 @@ popd # return to main repo sandbox root
 ##################
 # CLEANUP & EXIT #
 ##################
+
+# Deactivate virtual environment
+deactivate
 
 # exit cleanly
 exit 0
