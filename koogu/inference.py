@@ -1,4 +1,3 @@
-
 import os
 import sys
 import numpy as np
@@ -13,7 +12,7 @@ from koogu.data.raw import Audio, Settings
 from koogu.data.annotations import Raven
 from koogu.model import TrainedModel
 from koogu.utils import processed_items_generator_mp, \
-    processed_items_generator_mp_ordered
+    processed_items_generator_mp_ordered, instantiate_logging
 from koogu.utils.detections import postprocess_detections
 from koogu.utils.terminal import ProgressBar, ArgparseConverters
 from koogu.utils.filesystem import recursive_listing, AudioFileList
@@ -526,193 +525,229 @@ def recognize(model_dir, audio_root,
         print(msg)
 
 
+__all__ = ['recognize']
+
+
 def _fetch_freq_info(json_file):
     with open(json_file, 'r') as f:
         return json.load(f)
 
-def initialize_logger(args):
-    # Create logger
-    logging.basicConfig(filename=args.log, filemode='w', level=args.loglevel,
-                        format='%(asctime)s[%(levelname).1s] %(funcName)s: %(message)s', datefmt="%Y%m%dT%H%M%S")
 
-    logging.info('Model : {:s}'.format(repr(args.modeldir)))
-    logging.info('Source: {:s}'.format(repr(args.src)))
+def cmdline_parser(parser=None):
 
-    if args.raw_outputs_dir:
-        logging.info('Raw Output: {:s}'.format(repr(args.raw_outputs_dir)))
+    if parser is None:
+        parser = argparse.ArgumentParser(
+            prog='koogu.recognize', allow_abbrev=False,
+            description='Perform recognition using a trained model.')
 
-    if args.proc_outputs_dir:
-        logging.info('Processed Output: {:s}'.format(repr(args.proc_outputs_dir)))
+    parser.add_argument(
+        'modeldir', metavar='<MODEL DIR>',
+        help='Path to the directory containing a model trained with Koogu.')
+    parser.add_argument(
+        'src', metavar='<AUDIO SOURCE>',
+        help='Path to an audio file or to a directory. When a directory is '
+             'provided, all files (of the supported types) within the directory'
+             ' will be processed (use the --recursive flag to also process '
+             'subdirectories).')
+    parser.add_argument(
+        'dst', metavar='<OUTPUT ROOT>',
+        help='Path to directory into which detection outputs will be written. '
+             'If necessary, subdirectories will be automatically created.')
 
-        if args.reject_class is not None:
-            logging.info('Reject class: {:s}'.format(
-                repr([rc for rc in args.reject_class])))
-
-        if args.threshold is not None:
-            logging.info('Threshold: {:f}'.format(args.threshold))
-
-        if args.scale_scores is not None and args.scale_scores:
-            logging.info('Scale scores: True')
-
-        if args.top is not None and args.top:
-            logging.info('Postprocessing algorithm: Top class')
-        elif args.squeeze is not None:
-            logging.info('Postprocessing algorithm: Squeeze (MIN-DUR = {:f} s)'.format(args.squeeze))
-        elif args.top_squeeze is not None:
-            logging.info('Postprocessing algorithm: Top class, Squeeze (MIN-DUR = {:f} s)'.format(args.top_squeeze))
-        else:
-            logging.info('Postprocessing algorithm: Default')
-
-
-if __name__ == '__main__':
-
-    parser = argparse.ArgumentParser(prog=_program_name, allow_abbrev=False,
-                                     description='Make inferences using a trained model.')
-    parser.add_argument('modeldir', metavar='<MODEL DIR>',
-                        help='Path to the directory containing a TensorFlow exported model.')
-    parser.add_argument('src', metavar='<AUDIO SOURCE>',
-                        help='Path to either a single audio file or to a directory. When a directory, all files of ' +
-                             'the supported filetypes within the specified directory will be processed (use the ' +
-                             '--recursive flag to process subdirectories as well).')
     arg_group_in_ctrl = parser.add_argument_group('Input control')
-    arg_group_in_ctrl.add_argument('--filetypes', metavar='EXTN', nargs='+',
-                                   default=AudioFileList.default_audio_filetypes,
-                                   help='Audio file types to restrict processing to. Option is ignored if processing ' +
-                                        'a single file. Can specify multiple types separated by whitespaces. By ' +
-                                        'default, will include for processing all discovered files with ' +
-                                        'the following extensions: ' + ', '.join(AudioFileList.default_audio_filetypes))
-    arg_group_in_ctrl.add_argument('--recursive', action='store_true',
-                                   help='Process files also in subdirectories of <AUDIO_SOURCE>.')
-    arg_group_in_ctrl.add_argument('--channels', metavar='#', nargs='+', type=ArgparseConverters.all_or_posint,
-                                   help='Channels to restrict processing to. List out the desired channel indices, ' +
-                                        'separated with whitespaces. If unspecified, all available channels will be' +
-                                        'processed. Channel indices must be 0-based.')
-    arg_group_in_ctrl.add_argument('--clip-advance', metavar='SEC', dest='clip_advance',
-                                   type=ArgparseConverters.positive_float,
-                                   help='When audio file\'s contents are broken up into clips, by default the amount ' +
-                                        'of overlap between successive clips is determined by the settings that were ' +
-                                        'in place during model training. Use this flag to alter that, by setting a ' +
-                                        'different amount (in seconds) of gap (or advance) between successive clips.')
-    arg_group_type_ctrl = parser.add_argument_group('Output type(s)',
-                                                    description='At least one of these must be specified. If multiple' +
-                                                                ' audio files are to be processed, as many ' +
-                                                                'corresponding output files will be generated, and ' +
-                                                                'necessary subdirectories will be created.')
-    arg_group_type_ctrl.add_argument('--raw-outputs', dest='raw_outputs_dir', metavar='DIR',
-                                     help='If set, raw outputs from the model will be written out into the specified ' +
-                                          'directory.')
-    arg_group_type_ctrl.add_argument('--processed-outputs', dest='proc_outputs_dir', metavar='DIR',
-                                     help='If set, processed recognition results (Raven selection tables) will be ' +
-                                          'written out into the specified directory. Use options under \'Output ' +
-                                          'control\' and \'Post-process control\' for further control.')
-    arg_group_out_ctrl = parser.add_argument_group('Output control',
-                                                   description='These options will have no effect if ' +
-                                                               '--processed-outputs is not specified.')
-    arg_group_out_ctrl.add_argument('--reject-class', dest='reject_class', metavar='CLASS', nargs='+',
-                                    help='Name (case sensitive) of the class (like \'Noise\' or \'Other\') that must ' +
-                                         'be ignored from the recognition results. The corresponding detections will ' +
-                                         'not be written to the output selection tables. Can specify multiple (' +
-                                         'separated by whitespaces).')
-    arg_group_out_ctrl.add_argument('--frequency-info', dest='freq_info', metavar='FILE',
-                                    help='Path to a json file containing a dictionary of per-class frequency bounds. ' +
-                                         'If unspecified, the "Low Frequency (Hz)" and "High Frequency (Hz)" fields ' +
-                                         'in the output table will be the same for all classes.')
-    arg_group_out_ctrl.add_argument('--combine-outputs', dest='combine_outputs', action='store_true',
-                                    help='Enable this to combine recognition results of processing every file within ' +
-                                         'a directory and write them to a single output file. When enabled, the ' +
-                                         'outputs will contain 2 additional fields describing offsets of detections ' +
-                                         'in the corresponding audio files.')
-    arg_group_out_ctrl.add_argument('--threshold', metavar='[0-1]', type=ArgparseConverters.float_0_to_1,
-                                    help='Suppress writing of detections with confidence below this value.')
-    arg_group_postproc = parser.add_argument_group('Post-process control',
-                                                   description='By default, per-class scores from successive clips ' +
-                                                               'are averaged to produce the results. You may choose ' +
-                                                               'from one of the below alternative algorithms instead.' +
-                                                               ' These options will have no effect if ' +
-                                                               '--processed-outputs is not specified.')
-    postproc_mutex_grp = arg_group_postproc.add_mutually_exclusive_group(required=False)
-    postproc_mutex_grp.add_argument('--top', action='store_true',
-                                    help='Same algorithm as default, but only considers the top-scoring class for ' +
-                                         'each clip.')
-    postproc_mutex_grp.add_argument('--squeeze', metavar='MIN-DUR', type=ArgparseConverters.positive_float,
-                                    help='An algorithm \'to squeeze together\' temporally overlapping regions from ' +
-                                         'successive raw detections will be applied. The \'squeezing\' will be ' +
-                                         'restricted to produce detections that are at least \'MIN-DUR\' seconds long' +
-                                         '. MIN-DUR must be smaller than the duration of the model input.')
-    postproc_mutex_grp.add_argument('--top-squeeze', metavar='MIN-DUR', type=ArgparseConverters.positive_float,
-                                    dest='top_squeeze',
-                                    help='Same algorithm as --squeeze, but only considers the top-scoring class from ' +
-                                         'each clip.')
-    arg_group_postproc.add_argument('--scale-scores', dest='scale_scores', action='store_true',
-                                    help='Enable this to scale the raw scores. Use of this setting is most ' +
-                                         'recommended when the output of a model is based on softmax and the model ' +
-                                         'was trained with training data where each input corresponded to a single ' +
-                                         'class.')
-    arg_group_misc = parser.add_argument_group('Miscellaneous')
-    arg_group_misc.add_argument('--fetch-threads', dest='num_fetch_threads', type=ArgparseConverters.positive_integer,
-                                metavar='NUM', default=1,
-                                help='Number of threads that will fetch audio from files in parallel.')
-    arg_group_misc.add_argument('--batch-size', dest='batch_size', type=ArgparseConverters.positive_integer,
-                                metavar='NUM', default=1,
-                                help='Size to batch audio file\'s clips into (default: %(default)d). Increasing this ' +
-                                     'may improve speed on computers with high RAM.')
-    arg_group_misc.add_argument('--show-progress', dest='show_progress', action='store_true',
-                                help='Show progress of processing on screen.')
-    arg_group_logging = parser.add_argument_group('Logging')
-    arg_group_logging.add_argument('--log', metavar='FILE',
-                                   help='Path to file to which logs will be written out.')
-    arg_group_logging.add_argument('--loglevel', choices=['CRITICAL', 'ERROR', 'WARNING', 'INFO', 'DEBUG'],
-                                   default='INFO',
-                                   help='Logging level.')
-    args = parser.parse_args()
+    arg_group_in_ctrl.add_argument(
+        '--filetypes', metavar='EXTN', nargs='+',
+        # default=AudioFileList.default_audio_filetypes,
+        help='Audio file types to restrict processing to. Can specify multiple '
+             'types separated by whitespaces. By default, will process all '
+             'discovered files with the following extensions: [' + ', '.join(
+                 AudioFileList.default_audio_filetypes) +
+             ']. Option is ignored when <AUDIO SOURCE> is a single file.')
+    arg_group_in_ctrl.add_argument(
+        '--recursive', action='store_true',
+        help='Process files also in subdirectories of <AUDIO SOURCE>.')
+    arg_group_in_ctrl.add_argument(
+        '--channels', metavar='#', nargs='+',
+        type=ArgparseConverters.all_or_posint,
+        help='Channels to restrict processing to. List out the desired channel '
+             'indices, separated by whitespaces. If unspecified, all available '
+             'channels will be processed. Channel indices must be 0-based.')
+    arg_group_in_ctrl.add_argument(
+        '--clip-advance', metavar='SECONDS', dest='clip_advance',
+        type=ArgparseConverters.positive_float,
+        help='Override \"clip advance\". When audio files\' contents are broken'
+             ' up into clips, by default the amount of overlap between '
+             'successive clips is determined by the settings that were in place'
+             ' during model training. Use this flag to override that quantity, '
+             'by setting a different amount of advance (in seconds) between '
+             'successive clips.')
 
-    if not os.path.exists(args.src) or not os.path.exists(args.modeldir):
-        print('Error: Invalid model and/or audio path specified', file=sys.stderr)
+    arg_group_out_ctrl = parser.add_argument_group(
+        'Output control',
+        description='Store recognition outputs either as raw per-clip '
+                    'per-class scores (used in assessing model performance), or'
+                    ' apply a threshold followed by a post-processing algorithm'
+                    ' and store results in a format suitable for downstream '
+                    'analyses. For a group of contiguous clips having scores '
+                    '(corresponding to a class) above the specified threshold, '
+                    'the default post-processing algorithm reports a single '
+                    'detection, with the outermost temporal extents of the '
+                    'group and the maximum score among the group as the '
+                    'detection\'s temporal extents and score, respectively.')
+    out_ctrl_mutex_grp = arg_group_out_ctrl.add_mutually_exclusive_group(
+        required=True)
+    out_ctrl_mutex_grp.add_argument(
+        '--raw-scores', dest='raw_scores', action='store_true',
+        help='Option to output raw per-clip per-class recognition scores (only)'
+             ' as is. If set, no post-processing algorithm is applied and all '
+             'other settings within the \'Output control\' group will be '
+             'ignored.')
+    out_ctrl_mutex_grp.add_argument(
+        '--threshold', metavar='#', type=ArgparseConverters.float_0_to_1,
+        help='Suppress detections having scores below this value (valid range: '
+             '0.0-1.0). If set, a post-processing algorithm will be applied.')
+    arg_group_out_ctrl.add_argument(
+        '--reject-class', dest='reject_class', metavar='CLASS', nargs='+',
+        help='Name (case sensitive) of the class (like \'Noise\' or \'Other\') '
+             'that must be excluded from the recognition results. Can specify '
+             'multiple (separated by whitespaces).')
+    arg_group_out_ctrl.add_argument(
+        '--squeeze', metavar='MIN-DUR', type=ArgparseConverters.positive_float,
+        help='If specified, will apply (the non-default) algorithm which \''
+             'squeezes together\' successive detections from temporally '
+             'overlapping clips. The \'squeezing\' will be restricted to '
+             'produce detections which are at least \'MIN-DUR\' seconds long. '
+             'MIN-DUR amount specified must be smaller than the duration of '
+             'the model\'s input.')
+    arg_group_out_ctrl.add_argument(
+        '--frequency-info', dest='freq_info', metavar='FILE',
+        help='Path to a json file containing a dictionary of per-class '
+             'frequency bounds. If unspecified, corresponding fields in the '
+             'outputs (if applicable) will be the same for all classes.')
+    arg_group_out_ctrl.add_argument(
+        '--raven-combine-outputs', dest='raven_combine_outputs',
+        action='store_true',
+        help='Enable this to combine recognition results of processing every '
+             'file within a directory and write them to a single Raven '
+             'selection table file. When enabled, the outputs will contain 2 '
+             'additional fields describing offsets of detections in the '
+             'corresponding audio files.')
+
+    arg_group_prctrl = parser.add_argument_group('Process control')
+    arg_group_prctrl.add_argument(
+        '--threads', dest='num_fetch_threads', metavar='NUM', default=1,
+        type=ArgparseConverters.positive_integer,
+        help='Number of threads that will fetch audio from files in parallel.')
+    arg_group_prctrl.add_argument(
+        '--batch-size', dest='batch_size', metavar='NUM', default=1,
+        type=ArgparseConverters.positive_integer,
+        help='Size to batch audio file\'s clips into (default: %(default)d). '
+             'Increasing this may improve speed on computers with higher RAM.')
+    # arg_group_prctrl.add_argument(
+    #     '--show-progress', dest='show_progress', action='store_true',
+    #     help='Show progress of processing on screen.')
+    arg_group_prctrl.set_defaults(show_progress=True)   # Force this
+
+    arg_group_logging = parser.add_argument_group('Logging')
+    arg_group_logging.add_argument(
+        '--log', dest='log_file', metavar='LOGFILE',
+        help='If set, logging will be enabled and written out to the specified '
+             'file.')
+    arg_group_logging.add_argument(
+        '--loglevel', dest='log_level',
+        choices=['CRITICAL', 'ERROR', 'WARNING', 'INFO', 'DEBUG'],
+        default='INFO', help='Logging level.')
+
+    parser.set_defaults(exec_fn=cmdline_recognize)
+
+    return parser
+
+
+def cmdline_recognize(modeldir, src, dst,
+                      raw_scores, threshold,
+                      log_level, log_file=None,
+                      **kwargs):
+    """
+    Functionality invoked via the command-line interface.
+    NOTE: `raw_scores` and `threshold` are mutually exclusive. If `raw_scores`
+          is specified, `threshold` will be ignored.
+    """
+
+    if not os.path.exists(modeldir):
+        print('Error: Invalid model directory path specified', file=sys.stderr)
+        exit(1)
+
+    if not os.path.exists(src):
+        print('Error: Invalid audio path specified', file=sys.stderr)
         exit(2)
 
-    if not (args.raw_outputs_dir or args.proc_outputs_dir):
-        print('Error: At least one of --raw-outputs and --processed-outputs must be specified.')
-        exit(3)
+    os.makedirs(dst, exist_ok=True)
 
-    if args.log is not None:
-        initialize_logger(args)
+    pp_kwargs = dict()
+    if raw_scores:
+        output_dir = None
+        raw_detections_dir = dst
+    else:
+        output_dir = dst
+        raw_detections_dir = None
 
-    optional_args = dict()
-    if args.clip_advance is not None:
-        optional_args['clip_advance'] = args.clip_advance
-    if args.threshold is not None:
-        optional_args['threshold'] = args.threshold
-    if args.recursive is not None:
-        optional_args['recursive'] = args.recursive
-    if args.combine_outputs is not None:
-        optional_args['combine_outputs'] = args.combine_outputs
-    if args.channels is not None:
-        optional_args['channels'] = np.sort(
-            np.unique(args.channels).astype(np.uint32))
-    if args.scale_scores is not None:
-        optional_args['scale_scores'] = args.scale_scores
-    if args.top:
-        optional_args['suppress_nonmax'] = True
-    elif args.squeeze is not None:
-        optional_args['squeeze_detections'] = args.squeeze
-    elif args.top_squeeze is not None:
-        optional_args['suppress_nonmax'] = True
-        optional_args['squeeze_detections'] = args.top_squeeze
-    if args.freq_info is not None:
-        optional_args['frequency_extents'] = _fetch_freq_info(args.freq_info)
-    if args.reject_class is not None:
-        optional_args['reject_class'] = args.reject_class
-    if args.batch_size is not None:
-        optional_args['batch_size'] = args.batch_size
-    if args.num_fetch_threads is not None:
-        optional_args['num_fetch_threads'] = args.num_fetch_threads
-    optional_args['filetypes'] = args.filetypes
-    if args.show_progress is not None:
-        optional_args['show_progress'] = True
+        pp_kwargs['threshold'] = threshold
 
-    recognize(args.modeldir, args.src,
-         args.proc_outputs_dir, args.raw_outputs_dir,
-         **optional_args)
+        # Other 'Output control'/post-processing args
+        val = kwargs.pop('reject_class', None)
+        if val is not None:
+            pp_kwargs['reject_class'] = val
+        val = kwargs.pop('squeeze', None)
+        if val is not None:
+            pp_kwargs['squeeze_detections'] = val
+        val = kwargs.pop('freq_info', None)
+        if val is not None:
+            pp_kwargs['frequency_extents'] = _fetch_freq_info(val)      # TODO: Add try-catch around this
+        val = kwargs.pop('raven_combine_outputs', None)
+        if val is not None:
+            pp_kwargs['combine_outputs'] = val
 
-    if args.log is not None:
+    # 'Input control' args
+    ic_args = dict()
+    val = kwargs.pop('filetypes', None)
+    if val is not None:
+        ic_args['filetypes'] = val
+    val = kwargs.pop('recursive', None)
+    if val is not None:
+        ic_args['recursive'] = val
+    val = kwargs.pop('channels', None)
+    if val is not None:
+        ic_args['channels'] = np.sort(np.unique(val).astype(np.uint32))
+    val = kwargs.pop('clip_advance', None)
+    if val is not None:
+        ic_args['clip_advance'] = val
+
+    # 'Process control' args
+    prc_args = dict()
+    val = kwargs.pop('num_fetch_threads', None)
+    if val is not None:
+        prc_args['num_fetch_threads'] = val
+    val = kwargs.pop('batch_size', None)
+    if val is not None:
+        prc_args['batch_size'] = val
+    val = kwargs.pop('show_progress', None)
+    if val is not None:
+        prc_args['show_progress'] = val
+
+    if log_file is not None:
+        instantiate_logging(log_file, log_level, 'a')
+        logging.info(f'Model: {modeldir}')
+        logging.info(
+            f"{'raw_detections_dir' if raw_scores else 'output_dir'}: {dst}")
+        logging.info(f'Output control: {pp_kwargs}')
+        logging.info(f'Input control: {ic_args}')
+        logging.info(f'Process control: {prc_args}')
+
+    recognize(modeldir, src,
+              output_dir=output_dir, raw_detections_dir=raw_detections_dir,
+              **ic_args,
+              **pp_kwargs,
+              **prc_args)
+
+    if log_file is not None:
         logging.shutdown()
