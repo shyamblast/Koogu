@@ -144,7 +144,7 @@ for ref in repo.remote().refs:
     elif ref != 'HEAD' and ref != 'gh-pages':
         branch_versions.append(ref)
 
-for ver in (main_versions + sorted(branch_versions)[::-1]):
+for ver in (main_versions + sorted(branch_versions)[::-1][:5]):
     html_context['versions'].append(
         (ver, '/{}/{}/{}/'.format(REPO_NAME, current_language, ver))
     )
