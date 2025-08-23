@@ -161,11 +161,6 @@ class Audio2Spectral(tf.keras.layers.Layer):
                 self.mel_filterbank[valid_f_idx_start:
                                     (valid_f_idx_end + 1), :]
 
-    # A constant for converting to dB scale. This includes the "10 * " (the d
-    # part of dB) and the "log10" part. Because TF doesn't have log10, I
-    # obtain log10(val) as tf.log(val) / np.log(10).
-    _db_conversion_constant = (10. / np.log(10.))
-
     @tf.function
     def call(self, inputs, **kwargs):
 
@@ -190,7 +185,10 @@ class Audio2Spectral(tf.keras.layers.Layer):
         if self.spec_settings.tf_rep_type.endswith('_db') or \
            self.spec_settings.tf_rep_type.endswith('_dbfs'):
 
-            convr_const = tf.constant(self._db_conversion_constant,
+            # A constant for converting to dB scale. This includes the "10 * "
+            # (the d part of dB) and the "log10" part. Because TF doesn't have
+            # log10, I obtain log10(val) as tf.log(val) / np.log(10).
+            convr_const = tf.constant((10. / np.log(10.)),
                                       dtype=outputs.dtype)
 
             # Convert to dB scale
