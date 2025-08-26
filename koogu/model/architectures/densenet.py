@@ -188,9 +188,9 @@ class DenseNet(KooguArchitectureBase):
                 if arch_config['compression'] < 1.0:  # compression is enabled
                     num_features = int(
                         arch_config['compression'] *
-                        outputs.get_shape().as_list()[channel_axis])
+                        outputs.shape[channel_axis])
                 else:
-                    num_features = outputs.get_shape().as_list()[channel_axis]
+                    num_features = outputs.shape[channel_axis]
 
                 if arch_config['implicit_pooling']:
                     # Achieve pooling by strided convolutions

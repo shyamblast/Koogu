@@ -3,6 +3,12 @@ import tensorflow as tf
 import abc
 from koogu.data import tf_transformations
 
+try:
+    from keras import ops  # available in TF >= 2.13
+    tf_expand_dims = ops.expand_dims
+except ImportError:
+    tf_expand_dims = tf.expand_dims  # fallback for older TF
+
 
 class BaseArchitecture(metaclass=abc.ABCMeta):
     """
@@ -164,7 +170,7 @@ class KooguArchitectureBase(BaseArchitecture):
 
         if self._is_2d:
             # Add the channel axis
-            outputs = tf.expand_dims(
+            outputs = tf_expand_dims(
                 outputs, axis=3 if self._data_format == 'channels_last' else 1)
 
         # Add preprocessing operations (if any)
@@ -284,7 +290,7 @@ class KooguArchitectureBase(BaseArchitecture):
         f_axis, t_axis = \
             (1, 2) if self._data_format == 'channels_last' else (2, 3)
 
-        feature_dims = inputs.get_shape().as_list()
+        feature_dims = inputs.shape
         outputs = inputs
 
         spatial_dims = np.asarray([feature_dims[f_axis],

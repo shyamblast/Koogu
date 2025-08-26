@@ -458,7 +458,7 @@ class Audio:
         """
 
         # force (retval) to be a 1d array
-        req_chs = np.array(requested_idxs, ndmin=1, copy=False)
+        req_chs = np.asarray(requested_idxs)
 
         valid_mask = req_chs < num_available
 
