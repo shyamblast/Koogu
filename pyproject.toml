@@ -1,0 +1,56 @@
+[build-system]
+requires = ["setuptools>=65.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "koogu"
+dynamic = ["version"]
+
+description = "Machine Learning for Bioacoustics"
+readme = { file = "README.md", content-type = "text/markdown" }
+authors = [
+  { name = "Shyam Madhusudhana", email = "shyam.m@curtin.edu.au" }
+]
+license = "GPL-3.0-or-later"
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.7",
+  "Programming Language :: Python :: 3.8",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Operating System :: OS Independent",
+  "Intended Audience :: Science/Research",
+  "Topic :: Scientific/Engineering",
+  "Topic :: Multimedia :: Sound/Audio :: Analysis"
+]
+requires-python = ">=3.7"
+dependencies = [
+  "numpy",  # Versions tested: 1.21.6 - 2.2.6
+            # But defer to TF's dependency since Koogu is flexible
+  "scipy>=1.7.3,<=1.16.1",
+  "soundfile>=0.12.1,<=0.13.1",
+  "audioread>=3.0.0,<=3.0.1",
+  "resampy>=0.4.2,<=0.4.3",
+  "tensorflow>=2.7.0,<=2.20.0",   # TF-GPU under [optional] below
+]
+
+[tool.setuptools.packages.find]
+include = ["koogu", "koogu.*"]
+
+# --- Dynamic values ---
+[tool.setuptools.dynamic]
+version = { attr = "koogu.__version__" }
+
+[project.optional-dependencies]
+gpu = [
+  # GPU TensorFlow
+  "tensorflow[and-cuda]>=2.7.0,<=2.20.0"
+]
+
+[project.urls]
+Homepage = "https://github.com/shyamblast/Koogu"
+Documentation = "https://shyamblast.github.io/Koogu/"
+

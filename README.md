@@ -14,22 +14,50 @@ The package offers tools for -
 * assessing their performance, and
 * using trained ML models for automating analyses of large datasets.
 
-Installation
-------------
+## Installation
 
-Koogu can be installed, via PyPI, as follows
+Koogu can be installed directly from **PyPI**.
+It supports both **CPU** and **GPU** variants of TensorFlow.
+If you have a compatible GPU, you can install the GPU-enabled variant using the `[gpu]` extra 
+
+### CPU Installation
+
 ```bash
 pip install koogu
 ```
 
+### GPU Installation
+
+```bash
+pip install koogu[gpu]
+```
+
 ### Dependencies
-#### TensorFlow
-`koogu` uses [`TensorFlow`](https://www.tensorflow.org/) as backend ML framework. Please ensure that either a
-CPU or a GPU version of `TensorFlow` is installed prior to installing `koogu`.
-#### SoundFile, audioread, resampy
-`koogu` uses these packages for handling audio files. These dependencies will be automatically installed when installing `koogu`.
-#### Others
-Besides `TensorFlow`, all other dependencies will be automatically installed.
+
+The following dependencies are installed automatically along with Koogu.
+
+- **TensorFlow**  
+  Koogu uses [TensorFlow](https://www.tensorflow.org/) as the ML backend.
+
+- **Audio Libraries**  
+  Koogu relies on the following packages for reading and processing audio:
+  - [soundfile](https://pypi.org/project/soundfile/)
+  - [audioread](https://pypi.org/project/audioread/) (needed for handling mp3 files)
+  - [resampy](https://pypi.org/project/resampy)
+
+### TensorFlow GPU option
+
+Installing Koogu with `[gpu]` installs the TensorFlow variant appropriate for your system as described in the below table.
+
+| Platform            | TensorFlow Version | GPU Option | TensorFlow Resolution                                                                                                                         |
+|---------------------|:------------------:|:----------:|-----------------------------------------------------------------------------------------------------------------------------------------------|
+| **Linux / WSL**     |      \>= 3.14      |   ✅ Yes    | Installation resolves to `tensorflow[and-cuda]` which installs all necessary CUDA support.                                                    |
+| **Linux / WSL**     |       < 3.14       |   ✅ Yes    | Installation falls back to TensorFlow's unified CPU+GPU wheel.<br>👉 The user is responsible for setting up CUDA support in the environment. |
+| **Windows / macOS** |        any         |    ❌ No    | GPU builds not available. CPU-only TensorFlow will be installed.                                                                              |
+
+> ⚠️ Attempts to install with the `[gpu]` extra on Windows/macOS will be ignored and installation falls back to CPU variant.
+
+---
 
 How to use Koogu
 ----------
