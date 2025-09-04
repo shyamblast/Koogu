@@ -105,11 +105,9 @@ class TrainedModel:
 
     def __init__(self, saved_model_dir):
 
-        full_input_dir = os.path.join(saved_model_dir,
-                                      TrainedModel.saved_model_dirname)
-
         # Load model
-        self._loaded_model = tf.saved_model.load(full_input_dir)
+        self._loaded_model = tf.saved_model.load(
+            os.path.join(saved_model_dir, TrainedModel.saved_model_dirname))
 
         self._infer_fns = dict()
         for signature in list(self._loaded_model.signatures.keys()):
@@ -120,18 +118,11 @@ class TrainedModel:
                 infer_fn
 
         # Load assets
-        self._class_names = json.load(
-            open(os.path.join(full_input_dir, TrainedModel.assets_dirname,
-                              AssetsExtraNames.classes_list), 'r'))
-        self._audio_settings = json.load(
-            open(os.path.join(full_input_dir, TrainedModel.assets_dirname,
-                              AssetsExtraNames.audio_settings), 'r'))
-
-        spec_sett_filepath = os.path.join(full_input_dir,
-                                          TrainedModel.assets_dirname,
-                                          AssetsExtraNames.spec_settings)
-        self._spec_settings = None if (not os.path.exists(spec_sett_filepath)) \
-            else json.load(open(spec_sett_filepath, 'r'))
+        self._class_names = TrainedModel.get_model_class_names(saved_model_dir)
+        self._audio_settings = TrainedModel.get_model_audio_settings(
+            saved_model_dir)
+        self._spec_settings = TrainedModel.get_model_spec_settings(
+            saved_model_dir)
 
     def infer(self, inputs):
         """
@@ -181,3 +172,31 @@ class TrainedModel:
         each input.
         """
         return self._class_names
+
+    @classmethod
+    def get_model_class_names(cls, model_dir):
+        return json.load(
+            open(os.path.join(model_dir,
+                              TrainedModel.saved_model_dirname,
+                              TrainedModel.assets_dirname,
+                              AssetsExtraNames.classes_list),
+                 'r'))
+
+    @classmethod
+    def get_model_audio_settings(cls, model_dir):
+        return json.load(
+            open(os.path.join(model_dir,
+                              TrainedModel.saved_model_dirname,
+                              TrainedModel.assets_dirname,
+                              AssetsExtraNames.audio_settings),
+                 'r'))
+
+    @classmethod
+    def get_model_spec_settings(cls, model_dir):
+        spec_sett_filepath = os.path.join(
+            model_dir,
+            TrainedModel.saved_model_dirname,
+            TrainedModel.assets_dirname,
+            AssetsExtraNames.spec_settings)
+        return None if (not os.path.exists(spec_sett_filepath)) \
+            else json.load(open(spec_sett_filepath, 'r'))
