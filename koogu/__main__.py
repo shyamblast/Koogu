@@ -1,5 +1,5 @@
 import argparse
-from . import explore, prepare, train_and_eval, inference, assess, export
+from . import explore, prepare, train_and_eval, inference, test, assess, export
 
 
 def cmdline_parser():
@@ -30,6 +30,11 @@ def cmdline_parser():
         'train',
         help='Train a model using prepared inputs.')
     train_and_eval.cmdline_parser(cmd_train)
+
+    cmd_test = subparsers.add_parser(
+        'test',
+        help='Test a trained model using the test dataset.')
+    test.cmdline_parser(cmd_test)
 
     cmd_assess = subparsers.add_parser(
         'assess',

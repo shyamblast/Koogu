@@ -1,6 +1,6 @@
 import os
 import numpy as np
-from koogu import prepare, train, recognize, assessments
+from koogu import prepare, train, test, recognize, assessments
 from koogu.data.feeder import SpectralDataFeeder
 from koogu.model import architectures
 from tests.data import narw_dclde_selmap_train, narw_dclde_selmap_test
@@ -100,12 +100,14 @@ def test_all_stages(dataroot, outputroot):
 
     # Perform testing
     os.makedirs(dets_dir, exist_ok=True)
-    recognize(
+    test.from_annotations(
         model_dir,
+        narw_dclde_selmap_test,
         os.path.join(dataroot, 'narw_dclde', 'test_audio'),
-        raw_detections_dir=os.path.join(dets_dir, 'raw'),
+        os.path.join(dataroot, 'narw_dclde', 'test_annotations'),
+        os.path.join(dets_dir, 'raw'),
         batch_size=128,
-        recursive=True,
+        negative_class_label='Other',
         clip_advance=0.25
     )
 

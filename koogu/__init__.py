@@ -4,4 +4,4 @@ from .utils import assessments
 
 __version__ = '0.8.0-alpha'
 
-__all__ = ['prepare', 'train', 'recognize', 'assessments']
+__all__ = ['prepare', 'train', 'test', 'recognize', 'assessments']

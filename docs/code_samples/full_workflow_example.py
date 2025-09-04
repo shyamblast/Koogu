@@ -1,6 +1,6 @@
 from koogu.data import feeder
 from koogu.model import architectures
-from koogu import prepare, train, assessments, recognize
+from koogu import prepare, train, test, assessments, recognize
 
 from matplotlib import pyplot as plt           # used for plotting graphs
 
@@ -136,12 +136,13 @@ test_audio_annot_list = [
 raw_detections_root = '/home/shyam/projects/NARW/test_audio_raw_detections'
 
 # Run the model (detector/classifier)
-recognize(
+test.from_annotations(
     model_dir,
+    test_audio_annot_list,
     test_audio_root,
-    raw_detections_dir=raw_detections_root,
+    test_annots_root,
+    raw_detections_root,
     batch_size=64,     # Increasing this may improve speed if there's enough RAM
-    recursive=True,    # Process subdirectories also
     show_progress=True
 )
 # [testing_model--end]

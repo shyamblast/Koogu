@@ -10,16 +10,22 @@ koogu
 .. toctree::
    :titlesonly:
 
-   train <training>
+   train() <training>
 
 
 .. toctree::
-   :titlesonly:
+   :maxdepth: 2
 
-   recognize <inference>
+   test <test>
 
 
 .. toctree::
    :maxdepth: 2
 
    assessments <assessments>
+
+
+.. toctree::
+   :titlesonly:
+
+   recognize() <inference>
