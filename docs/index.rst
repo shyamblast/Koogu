@@ -88,7 +88,7 @@ available computational resources.
 .. toctree::
    :hidden:
    
-   quickstart
+   quickstart/index
 
 .. toctree::
    :hidden:

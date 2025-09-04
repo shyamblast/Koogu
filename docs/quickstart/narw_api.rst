@@ -1,45 +1,12 @@
-Quick-start guide
-=================
-
-We present here a recipe for a full bioacoustics ML workflow, from data
-pre-processing to training, to performance assessments, and finally, to
-using a trained model for analyzing soundscape/field recordings.
-
-As an example, we considered the North Atlantic Right Whale (NARW) up-call dataset
-from the `DCLDE 2013 challenge
-<https://doi.org/10.17630/62c3eebc-5574-4ec0-bfef-367ad839fe1a>`_. The dataset
-contained 7 days of round-the-clock recordings out of which recordings from the
-first 4 days were earmarked as a *training set* and recordings from the remaining
-3 days were set aside as a *test set*. Each audio file was 15 minutes in
-duration, and files from each day were organized in day-specific subdirectories.
-The original dataset contained annotations in the legacy Xbat format, which we
-converted to `RavenPro <https://ravensoundsoftware.com/software/raven-pro/>`_
-selection table format for compatibility with Koogu. A sample of the dataset,
-with converted annotations, can be accessed `here
-<https://tinyurl.com/koogu-demo-data>`_.
-
-You may test the below code snippets yourself, using the sample dataset. Once, you
-have it working, you could modify the program to suit your own dataset.
-
-The code sections below expect the training and test audio files and corresponding
-annotation files to be organized in a directory structure as shown below:
-
-.. code-block:: none
-
-  📁 projects
-  └─ 📁 NARW
-     └─ 📁 data
-        ├─ 📁 train_audio
-        ├─ 📁 train_annotations
-        ├─ 📁 test_audio
-        └─ 📁 test_annotations
+Quickstart: API Workflow
+========================
 
 Imports
 -------
 
 First, import the necessary modules and functions from the Koogu package.
 
-.. literalinclude:: code_samples/full_workflow_example.py
+.. literalinclude:: ../code_samples/full_workflow_example.py
    :end-before: [train_data--start]
    :linenos:
    :lineno-match:
@@ -52,7 +19,7 @@ Point out where to fetch the training dataset from.
 We also need to specify which annotation files correspond to which audio files
 (or, in this example, to sub-directories containing a collection of files).
 
-.. literalinclude:: code_samples/full_workflow_example.py
+.. literalinclude:: ../code_samples/full_workflow_example.py
    :start-after: [train_data--start]
    :end-before: [train_data--end]
    :linenos:
@@ -61,7 +28,7 @@ We also need to specify which annotation files correspond to which audio files
 Define parameters for preparing training audio, and for converting them to
 spectrograms.
 
-.. literalinclude:: code_samples/full_workflow_example.py
+.. literalinclude:: ../code_samples/full_workflow_example.py
    :start-after: [data_settings--start]
    :end-before: [data_settings--end]
    :linenos:
@@ -81,7 +48,7 @@ only a small number of) missed calls. As such, we can consider all un-annotated
 time periods in the recordings as inputs for the *negative* class (by setting the
 parameter ``negative_class_label``).
 
-.. literalinclude:: code_samples/full_workflow_example.py
+.. literalinclude:: ../code_samples/full_workflow_example.py
    :start-after: [preprocess--start]
    :end-before: [preprocess--end]
    :linenos:
@@ -99,7 +66,7 @@ parameter ``negative_class_label``).
 
 You can check how many clips were generated for each class -
 
-.. literalinclude:: code_samples/full_workflow_example.py
+.. literalinclude:: ../code_samples/full_workflow_example.py
    :start-after: [preprocess_output--start]
    :end-before: [preprocess_output--end]
    :linenos:
@@ -118,7 +85,7 @@ that the mechanism to feed the training data doesn't keep the GPUs waiting for
 inputs. The feeders provided in Koogu utilize all available CPU cores to ensure
 that GPU utilization remains high during training.
 
-.. literalinclude:: code_samples/full_workflow_example.py
+.. literalinclude:: ../code_samples/full_workflow_example.py
    :start-after: [feeder--start]
    :end-before: [feeder--end]
    :linenos:
@@ -127,20 +94,20 @@ that GPU utilization remains high during training.
 The considered sample dataset contains very many annotated calls, covering a
 reasonable range of input variations. As such, in this example we do not employ
 any data augmentation techniques. However, you could easily add some of the
-pre-canned :doc:`data augmentations <advanced/data_augmentation>` when you
+pre-canned :doc:`data augmentations <../advanced/data_augmentation>` when you
 adopt this example to work with your dataset.
 
 2. Training
 -----------
 First, describe the architecture of the model that is to be used. With Koogu,
 you do not need to write lot's of code to build custom models; simply chose an
-exiting/available architecture (e.g., ConvNet, DenseNet) and specify how you'd
+existing/available architecture (e.g., ConvNet, DenseNet) and specify how you'd
 want it customized.
 
 In this example, we use a light-weight custom
 :class:`~koogu.model.architectures.DenseNet` architecture.
 
-.. literalinclude:: code_samples/full_workflow_example.py
+.. literalinclude:: ../code_samples/full_workflow_example.py
    :start-after: [model_setup--start]
    :end-before: [model_setup--end]
    :linenos:
@@ -151,7 +118,7 @@ regularization settings, by setting appropriate values in the Python
 dictionary that is input to :func:`~koogu.train`. See the function API
 documentation for all available options.
 
-.. literalinclude:: code_samples/full_workflow_example.py
+.. literalinclude:: ../code_samples/full_workflow_example.py
    :start-after: [training--start]
    :end-before: [training--end]
    :linenos:
@@ -160,7 +127,7 @@ documentation for all available options.
 You can visualize how well the training progressed by plotting the contents of
 the ``history`` variable returned.
 
-.. literalinclude:: code_samples/full_workflow_example.py
+.. literalinclude:: ../code_samples/full_workflow_example.py
    :start-after: [training_output--start]
    :end-before: [training_output--end]
    :linenos:
@@ -183,30 +150,33 @@ files to audio files), we also need to specify which test annotation files
 correspond to which test audio files (or, in this example, to sub-directories
 containing a collection of test files).
 
-.. literalinclude:: code_samples/full_workflow_example.py
+.. literalinclude:: ../code_samples/full_workflow_example.py
    :start-after: [test_data--start]
    :end-before: [test_data--end]
    :linenos:
    :lineno-match:
 
-Now apply the trained model to this test dataset. During testing, it is useful
-to save raw per-clip recognition scores which can be subsequently analyzed for
-assessing the model’s recognition performance.
+Now apply the trained model to this test dataset. This step saves raw per-clip
+recognition scores which can be subsequently analyzed for assessing the model’s
+recognition performance.
 
-.. literalinclude:: code_samples/full_workflow_example.py
+.. literalinclude:: ../code_samples/full_workflow_example.py
    :start-after: [testing_model--start]
    :end-before: [testing_model--end]
    :linenos:
    :lineno-match:
 
-The :func:`~koogu.recognize` function supports many customizations.
-See function API documentation for more details.
+.. seealso::
+   If your project does not have annotations, but you have audio files corresponding
+   to each species/call type organized under separate directories, you can test
+   the model using :func:`~koogu.test.from_top_level_dirs` instead of
+   :func:`~koogu.test.from_annotations`.
 
 3.2. Determine performance
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 Now, compute performance metrics.
 
-.. literalinclude:: code_samples/full_workflow_example.py
+.. literalinclude:: ../code_samples/full_workflow_example.py
    :start-after: [assess_perf--start]
    :end-before: [assess_perf--end]
    :linenos:
@@ -214,7 +184,7 @@ Now, compute performance metrics.
 
 And, visualize the assessments.
 
-.. literalinclude:: code_samples/full_workflow_example.py
+.. literalinclude:: ../code_samples/full_workflow_example.py
    :start-after: [plot_test_results--start]
    :end-before: [plot_test_results--end]
    :linenos:
@@ -241,13 +211,13 @@ In this mode, automatic recognition results are written out in `Raven Pro
 after applying an algorithm to group together detections of the same class across
 contiguous clips.
 
-.. literalinclude:: code_samples/full_workflow_example.py
+.. literalinclude:: ../code_samples/full_workflow_example.py
    :start-after: [batch_analyze--start]
    :end-before: [batch_analyze--end]
    :linenos:
    :lineno-match:
 
-The :func:`~koogu.recognize` function supports many customizations.
+The :func:`~koogu.inference.recognize` function supports many customizations.
 See function API documentation for more details.
 
 .. _custom_inferences:
@@ -262,9 +232,9 @@ trained model via an additional interface in which you implement the task of
 preparing the data (breaking up into clips) in the format that a model expects.
 Then, you simply pass the clips to :func:`~koogu.inference.analyze_clips`.
 
-.. literalinclude:: code_samples/full_workflow_example.py
+.. literalinclude:: ../code_samples/full_workflow_example.py
    :start-after: [clip_analyze--start]
    :end-before: [clip_analyze--end]
 
 .. seealso::
-   :doc:`api/misc/low_inference`
+   :doc:`../api/misc/low_inference`
