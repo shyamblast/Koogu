@@ -383,3 +383,12 @@ def cmdline_prepare(cfg_file, log_level, num_threads=None, **kwargs):
                 **other_args)
 
     logging.shutdown()
+
+
+def main():
+    # for setting up script entry point
+
+    args = cmdline_parser().parse_args()
+
+    args.exec_fn(**{k: getattr(args, k)
+                    for k in vars(args) if k != 'exec_fn'})

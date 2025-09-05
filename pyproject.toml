@@ -54,3 +54,12 @@ gpu = [
 Homepage = "https://github.com/shyamblast/Koogu"
 Documentation = "https://shyamblast.github.io/Koogu/"
 
+[project.scripts]
+koogu-explore = "koogu.explore:main"
+koogu-prepare = "koogu.prepare:main"
+koogu-train = "koogu.train_and_eval:main"
+koogu-test = "koogu.test:main"
+koogu-assess = "koogu.assess:main"
+koogu-recognize = "koogu.inference:main"
+koogu-export = "koogu.export:main"
+

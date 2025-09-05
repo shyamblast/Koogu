@@ -286,3 +286,12 @@ def _save_html(result_file, thresholds, overall_pr, per_class_pr):
 </body>
 </html>
         """)
+
+
+def main():
+    # for setting up script entry point
+
+    args = cmdline_parser().parse_args()
+
+    args.exec_fn(**{k: getattr(args, k)
+                    for k in vars(args) if k != 'exec_fn'})
