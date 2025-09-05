@@ -319,7 +319,12 @@ def recognize(model_dir, audio_root,
         output_executor_future = None
         raven_writer = Raven.Writer(write_frequencies=True, add_score=True)
 
-    if not os.path.isdir(audio_root):     # Single file input
+    if 'src_generator' in kwargs:   # Undocumented argument. Used by koogu-test
+        # Plug the generator, joining paths
+        src_generator = (os.path.join(audio_root, src)
+                         for src in kwargs['src_generator'])
+
+    elif not os.path.isdir(audio_root):     # Single file input
         src_generator = [audio_root]  # turn it into a list
 
         # No need of fields describing offsets of detections
