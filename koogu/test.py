@@ -260,8 +260,8 @@ def cmdline_parser(parser=None):
     arg_group_logging = parser.add_argument_group('Logging')
     arg_group_logging.add_argument(
         '--log', dest='log_file', metavar='LOGFILE',
-        help='If set, logging will be enabled and written out to the specified '
-             'file.')
+        help='If specified, logging will be written out to this file instead of'
+             ' the default. (Default: <PROJECT-LOGS-DIR>/test.log)')
     arg_group_logging.add_argument(
         '--loglevel', dest='log_level',
         choices=['CRITICAL', 'ERROR', 'WARNING', 'INFO', 'DEBUG'],
@@ -301,9 +301,10 @@ def cmdline_test(cfg_file, model_name, log_level,
               file=sys.stderr)
         exit(1)
 
-    if cfg.paths.logs is not None:
-        instantiate_logging(os.path.join(cfg.paths.logs, 'test.log'),
-                            log_level, 'a')
+    logfile = kwargs.pop('log_file', None) or os.path.join(cfg.paths.logs,
+                                                           'test.log')
+    instantiate_logging(logfile, log_level, 'a')
+
     logger = logging.getLogger(__name__)
 
     logger.info(f'Model name: {model_name}')
@@ -375,5 +376,4 @@ def cmdline_test(cfg_file, model_name, log_level,
             **recog_kwargs
         )
 
-    if cfg.paths.logs is not None:
-        logging.shutdown()
+    logging.shutdown()

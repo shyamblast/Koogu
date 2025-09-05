@@ -1,11 +1,13 @@
 import os
 import sys
 import argparse
+import logging
 import warnings
 import json
 from .data import annotations
 from .utils.config import Config, ConfigError
 from .utils.assessments import PrecisionRecall
+from .utils import instantiate_logging
 
 
 __all__ = []
@@ -38,12 +40,23 @@ def cmdline_parser(parser=None):
 
     # TODO: Add include_reject_class_perf to the above group
 
+    arg_group_logging = parser.add_argument_group('Logging')
+    arg_group_logging.add_argument(
+        '--log', dest='log_file', metavar='LOGFILE',
+        help='If specified, logging will be written out to this file instead of'
+             ' the default. (Default: <PROJECT-LOGS-DIR>/assess.log)')
+    arg_group_logging.add_argument(
+        '--loglevel', dest='log_level',
+        choices=['CRITICAL', 'ERROR', 'WARNING', 'INFO', 'DEBUG'],
+        default='INFO', help='Logging level.')
+
     parser.set_defaults(exec_fn=cmdline_assess_performance)
 
     return parser
 
 
-def cmdline_assess_performance(cfg_file, model_name, result_file, assess_raw):
+def cmdline_assess_performance(cfg_file, model_name, result_file, assess_raw,
+                               log_level, **kwargs):
     """Functionality invoked via the command-line interface"""
 
     # Load config
@@ -117,6 +130,14 @@ def cmdline_assess_performance(cfg_file, model_name, result_file, assess_raw):
     else:
         result_type = rf_ext[1:]
 
+    logfile = kwargs.pop('log_file', None) or os.path.join(cfg.paths.logs,
+                                                           'assess.log')
+    instantiate_logging(logfile, log_level, 'a')
+
+    logger = logging.getLogger(__name__)
+
+    logger.info(f'Model name: {model_name}')
+
     # Assess
     per_class_pr, overall_pr = PrecisionRecall(
         cfg.paths.test_audio_annotations_map,
@@ -135,6 +156,8 @@ def cmdline_assess_performance(cfg_file, model_name, result_file, assess_raw):
     elif result_type in ['html', 'htm']:
         _save_html(result_file, other_pr_kwargs['thresholds'],
                    overall_pr, per_class_pr)
+
+    logging.shutdown()
 
 
 def _save_json(result_file, thresholds, overall_pr, per_class_pr):

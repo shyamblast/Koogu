@@ -317,6 +317,10 @@ def cmdline_parser(parser=None):
 
     arg_group_logging = parser.add_argument_group('Logging')
     arg_group_logging.add_argument(
+        '--log', dest='log_file', metavar='LOGFILE',
+        help='If specified, logging will be written out to this file instead of'
+             ' the default. (Default: <PROJECT-LOGS-DIR>/train.log)')
+    arg_group_logging.add_argument(
         '--loglevel', dest='log_level',
         choices=['CRITICAL', 'ERROR', 'WARNING', 'INFO', 'DEBUG'],
         default='INFO', help='Logging level.')
@@ -329,8 +333,8 @@ def cmdline_parser(parser=None):
 def cmdline_train(cfg_file, model_name, log_level,
                   random_state_seed=None,
                   # Other overriding parameters not available via cmdline
-                  data_feeder=None
-                  ):
+                  data_feeder=None,
+                  **kwargs):
     """Functionality invoked via the command-line interface"""
 
     # Load config
@@ -351,9 +355,9 @@ def cmdline_train(cfg_file, model_name, log_level,
         print('Error: Invalid path specified in train_audio', file=sys.stderr)
         exit(2)
 
-    if cfg.paths.logs is not None:
-        instantiate_logging(os.path.join(cfg.paths.logs, 'train.log'),
-                            log_level, 'a')
+    logfile = kwargs.pop('log_file', None) or os.path.join(cfg.paths.logs,
+                                                           'train.log')
+    instantiate_logging(logfile, log_level, 'a')
 
     logger = logging.getLogger(__name__)
 
@@ -411,7 +415,6 @@ def cmdline_train(cfg_file, model_name, log_level,
         random_seed=random_state_seed
     )
 
-    if cfg.paths.logs is not None:
-        logging.shutdown()
+    logging.shutdown()
 
     print(f'Trained model "{model_name}" saved at {cfg.paths.model}')

@@ -270,6 +270,10 @@ def cmdline_parser(parser=None):
 
     arg_group_logging = parser.add_argument_group('Logging')
     arg_group_logging.add_argument(
+        '--log', dest='log_file', metavar='LOGFILE',
+        help='If specified, logging will be written out to this file instead of'
+             ' the default. (Default: <PROJECT-LOGS-DIR>/prepare.log)')
+    arg_group_logging.add_argument(
         '--loglevel', dest='log_level',
         choices=['CRITICAL', 'ERROR', 'WARNING', 'INFO', 'DEBUG'],
         default='INFO', help='Logging level.')
@@ -303,9 +307,9 @@ def cmdline_prepare(cfg_file, log_level, num_threads=None, **kwargs):
     if num_threads is not None:
         other_args['num_threads'] = num_threads
 
-    if cfg.paths.logs is not None:
-        instantiate_logging(os.path.join(cfg.paths.logs, 'prepare.log'),
-                            log_level)
+    logfile = kwargs.pop('log_file', None) or os.path.join(cfg.paths.logs,
+                                                           'prepare.log')
+    instantiate_logging(logfile, log_level)
 
     if cfg.paths.train_audio_annotations_map is not None:
         # train_audio_annotations_map is given
@@ -378,5 +382,4 @@ def cmdline_prepare(cfg_file, log_level, num_threads=None, **kwargs):
                 cfg.paths.prepared_training_samples,
                 **other_args)
 
-    if cfg.paths.logs is not None:
-        logging.shutdown()
+    logging.shutdown()
