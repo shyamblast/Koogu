@@ -257,16 +257,16 @@ def cmdline_parser(parser=None):
 
     if parser is None:
         parser = argparse.ArgumentParser(
-            prog='koogu.export',
+            prog='koogu-export',
             description='Export trained model for use with other software.')
 
     parser.add_argument(
         'cfg_file', metavar='<CONFIG FILE>',
         help='Path to config file.')
     parser.add_argument(
-        '--model', dest='model_name', metavar='<MODEL>',
-        help='Directory name of a trained model instance. If unspecified, '
-             'the latest trained model will be exported.')
+        'model_name', metavar='<MODEL NAME>',
+        help='Name of the trained model instance.')
+
     parser.add_argument(
         '--prefix', dest='output_prefix', metavar='<PREFIX>',
         help='String prefix to be added to the output directory/file name.')

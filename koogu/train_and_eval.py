@@ -5,16 +5,13 @@ import logging
 from tensorflow.python.client import device_lib
 import argparse
 import json
-from datetime import datetime
 
-from koogu.model import architectures, TrainedModel
-from koogu.data import feeder
-from koogu.utils import instantiate_logging
-from koogu.utils.terminal import ArgparseConverters
-from koogu.utils.config import Config, ConfigError
+from .model import architectures, TrainedModel
+from .data import feeder
+from .utils import instantiate_logging
+from .utils.terminal import ArgparseConverters
+from .utils.config import Config, ConfigError
 
-
-_program_name = 'train_and_eval'
 
 
 def train_and_eval(data_feeder, model_dir,
@@ -304,22 +301,20 @@ def cmdline_parser(parser=None):
 
     if parser is None:
         parser = argparse.ArgumentParser(
-            prog='koogu.train', allow_abbrev=True,
+            prog='koogu-train', allow_abbrev=True,
             description='Train a model using prepared inputs.')
 
     parser.add_argument(
         'cfg_file', metavar='<CONFIG FILE>',
         help='Path to config file.')
+    parser.add_argument(
+        'model_name', metavar='<MODEL NAME>', type=str,
+        help='An identifier (name) for the model to be trained.')
 
     parser.add_argument(
         '--seed', dest='random_state_seed',
         type=ArgparseConverters.positive_integer, metavar='NUM',
         help='Seed value (integer) for deterministic shuffling.')
-    parser.add_argument(
-        '--model_name', dest='model_name',
-        type=str, metavar='NUM',
-        help='Name of the trained model. Output directory will be given this '
-             'name.')
 
     arg_group_logging = parser.add_argument_group('Logging')
     arg_group_logging.add_argument(
@@ -332,8 +327,8 @@ def cmdline_parser(parser=None):
     return parser
 
 
-def cmdline_train(cfg_file, log_level,
-                  model_name=None, random_state_seed=None,
+def cmdline_train(cfg_file, model_name, log_level,
+                  random_state_seed=None,
                   # Other overriding parameters not available via cmdline
                   data_feeder=None
                   ):
@@ -361,12 +356,8 @@ def cmdline_train(cfg_file, log_level,
         instantiate_logging(os.path.join(cfg.paths.logs, 'train.log'),
                             log_level, 'a')
 
-    exit_code = 0
-
     logger = logging.getLogger(__name__)
 
-    if model_name is None or model_name == '':
-        model_name = datetime.now().strftime('%Y%m%dT%H%M%S')
     logger.info(f'Model name: {model_name}')
 
     spec_settings = cfg.data.spec.as_dict(skip_invalid=True)
@@ -425,5 +416,3 @@ def cmdline_train(cfg_file, log_level,
         logging.shutdown()
 
     print(f'Trained model "{model_name}" saved at {cfg.paths.model}')
-
-    exit(exit_code)

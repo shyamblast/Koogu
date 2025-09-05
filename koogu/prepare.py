@@ -245,7 +245,7 @@ def cmdline_parser(parser=None):
 
     if parser is None:
         parser = argparse.ArgumentParser(
-            prog='koogu.prepare', allow_abbrev=True,
+            prog='koogu-prepare', allow_abbrev=True,
             description='Prepare audio data for training.')
 
     parser.add_argument(
@@ -297,8 +297,6 @@ def cmdline_prepare(cfg_file, log_level, num_threads=None):
     if cfg.paths.logs is not None:
         instantiate_logging(os.path.join(cfg.paths.logs, 'prepare.log'),
                             log_level)
-
-    exit_code = 0
 
     if cfg.paths.train_audio_annotations_map is not None:
         # train_audio_annotations_map is given
@@ -356,21 +354,18 @@ def cmdline_prepare(cfg_file, log_level, num_threads=None):
         except FileNotFoundError as exc:
             print(f'Error reading source directory: {exc.strerror}',
                   file=sys.stderr)
-            exit_code = exc.errno
+            exit(exc.errno)
+
+        if len(class_dirs) == 0:
+            print('No classes to process.')
+
         else:
-
-            if len(class_dirs) == 0:
-                print('No classes to process.')
-
-            else:
-                from_top_level_dirs(
-                    cfg.data.audio.as_dict(),
-                    class_dirs,
-                    cfg.paths.train_audio,
-                    cfg.paths.prepared_training_samples,
-                    **other_args)
+            from_top_level_dirs(
+                cfg.data.audio.as_dict(),
+                class_dirs,
+                cfg.paths.train_audio,
+                cfg.paths.prepared_training_samples,
+                **other_args)
 
     if cfg.paths.logs is not None:
         logging.shutdown()
-
-    exit(exit_code)

@@ -15,13 +15,15 @@ def cmdline_parser(parser=None):
 
     if parser is None:
         parser = argparse.ArgumentParser(
-            prog='koogu.assess', allow_abbrev=False,
+            prog='koogu-assess', allow_abbrev=False,
             description='Assess recognition performance of trained model.')
 
     parser.add_argument(
         'cfg_file', metavar='<CONFIG FILE>',
         help='Path to config file.')
-
+    parser.add_argument(
+        'model_name', metavar='<MODEL NAME>',
+        help='Name of the trained model.')
     parser.add_argument(
         'result_file', metavar='<RESULT FILE>',
         help='Path to output file where results are to be written. Results can '
@@ -41,7 +43,7 @@ def cmdline_parser(parser=None):
     return parser
 
 
-def cmdline_assess_performance(cfg_file, result_file, assess_raw):
+def cmdline_assess_performance(cfg_file, model_name, result_file, assess_raw):
     """Functionality invoked via the command-line interface"""
 
     # Load config
@@ -56,6 +58,12 @@ def cmdline_assess_performance(cfg_file, result_file, assess_raw):
     except Exception as exc:
         print(f'Error processing config file: {repr(exc)}', file=sys.stderr)
         exit(1)
+
+    detections_dir = os.path.join(cfg.paths.test_detections, model_name)
+    if not os.path.isdir(detections_dir):
+        print(f'Error: Couldn\'t find raw detections at "{detections_dir}". '
+              'Have you run koogu-test yet?')
+        exit(2)
 
     other_pr_kwargs = dict()
     other_pr_kwargs['thresholds'] = \
@@ -112,7 +120,7 @@ def cmdline_assess_performance(cfg_file, result_file, assess_raw):
     # Assess
     per_class_pr, overall_pr = PrecisionRecall(
         cfg.paths.test_audio_annotations_map,
-        cfg.paths.test_detections,
+        detections_dir,
         cfg.paths.test_annotations,
         **other_pr_kwargs
     ).assess()

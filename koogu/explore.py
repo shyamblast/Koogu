@@ -602,7 +602,7 @@ def cmdline_parser(parser=None):
 
     if parser is None:
         parser = argparse.ArgumentParser(
-            prog='koogu.explore', allow_abbrev=True,
+            prog='koogu-explore', allow_abbrev=True,
             description='Explore available training & validation datasets.')
 
     parser.add_argument(

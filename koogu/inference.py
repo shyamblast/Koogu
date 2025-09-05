@@ -7,18 +7,15 @@ import argparse
 import concurrent.futures
 import logging
 
-from koogu.data import FilenameExtensions, AssetsExtraNames
-from koogu.data.raw import Audio, Settings
-from koogu.data.annotations import Raven
-from koogu.model import TrainedModel
-from koogu.utils import processed_items_generator_mp, \
+from .data import FilenameExtensions, AssetsExtraNames
+from .data.raw import Audio, Settings
+from .data.annotations import Raven
+from .model import TrainedModel
+from .utils import processed_items_generator_mp, \
     processed_items_generator_mp_ordered, instantiate_logging
-from koogu.utils.detections import postprocess_detections
-from koogu.utils.terminal import ProgressBar, ArgparseConverters
-from koogu.utils.filesystem import recursive_listing, AudioFileList
-
-_program_name = 'predict'
-_selection_table_file_suffix = '.selections.txt'
+from .utils.detections import postprocess_detections
+from .utils.terminal import ProgressBar, ArgparseConverters
+from .utils.filesystem import recursive_listing, AudioFileList
 
 
 def analyze_clips(trained_model, clips, batch_size=1, audio_filepath=None):
@@ -417,7 +414,7 @@ def recognize(model_dir, audio_root,
             seltab_relpath = (
                 ('results' if subdirs == '' else subdirs) if combine_outputs
                 else os.path.splitext(audio_relpath)[0])
-        seltab_relpath += _selection_table_file_suffix
+        seltab_relpath += Raven.default_extension()
 
         # Scale the scores, if enabled
         det_scores = scale_scores(det_scores)
@@ -541,7 +538,7 @@ def cmdline_parser(parser=None):
 
     if parser is None:
         parser = argparse.ArgumentParser(
-            prog='koogu.recognize', allow_abbrev=False,
+            prog='koogu-recognize', allow_abbrev=False,
             description='Perform recognition using a trained model.')
 
     parser.add_argument(
@@ -589,15 +586,16 @@ def cmdline_parser(parser=None):
     arg_group_out_ctrl = parser.add_argument_group(
         'Output control',
         description='Store recognition outputs either as raw per-clip '
-                    'per-class scores (used in assessing model performance), or'
-                    ' apply a threshold followed by a post-processing algorithm'
-                    ' and store results in a format suitable for downstream '
-                    'analyses. For a group of contiguous clips having scores '
-                    '(corresponding to a class) above the specified threshold, '
-                    'the default post-processing algorithm reports a single '
-                    'detection, with the outermost temporal extents of the '
-                    'group and the maximum score among the group as the '
-                    'detection\'s temporal extents and score, respectively.')
+                    'per-class scores (typically used for assessing model '
+                    'performance), or apply a threshold followed by a '
+                    'post-processing algorithm and store results in a format '
+                    'suitable for downstream analyses. For a group of '
+                    'contiguous clips having scores (corresponding to a class) '
+                    'above the specified threshold, the default post-processing'
+                    ' algorithm reports a single detection, with the outermost '
+                    'temporal extents of the group and the maximum score among '
+                    'the group as the detection\'s temporal extents and score, '
+                    'respectively.')
     out_ctrl_mutex_grp = arg_group_out_ctrl.add_mutually_exclusive_group(
         required=True)
     out_ctrl_mutex_grp.add_argument(

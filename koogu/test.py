@@ -21,7 +21,7 @@ def from_annotations(
         remap_labels_dict=None,
         negative_class_label=None,
         **kwargs
-    ):
+):
     """
     Apply a trained model on a test dataset with audio-annotation mappings.
 
@@ -377,5 +377,3 @@ def cmdline_test(cfg_file, model_name, log_level,
 
     if cfg.paths.logs is not None:
         logging.shutdown()
-
-    exit(0)
