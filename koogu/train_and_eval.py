@@ -13,13 +13,12 @@ from .utils.terminal import ArgparseConverters
 from .utils.config import Config, ConfigError
 
 
-
-def train_and_eval(data_feeder, model_dir,
-                   data_settings,
-                   model_architecture,
-                   training_config,
-                   verbose=2,
-                   **kwargs):
+def train(data_feeder, model_dir,
+          data_settings,
+          model_architecture,
+          training_config,
+          verbose=2,
+          **kwargs):
     """
     Perform training and evaluation.
 
@@ -294,7 +293,7 @@ def _main(data_feeder, model_dir, data_cfg, model_arch, training_cfg,
     return history_c
 
 
-__all__ = ['train_and_eval']
+__all__ = ['train']
 
 
 def cmdline_parser(parser=None):
@@ -402,7 +401,7 @@ def cmdline_train(cfg_file, model_name, log_level,
         **cfg.model.architecture_params)
 
     # ---- Train ----
-    history = train_and_eval(
+    history = train(
         data_feeder,
         os.path.join(cfg.paths.model, model_name),
         dict(audio_settings=cfg.data.audio.as_dict(skip_invalid=True),
