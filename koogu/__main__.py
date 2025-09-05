@@ -1,5 +1,5 @@
 import argparse
-from . import explore, prepare, train_and_eval, inference, test, assess, export
+from . import explore, train_and_eval, prepare, inference, test, assess, export
 
 
 def cmdline_parser():
