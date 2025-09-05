@@ -1,5 +1,17 @@
 import os
 import sys
+import warnings
+if sys.version_info.major == 3 and sys.version_info.minor in (12, 13):
+    # Handle known issue with wrapt library (in Python 2.12/2.13) which prevents
+    # models from being saved. This is a TF related issue, and so the env var
+    # needs to be defined before TF is imported.
+    if "WRAPT_DISABLE_EXTENSIONS" not in os.environ:
+        os.environ.setdefault("WRAPT_DISABLE_EXTENSIONS", "true")
+        warnings.warn(
+            "Applied workaround for TensorFlow bug with wrapt on Python "
+            "3.12/3.13. Set WRAPT_DISABLE_EXTENSIONS=true yourself to silence "
+            "this warning."
+        )
 import tensorflow as tf
 import logging
 from tensorflow.python.client import device_lib
