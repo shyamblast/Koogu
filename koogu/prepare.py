@@ -126,11 +126,10 @@ def from_annotations(audio_settings, audio_annot_list,
 
     # ---------- 1. Input generator --------------------------------------------
     ig_kwargs = {}      # Undocumented settings
-    if negative_class_label is not None:
-        # Deal with this only if there was a request to save non-match clips
-        auf_types = kwargs.pop('filetypes', None)
-        if auf_types is not None:
-            ig_kwargs['filetypes'] = auf_types
+    auf_types = kwargs.pop('filetypes', None)
+    if auf_types is not None:
+        ig_kwargs['filetypes'] = auf_types
+
     input_generator = AudioFileList.from_annotations(
         v_audio_annot_list,
         audio_root, annot_root,
@@ -252,6 +251,16 @@ def cmdline_parser(parser=None):
         'cfg_file', metavar='<CONFIG FILE>',
         help='Path to config file.')
 
+    arg_group_in_ctrl = parser.add_argument_group('Input control')
+    arg_group_in_ctrl.add_argument(
+        '--filetypes', metavar='EXTN', nargs='+',
+        help='Audio file types to restrict processing to. Can specify multiple '
+             'types separated by whitespaces. By default, will process all '
+             'discovered files with the following extensions: [' + ', '.join(
+                AudioFileList.default_audio_filetypes) +
+             ']. When train_audio_annotations_map is available, this option is '
+             'only considered where audio sources are directories.')
+
     arg_group_prctrl = parser.add_argument_group('Process control')
     arg_group_prctrl.add_argument(
         '--threads', dest='num_threads', metavar='NUM',
@@ -270,7 +279,7 @@ def cmdline_parser(parser=None):
     return parser
 
 
-def cmdline_prepare(cfg_file, log_level, num_threads=None):
+def cmdline_prepare(cfg_file, log_level, num_threads=None, **kwargs):
     """Functionality invoked via the command-line interface"""
 
     # Load config
@@ -320,6 +329,8 @@ def cmdline_prepare(cfg_file, log_level, num_threads=None):
             if cfg.data.annotations.raven_default_label is not None:
                 ar_kwargs['default_label'] = \
                     cfg.data.annotations.raven_default_label
+            if 'filetypes' in kwargs:
+                ar_kwargs['filetypes'] = kwargs.pop('filetypes')
 
         if cfg.prepare.min_annotation_overlap_fraction is not None:
             other_args['min_annot_overlap_fraction'] = \
