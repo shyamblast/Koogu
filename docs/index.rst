@@ -98,6 +98,12 @@ available computational resources.
 
 .. toctree::
    :hidden:
+
+   cli/index
+
+
+.. toctree::
+   :hidden:
    
    api/index
 
