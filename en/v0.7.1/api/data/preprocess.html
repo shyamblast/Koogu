@@ -1,0 +1,321 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Data pre-processing &mdash; Koogu  documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="Data transformation" href="transformations.html" />
+    <link rel="prev" title="Handling Annotations/Detections" href="annotations.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            Koogu
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../index.html">Koogu</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../quickstart.html">Quick-start guide</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../advanced/index.html">Advanced usage</a></li>
+</ul>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="../index.html">API documentation</a><ul class="current">
+<li class="toctree-l2 current"><a class="reference internal" href="index.html">Data</a><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="annotations.html">Annotation</a></li>
+<li class="toctree-l3 current"><a class="current reference internal" href="#">Pre-processing</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#koogu.data.preprocess.from_selection_table_map"><code class="docutils literal notranslate"><span class="pre">from_selection_table_map()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#koogu.data.preprocess.from_top_level_dirs"><code class="docutils literal notranslate"><span class="pre">from_top_level_dirs()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="transformations.html">Transformation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="feeder.html">Feeder</a></li>
+<li class="toctree-l3"><a class="reference internal" href="augmentation.html">Augmentation</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../model/index.html">Model</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../training.html">Training</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../inference.html">Inferencing</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utils/index.html">Misc</a></li>
+</ul>
+</li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../genindex.html">Index</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">Koogu</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">API documentation</a></li>
+          <li class="breadcrumb-item"><a href="index.html">Data</a></li>
+      <li class="breadcrumb-item active">Data pre-processing</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="data-pre-processing">
+<h1>Data pre-processing<a class="headerlink" href="#data-pre-processing" title="Link to this heading"></a></h1>
+<p>Pre-processed data (clips + associated label/class information) are written to the
+filesystem for later consumption during model training. In addition to extracting
+clips from raw audio, the below interfaces also support the following audio
+pre-processing operations -</p>
+<ul class="simple">
+<li><p>standardizing the sampling frequencies of all recordings,</p></li>
+<li><p>application of low-pass, high-pass or band-pass filters, and</p></li>
+<li><p>waveform normalization.</p></li>
+</ul>
+<p id="audio-settings">The parameters for pre-processing data are specified using a Python dictionary object that is passed as a parameter (named <code class="docutils literal notranslate"><span class="pre">audio_settings</span></code>) to the below functions. The following keys are supported:</p>
+<blockquote>
+<div><ul>
+<li><p><strong>desired_fs</strong> <em>(required)</em> The target sampling frequency (in Hz). Audio files having other sampling frequencies will be resampled to this value. Note that upsampling from a lower sampling rate introduces frequency banding in the resulting audio.</p></li>
+<li><p><strong>clip_length</strong> <em>(required)</em> The duration of each audio segment (in seconds).</p></li>
+<li><p><strong>clip_advance</strong> <em>(required)</em> The amount (in seconds) of overlap between successive segments is controlled by this. If <cite>clip_advance</cite> equals <cite>clip_length</cite>, then the overlap between successive segments will be zero.</p></li>
+<li><p><strong>filterspec</strong> <em>(optional)</em> If specified, must be a 3-element ordered list/tuple specifying -</p>
+<ul class="simple">
+<li><p>filter order <em>(integer)</em></p></li>
+<li><p>cutoff frequency(ies) <em>(a 1-element or 2-element list/tuple)</em></p></li>
+<li><p>filter type <em>(string; one of ‘lowpass’, ‘highpass’ or ‘bandpass’)</em></p></li>
+</ul>
+<p>If filter type is <em>‘bandpass’</em>, the the cutoff frequency must be a 2-element list/tuple.</p>
+</li>
+<li><p><strong>normalize_clips</strong> <em>(optional; default: True)</em> If True, will scale the waveform within each resulting clip to be in the range [-1.0, 1.0].</p></li>
+</ul>
+</div></blockquote>
+<dl class="py function" id="module-koogu.data.preprocess">
+<dt class="sig sig-object py" id="koogu.data.preprocess.from_selection_table_map">
+<span class="sig-prename descclassname"><span class="pre">koogu.data.preprocess.</span></span><span class="sig-name descname"><span class="pre">from_selection_table_map</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">audio_settings</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">audio_seltab_list</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">audio_root</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">seltab_root</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">output_root</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">annotation_reader</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">desired_labels</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">remap_labels_dict</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">negative_class_label</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#koogu.data.preprocess.from_selection_table_map" title="Link to this definition"></a></dt>
+<dd><p>Pre-process training data using info contained in <code class="docutils literal notranslate"><span class="pre">audio_seltab_list</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>audio_settings</strong> – A dictionary specifying the parameters for processing
+audio from files.</p></li>
+<li><p><strong>audio_seltab_list</strong> – A list containing pairs (tuples or sub-lists) of
+relative paths to audio files and the corresponding annotation
+(selection table) files. Alternatively, you could also specify (path to)
+a 2-column csv file containing these pairs of entries (in the same
+order). Only use the csv option if the paths are simple (i.e., the
+filenames do not contain commas or other special characters).</p></li>
+<li><p><strong>audio_root</strong> – The full paths of audio files listed in
+<code class="docutils literal notranslate"><span class="pre">audio_seltab_list</span></code> are resolved using this as the base directory.</p></li>
+<li><p><strong>seltab_root</strong> – The full paths of annotations files listed in
+<code class="docutils literal notranslate"><span class="pre">audio_seltab_list</span></code> are resolved using this as the base directory.</p></li>
+<li><p><strong>output_root</strong> – “Prepared” data will be written to this directory.</p></li>
+<li><p><strong>annotation_reader</strong> – If not None, must be an annotation reader instance
+from <a class="reference internal" href="annotations.html#module-koogu.data.annotations" title="koogu.data.annotations"><code class="xref py py-mod docutils literal notranslate"><span class="pre">annotations</span></code></a>. Defaults to Raven
+<a class="reference internal" href="annotations.html#koogu.data.annotations.Raven.Reader" title="koogu.data.annotations.Raven.Reader"><code class="xref py py-class docutils literal notranslate"><span class="pre">Reader</span></code></a>.</p></li>
+<li><p><strong>desired_labels</strong> – The target set of class labels. If not None, must be
+a list of class labels. Any selections (read from the selection tables)
+having labels that are not in this list will be discarded. This list
+will be used to populate classes_list.json that will define the classes
+for the project. If None, then the list of classes will be populated
+with the annotation labels read from all selection tables.</p></li>
+<li><p><strong>remap_labels_dict</strong> – <p>If not None, must be a Python dictionary
+describing mapping of class labels. For details, see similarly named
+parameter to the constructor of
+<a class="reference internal" href="../utils/detections.html#koogu.utils.detections.LabelHelper" title="koogu.utils.detections.LabelHelper"><code class="xref py py-class docutils literal notranslate"><span class="pre">koogu.utils.detections.LabelHelper</span></code></a>.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>If <code class="docutils literal notranslate"><span class="pre">desired_labels</span></code> is not None, mappings for which targets
+are not listed in <code class="docutils literal notranslate"><span class="pre">desired_labels</span></code> will be ignored.</p>
+</div>
+</p></li>
+<li><p><strong>negative_class_label</strong> – A string (e.g. ‘Other’, ‘Noise’) which will be
+used as a label to identify the negative class clips (those that did not
+match any annotations). If None (default), saving of negative class
+clips will be disabled.</p></li>
+</ul>
+</dd>
+</dl>
+<p>Other parameters specific to
+<a class="reference internal" href="../utils/detections.html#koogu.utils.detections.assess_annotations_and_clips_match" title="koogu.utils.detections.assess_annotations_and_clips_match"><code class="xref py py-func docutils literal notranslate"><span class="pre">koogu.utils.detections.assess_annotations_and_clips_match()</span></code></a>
+can also be specified, and will be passed as-is to the function.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>A dictionary whose keys are annotation tags (either discovered from
+the set of annotations, or same as <code class="docutils literal notranslate"><span class="pre">desired_labels</span></code> if not None) and
+the values are the number of clips produced for the corresponding class.</p>
+</dd>
+</dl>
+<div class="admonition seealso">
+<p class="admonition-title">See also</p>
+<p><a class="reference internal" href="annotations.html#module-koogu.data.annotations" title="koogu.data.annotations"><code class="xref py py-mod docutils literal notranslate"><span class="pre">koogu.data.annotations</span></code></a></p>
+</div>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="koogu.data.preprocess.from_top_level_dirs">
+<span class="sig-prename descclassname"><span class="pre">koogu.data.preprocess.</span></span><span class="sig-name descname"><span class="pre">from_top_level_dirs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">audio_settings</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">class_dirs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">audio_root</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">output_root</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">remap_labels_dict</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#koogu.data.preprocess.from_top_level_dirs" title="Link to this definition"></a></dt>
+<dd><p>Pre-process training data available as audio files in <code class="docutils literal notranslate"><span class="pre">class_dirs</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>audio_settings</strong> – A dictionary specifying the parameters for processing
+audio from files.</p></li>
+<li><p><strong>class_dirs</strong> – A list containing relative paths to class-specific
+directories containing audio files. Each directory’s contents will be
+recursively searched for audio files.</p></li>
+<li><p><strong>audio_root</strong> – The full paths of the class-specific directories listed
+in <code class="docutils literal notranslate"><span class="pre">class_dirs</span></code> are resolved using this as the base directory.</p></li>
+<li><p><strong>output_root</strong> – “Prepared” data will be written to this directory.</p></li>
+<li><p><strong>remap_labels_dict</strong> – If not None, must be a Python dictionary
+describing mapping of class labels. For details, see similarly named
+parameter to the constructor of
+<a class="reference internal" href="../utils/detections.html#koogu.utils.detections.LabelHelper" title="koogu.utils.detections.LabelHelper"><code class="xref py py-class docutils literal notranslate"><span class="pre">koogu.utils.detections.LabelHelper</span></code></a>.</p></li>
+<li><p><strong>filetypes</strong> – (optional) Restrict listing to files matching extensions
+specified in this parameter. Has defaults if unspecified.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A dictionary whose keys are annotation tags (discovered from the
+set of annotations) and the values are the number of clips produced for
+the corresponding class.</p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="annotations.html" class="btn btn-neutral float-left" title="Handling Annotations/Detections" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="transformations.html" class="btn btn-neutral float-right" title="Data transformation" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2020–present, Shyam Madhusudhana.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  
+
+  <div class="rst-versions" data-toggle="rst-versions" role="note" aria-label="versions">
+    <span class="rst-current-version" data-toggle="rst-current-version">
+      <span class="fa fa-book"> Alternate Versions</span>
+      v: v0.7.1
+      <span class="fa fa-caret-down"></span>
+    </span>
+    <div class="rst-other-versions">
+      
+      
+      <dl>
+        <dt>Versions</dt>
+        
+          
+          <dd><a href="/Koogu/en/dev/">dev</a></dd>
+          
+        
+          
+          <dd><a href="/Koogu/en/stable/">stable</a></dd>
+          
+        
+          
+          <dd><a href="/Koogu/en/v0.7.2/">v0.7.2</a></dd>
+          
+        
+           <strong> 
+          <dd><a href="/Koogu/en/v0.7.1/">v0.7.1</a></dd>
+           </strong> 
+        
+          
+          <dd><a href="/Koogu/en/v0.7.0/">v0.7.0</a></dd>
+          
+        
+          
+          <dd><a href="/Koogu/en/v0.6.5/">v0.6.5</a></dd>
+          
+        
+          
+          <dd><a href="/Koogu/en/v0.6.4/">v0.6.4</a></dd>
+          
+        
+          
+          <dd><a href="/Koogu/en/v0.6.3/">v0.6.3</a></dd>
+          
+        
+      </dl>
+      
+      
+      <dl>
+        <dt>Downloads</dt>
+        
+          <dd><a href="/Koogu/en/v0.7.1/Koogu-docs_en_v0.7.1.epub">epub</a></dd>
+        
+      </dl>
+      
+      
+      <hr/>
+      Free theme by <a href="http://www.readthedocs.org">Read the Docs</a>.
+
+    </div>
+  </div>
+
+<script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

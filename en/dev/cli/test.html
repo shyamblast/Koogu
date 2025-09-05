@@ -1,0 +1,280 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Testing &mdash; Koogu  documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Performance Assessment" href="assess.html" />
+    <link rel="prev" title="Training" href="train.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            Koogu
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../index.html">Koogu</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../quickstart/index.html">Quick-start guide</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../advanced/index.html">Advanced usage</a></li>
+</ul>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">CLI</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="explore.html">koogu-explore</a></li>
+<li class="toctree-l2"><a class="reference internal" href="prepare.html">koogu-prepare</a></li>
+<li class="toctree-l2"><a class="reference internal" href="train.html">koogu-train</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">koogu-test</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#parameters">Parameters</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#positional-arguments">Positional arguments</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#input-control">Input control</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#process-control">Process control</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#logging">Logging</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="assess.html">koogu-assess</a></li>
+<li class="toctree-l2"><a class="reference internal" href="recognize.html">koogu-recognize</a></li>
+<li class="toctree-l2"><a class="reference internal" href="export.html">koogu-export</a></li>
+</ul>
+</li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../api/index.html">API</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../integration.html">Integration with external software</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../genindex.html">Index</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">Koogu</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="index.html">CLI</a></li>
+      <li class="breadcrumb-item active">Testing</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="testing">
+<h1>Testing<a class="headerlink" href="#testing" title="Link to this heading"></a></h1>
+<p>Apply a trained model to test datasets and generate raw detection scores for subsequent
+assessment of performance.</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="gp">$</span>&gt;<span class="w"> </span><span class="c1"># Test a trained model identified by its name</span>
+<span class="gp">$</span>&gt;<span class="w"> </span>koogu-test<span class="w"> </span>my_project.config<span class="w"> </span>my_first_model
+</pre></div>
+</div>
+<p>This command serves as an intermediate step between model training and performance
+evaluation, processing test audio files in the same manner as the training data
+preparation but outputting detection scores instead of prepared training clips.</p>
+<p>The testing process provides real-time feedback:</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">est_audio/NOPP6_EST_20090401/NOPP6_EST_20090401_024500.flac |██████████| 100.0%</span>
+<span class="go">est_audio/NOPP6_EST_20090401/NOPP6_EST_20090401_024500.flac |██████    |  60.0%</span>
+</pre></div>
+</div>
+<dl class="simple">
+<dt><strong>Performance considerations</strong></dt><dd><ul class="simple">
+<li><p>Batch size: Increase <code class="docutils literal notranslate"><span class="pre">--batch-size</span></code> for faster processing on high-RAM systems</p></li>
+<li><p>Threading: Increase <code class="docutils literal notranslate"><span class="pre">--threads</span></code> for greater parallelization of I/O operations</p></li>
+</ul>
+</dd>
+</dl>
+<hr class="docutils" />
+<section id="parameters">
+<h2>Parameters<a class="headerlink" href="#parameters" title="Link to this heading"></a></h2>
+<section id="positional-arguments">
+<h3>Positional arguments<a class="headerlink" href="#positional-arguments" title="Link to this heading"></a></h3>
+<blockquote>
+<div><ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">&lt;CONFIG</span> <span class="pre">FILE&gt;</span></code></p>
+<p>Path to config file.</p>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">&lt;MODEL</span> <span class="pre">NAME&gt;</span></code></p>
+<p>Name of the trained model.</p>
+</li>
+</ul>
+</div></blockquote>
+</section>
+<section id="input-control">
+<h3>Input control<a class="headerlink" href="#input-control" title="Link to this heading"></a></h3>
+<blockquote>
+<div><ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">--filetypes</span> <span class="pre">EXTN</span> <span class="pre">[EXTN</span> <span class="pre">...]</span></code></p>
+<p>Audio file types to restrict processing to. Can specify multiple types separated by whitespaces. By default, will process all discovered files with the following extensions: [.wav, .WAV, .flac, .aif, .mp3]. When test_audio_annotations_map is available, this option is only considered where audio sources are directories.</p>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--channels</span> <span class="pre">#</span> <span class="pre">[#</span> <span class="pre">...]</span></code></p>
+<p>Channels to restrict processing to. List out the desired channel indices, separated by whitespaces. If unspecified, all available channels will be processed. Channel indices must be 0-based.</p>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--clip-advance</span> <span class="pre">SECONDS</span></code></p>
+<p>Override “clip advance”. When audio files’ contents are broken up into clips, by default the amount of overlap between successive clips is determined by the settings that were in place during model training. Use this flag to override that quantity, by setting a different amount of advance (in seconds) between successive clips.</p>
+</li>
+</ul>
+</div></blockquote>
+</section>
+<section id="process-control">
+<h3>Process control<a class="headerlink" href="#process-control" title="Link to this heading"></a></h3>
+<blockquote>
+<div><ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">--threads</span> <span class="pre">NUM</span></code></p>
+<p>Number of threads that will fetch audio from files in parallel.</p>
+<p><cite>Default</cite>: 1.</p>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--batch-size</span> <span class="pre">NUM</span></code></p>
+<p>Size to batch audio file’s clips into. Increasing this may improve speed on computers with higher RAM.</p>
+<p><cite>Default</cite>: 1</p>
+</li>
+</ul>
+</div></blockquote>
+</section>
+<section id="logging">
+<h3>Logging<a class="headerlink" href="#logging" title="Link to this heading"></a></h3>
+<blockquote>
+<div><ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">--log</span> <span class="pre">LOGFILE</span></code></p>
+<p>If specified, logging will be written out to this file instead of the default.</p>
+<p><cite>Default</cite>: <strong>PROJECT-LOGS-DIR</strong>/test.log</p>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--loglevel</span> <span class="pre">LEVEL</span></code></p>
+<p>Logging level. Choices: CRITICAL, ERROR, WARNING, INFO, DEBUG.</p>
+<p><cite>Default</cite>: INFO</p>
+</li>
+</ul>
+</div></blockquote>
+</section>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="train.html" class="btn btn-neutral float-left" title="Training" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="assess.html" class="btn btn-neutral float-right" title="Performance Assessment" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2020–present, Shyam Madhusudhana.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  
+
+  <div class="rst-versions" data-toggle="rst-versions" role="note" aria-label="versions">
+    <span class="rst-current-version" data-toggle="rst-current-version">
+      <span class="fa fa-book"> Alternate Versions</span>
+      v: dev
+      <span class="fa fa-caret-down"></span>
+    </span>
+    <div class="rst-other-versions">
+      
+      
+      <dl>
+        <dt>Versions</dt>
+        
+           <strong> 
+          <dd><a href="/Koogu/en/dev/">dev</a></dd>
+           </strong> 
+        
+          
+          <dd><a href="/Koogu/en/stable/">stable</a></dd>
+          
+        
+          
+          <dd><a href="/Koogu/en/v0.7.2/">v0.7.2</a></dd>
+          
+        
+          
+          <dd><a href="/Koogu/en/v0.7.1/">v0.7.1</a></dd>
+          
+        
+          
+          <dd><a href="/Koogu/en/v0.7.0/">v0.7.0</a></dd>
+          
+        
+          
+          <dd><a href="/Koogu/en/v0.6.5/">v0.6.5</a></dd>
+          
+        
+          
+          <dd><a href="/Koogu/en/v0.6.4/">v0.6.4</a></dd>
+          
+        
+      </dl>
+      
+      
+      
+      <hr/>
+      Free theme by <a href="http://www.readthedocs.org">Read the Docs</a>.
+
+    </div>
+  </div>
+
+<script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

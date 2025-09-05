@@ -1,0 +1,239 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Quickstart: CLI Workflow &mdash; Koogu  documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Quickstart: API Workflow" href="narw_api.html" />
+    <link rel="prev" title="Quick-start guide" href="index.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            Koogu
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../index.html">Koogu</a></li>
+</ul>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Quick-start guide</a><ul class="current">
+<li class="toctree-l2 current"><a class="current reference internal" href="#">CLI workflow</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#explore-the-dataset-optional">Explore the dataset (optional)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#data-preparation">1. Data preparation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#training">2. Training</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#performance-assessment">3. Performance assessment</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#run-on-test-dataset">3.1. Run on test dataset</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="narw_api.html">API workflow</a></li>
+</ul>
+</li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../advanced/index.html">Advanced usage</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../cli/index.html">CLI</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../api/index.html">API</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../integration.html">Integration with external software</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../genindex.html">Index</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">Koogu</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="index.html">Quick-start guide</a></li>
+      <li class="breadcrumb-item active">Quickstart: CLI Workflow</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="quickstart-cli-workflow">
+<h1>Quickstart: CLI Workflow<a class="headerlink" href="#quickstart-cli-workflow" title="Link to this heading"></a></h1>
+<p>Here’s the complete sequence of commands for the NARW project:</p>
+<p>The example uses a light-weight custom
+<a class="reference internal" href="../api/model/architectures.html#koogu.model.architectures.DenseNet" title="koogu.model.architectures.DenseNet"><code class="xref py py-class docutils literal notranslate"><span class="pre">DenseNet</span></code></a> architecture.</p>
+<section id="explore-the-dataset-optional">
+<h2>Explore the dataset (optional)<a class="headerlink" href="#explore-the-dataset-optional" title="Link to this heading"></a></h2>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="gp">$</span>&gt;<span class="w"> </span>koogu-explore<span class="w"> </span>narw_project.config
+</pre></div>
+</div>
+</section>
+<section id="data-preparation">
+<h2>1. Data preparation<a class="headerlink" href="#data-preparation" title="Link to this heading"></a></h2>
+<p>With audio-annotation mappings and data transformation settings already defined
+in the config file, you can simply run the below command to prepare the data for
+training.</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="gp">$</span>&gt;<span class="w"> </span>koogu-prepare<span class="w"> </span>narw_project.config
+</pre></div>
+</div>
+</section>
+<section id="training">
+<h2>2. Training<a class="headerlink" href="#training" title="Link to this heading"></a></h2>
+<p>With network architecture and training/hyperparameter settings already defined
+in the config file, you can simply run the below command to start training.
+Specify a name for the model so you are able to distinguish models from different
+training attempts.</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="gp">$</span>&gt;<span class="w"> </span>koogu-train<span class="w"> </span>narw_project.config<span class="w"> </span>narw_detector_v1
+</pre></div>
+</div>
+</section>
+<section id="performance-assessment">
+<h2>3. Performance assessment<a class="headerlink" href="#performance-assessment" title="Link to this heading"></a></h2>
+<section id="run-on-test-dataset">
+<h3>3.1. Run on test dataset<a class="headerlink" href="#run-on-test-dataset" title="Link to this heading"></a></h3>
+<p># 4. Assess performance</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="gp">$</span>&gt;<span class="w"> </span>koogu-assess<span class="w"> </span>narw_project.config<span class="w"> </span>narw_detector_v1_perf.html
+</pre></div>
+</div>
+<p># 5. Process field recordings</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="gp">$</span>&gt;<span class="w"> </span>koogu-recognize<span class="w"> </span>narw_detector_v1/<span class="w"> </span>field_audio/<span class="w"> </span>detections/<span class="w"> </span><span class="se">\</span>
+<span class="w">     </span>--threshold<span class="w"> </span><span class="m">0</span>.75<span class="w"> </span>--recursive<span class="w"> </span>--reject-class<span class="w"> </span>Other
+</pre></div>
+</div>
+<p># 6. Export for Raven Pro</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="gp">$</span>&gt;<span class="w"> </span>koogu-export<span class="w"> </span>narw_project.config<span class="w"> </span>raven<span class="w"> </span>--model<span class="w"> </span>narw_detector_v1<span class="w"> </span><span class="se">\</span>
+<span class="w">     </span>--threshold<span class="w"> </span><span class="m">0</span>.85<span class="w"> </span>--suppress<span class="w"> </span>Other
+</pre></div>
+</div>
+</section>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="index.html" class="btn btn-neutral float-left" title="Quick-start guide" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="narw_api.html" class="btn btn-neutral float-right" title="Quickstart: API Workflow" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2020–present, Shyam Madhusudhana.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  
+
+  <div class="rst-versions" data-toggle="rst-versions" role="note" aria-label="versions">
+    <span class="rst-current-version" data-toggle="rst-current-version">
+      <span class="fa fa-book"> Alternate Versions</span>
+      v: dev
+      <span class="fa fa-caret-down"></span>
+    </span>
+    <div class="rst-other-versions">
+      
+      
+      <dl>
+        <dt>Versions</dt>
+        
+           <strong> 
+          <dd><a href="/Koogu/en/dev/">dev</a></dd>
+           </strong> 
+        
+          
+          <dd><a href="/Koogu/en/stable/">stable</a></dd>
+          
+        
+          
+          <dd><a href="/Koogu/en/v0.7.2/">v0.7.2</a></dd>
+          
+        
+          
+          <dd><a href="/Koogu/en/v0.7.1/">v0.7.1</a></dd>
+          
+        
+          
+          <dd><a href="/Koogu/en/v0.7.0/">v0.7.0</a></dd>
+          
+        
+          
+          <dd><a href="/Koogu/en/v0.6.5/">v0.6.5</a></dd>
+          
+        
+          
+          <dd><a href="/Koogu/en/v0.6.4/">v0.6.4</a></dd>
+          
+        
+      </dl>
+      
+      
+      
+      <hr/>
+      Free theme by <a href="http://www.readthedocs.org">Read the Docs</a>.
+
+    </div>
+  </div>
+
+<script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

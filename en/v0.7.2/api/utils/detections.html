@@ -1,0 +1,432 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Annotations and Detections &mdash; Koogu  documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="Performance assessment" href="performance_assessment.html" />
+    <link rel="prev" title="Misc" href="index.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            Koogu
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../index.html">Koogu</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../quickstart.html">Quick-start guide</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../advanced/index.html">Advanced usage</a></li>
+</ul>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="../index.html">API documentation</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="../data/index.html">Data</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../model/index.html">Model</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../training.html">Training</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../inference.html">Inferencing</a></li>
+<li class="toctree-l2 current"><a class="reference internal" href="index.html">Misc</a><ul class="current">
+<li class="toctree-l3 current"><a class="current reference internal" href="#">Annotations &amp; Detections</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#koogu.utils.detections.LabelHelper"><code class="docutils literal notranslate"><span class="pre">LabelHelper</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#koogu.utils.detections.assess_annotations_and_clips_match"><code class="docutils literal notranslate"><span class="pre">assess_annotations_and_clips_match()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#koogu.utils.detections.assess_annotations_and_detections_match"><code class="docutils literal notranslate"><span class="pre">assess_annotations_and_detections_match()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#koogu.utils.detections.postprocess_detections"><code class="docutils literal notranslate"><span class="pre">postprocess_detections()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="performance_assessment.html">Performance assessment</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../genindex.html">Index</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">Koogu</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">API documentation</a></li>
+          <li class="breadcrumb-item"><a href="index.html">Misc</a></li>
+      <li class="breadcrumb-item active">Annotations and Detections</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="module-koogu.utils.detections">
+<span id="annotations-and-detections"></span><h1>Annotations and Detections<a class="headerlink" href="#module-koogu.utils.detections" title="Link to this heading"></a></h1>
+<dl class="py class">
+<dt class="sig sig-object py" id="koogu.utils.detections.LabelHelper">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">koogu.utils.detections.</span></span><span class="sig-name descname"><span class="pre">LabelHelper</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">classes_list</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">remap_labels_dict</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">negative_class_label</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fixed_labels</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">assessment_mode</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#koogu.utils.detections.LabelHelper" title="Link to this definition"></a></dt>
+<dd><p>Provides functionality for manipulating and managing class labels in a
+problem space, without resorting to altering selection tables.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>classes_list</strong> – List of class labels. When used during data
+preparation, the list may be generated from available classes or
+be provided as a pre-defined list. When used during performance
+assessments, it is typically populated from the classes_list.json
+file that is saved alongside raw detections.</p></li>
+<li><p><strong>remap_labels_dict</strong> – <p>(default: None) If not None, must be a dictionary
+describing mapping of class labels. Use this to</p>
+<ul>
+<li><div class="line-block">
+<div class="line">update existing class’ labels</div>
+<div class="line-block">
+<div class="line">(e.g. <code class="docutils literal notranslate"><span class="pre">{'c1':</span> <span class="pre">'new_c1'}</span></code>),</div>
+</div>
+</div>
+</li>
+<li><div class="line-block">
+<div class="line">merge together existing classes</div>
+<div class="line-block">
+<div class="line">(e.g. <code class="docutils literal notranslate"><span class="pre">{'c4':</span> <span class="pre">'c1'}</span></code>), or</div>
+</div>
+</div>
+</li>
+<li><div class="line-block">
+<div class="line">combine existing classes into new ones</div>
+<div class="line-block">
+<div class="line">(e.g. <code class="docutils literal notranslate"><span class="pre">{'c4':</span> <span class="pre">'new_c2',</span> <span class="pre">'c23',</span> <span class="pre">'new_c2'}</span></code>).</div>
+</div>
+</div>
+</li>
+</ul>
+<p>Avoid chaining of mappings (e.g. <code class="docutils literal notranslate"><span class="pre">{'c1':</span> <span class="pre">'c2',</span> <span class="pre">'c2':</span> <span class="pre">'c3'}</span></code>).</p>
+</p></li>
+<li><p><strong>negative_class_label</strong> – (default: None) If not None, must be a string
+(e.g. ‘Other’, ‘Noise’) which will be used as a label to identify the
+negative class clips (those that did not match any annotations). If
+specified, will be used in conjunction with <code class="docutils literal notranslate"><span class="pre">remap_labels_dict</span></code>.</p></li>
+<li><p><strong>fixed_labels</strong> – (bool; default: True) When True, <code class="docutils literal notranslate"><span class="pre">classes_list</span></code> will
+remain unchanged - any new mapping targets specified in
+<code class="docutils literal notranslate"><span class="pre">remap_labels_dict</span></code> will not be added and any mapped-out class labels
+will not be omitted. Typically, it should be set to True when
+<code class="docutils literal notranslate"><span class="pre">classes_list</span></code> is a pre-defined list during data preparation, and
+always during performance assessments.</p></li>
+<li><p><strong>assessment_mode</strong> – (bool; default: False) Set to True when invoked
+during performance assessments.</p></li>
+</ul>
+</dd>
+</dl>
+<div class="admonition seealso">
+<p class="admonition-title">See also</p>
+<p><a class="reference internal" href="../data/preprocess.html#koogu.data.preprocess.from_selection_table_map" title="koogu.data.preprocess.from_selection_table_map"><code class="xref py py-func docutils literal notranslate"><span class="pre">koogu.data.preprocess.from_selection_table_map()</span></code></a>
+<a class="reference internal" href="../data/preprocess.html#koogu.data.preprocess.from_top_level_dirs" title="koogu.data.preprocess.from_top_level_dirs"><code class="xref py py-func docutils literal notranslate"><span class="pre">koogu.data.preprocess.from_top_level_dirs()</span></code></a>
+<a class="reference internal" href="performance_assessment.html#koogu.utils.assessments.BaseMetric" title="koogu.utils.assessments.BaseMetric"><code class="xref py py-func docutils literal notranslate"><span class="pre">koogu.utils.assessments.BaseMetric()</span></code></a></p>
+</div>
+<dl class="py property">
+<dt class="sig sig-object py" id="koogu.utils.detections.LabelHelper.classes_list">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">classes_list</span></span><a class="headerlink" href="#koogu.utils.detections.LabelHelper.classes_list" title="Link to this definition"></a></dt>
+<dd><p>The final list of class names in the problem space, after performing
+manipulations based on <code class="docutils literal notranslate"><span class="pre">remap_labels_dict</span></code> (if specified).</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="koogu.utils.detections.LabelHelper.labels_to_indices">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">labels_to_indices</span></span><a class="headerlink" href="#koogu.utils.detections.LabelHelper.labels_to_indices" title="Link to this definition"></a></dt>
+<dd><p>A Python dictionary mapping class names (string) to zero-based indices.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="koogu.utils.detections.LabelHelper.negative_class_index">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">negative_class_index</span></span><a class="headerlink" href="#koogu.utils.detections.LabelHelper.negative_class_index" title="Link to this definition"></a></dt>
+<dd><p>Index (zero-based) of the negative class (if specified) in
+<code class="docutils literal notranslate"><span class="pre">classes_list</span></code>.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="koogu.utils.detections.assess_annotations_and_clips_match">
+<span class="sig-prename descclassname"><span class="pre">koogu.utils.detections.</span></span><span class="sig-name descname"><span class="pre">assess_annotations_and_clips_match</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">clip_offsets</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">clip_len</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_classes</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">annots_times</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">annots_class_idxs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">min_annot_overlap_fraction</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">keep_only_centralized_annots</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">negative_class_idx</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_nonmatch_overlap_fraction</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#koogu.utils.detections.assess_annotations_and_clips_match" title="Link to this definition"></a></dt>
+<dd><p>Match clips to annotations and return “coverage scores” and a mask of
+‘matched annotations’. Coverage score is a value between 0.0 and 1.0 and
+describes how much of a particular class’ annotation(s) is/are covered by
+each clip.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>clip_offsets</strong> – M-length array of start samples (offset from the start
+of the audio file) of M clips.</p></li>
+<li><p><strong>clip_len</strong> – Number of waveform samples in each clip.</p></li>
+<li><p><strong>num_classes</strong> – Number of classes in the given application.</p></li>
+<li><p><strong>annots_times</strong> – A numpy array (shape Nx2) of start-end pairs defining
+annotations’ temporal extents, in terms of sample indices.</p></li>
+<li><p><strong>annots_class_idxs</strong> – An N-length list of zero-based indices to the
+class corresponding to each annotation.</p></li>
+<li><p><strong>min_annot_overlap_fraction</strong> – Lower threshold on how much coverage
+a clip must have with an annotation for the annotation to be considered
+“matched”.</p></li>
+<li><p><strong>keep_only_centralized_annots</strong> – If enabled (default: False), very short
+annotations (&lt; half of <code class="docutils literal notranslate"><span class="pre">clip_len</span></code>) will generate full coverage (1.0)
+only if they occur within the central 50% extents of the clip or if the
+annotation cuts across the center of the clip. For short annotations
+that do not satisfy these conditions, their normally-computed coverage
+value will be scaled down based on the annotation’s distance from the
+center of the clip.</p></li>
+<li><p><strong>negative_class_idx</strong> – If not None, clips that do have no (or small)
+overlap with any annotation will be marked as clips of the non-target
+class whose index this parameter specifies. See
+<code class="docutils literal notranslate"><span class="pre">max_non_match_overlap_fraction</span></code> for further control.</p></li>
+<li><p><strong>max_nonmatch_overlap_fraction</strong> – A clip without enough overlap with
+any annotations will be marked as non-target class only if its
+overlap with any annotation is less than this amount (default 0.0). This
+parameter is only used when <code class="docutils literal notranslate"><span class="pre">negative_class_idx</span></code> is set.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><p>A 2-element tuple containing -</p>
+<ul>
+<li><p>MxP “coverage” matrix corresponding to the M clips and P classes. The
+values in the matrix will be:</p>
+<div class="line-block">
+<div class="line">1.0   - if either the m-th clip fully contained an annotation from the</div>
+<div class="line-block">
+<div class="line">p-th class or vice versa (possible when annotation is longer</div>
+<div class="line">than <code class="docutils literal notranslate"><span class="pre">clip_len</span></code>);</div>
+</div>
+<div class="line">&lt;1.0  - if there was partial coverage (the number of overlapping</div>
+<div class="line-block">
+<div class="line">samples is divided by the shorter of <code class="docutils literal notranslate"><span class="pre">clip_len</span></code> or</div>
+<div class="line">annotation length);</div>
+</div>
+<div class="line">0.0   - if the m-th clip had no overlap with any annotations from the</div>
+<div class="line-block">
+<div class="line">p-th class.</div>
+</div>
+</div>
+</li>
+<li><p>N-length boolean mask of annotations that were matched with at least
+one clip under the condition of <code class="docutils literal notranslate"><span class="pre">min_annot_overlap_fraction</span></code>.</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="koogu.utils.detections.assess_annotations_and_detections_match">
+<span class="sig-prename descclassname"><span class="pre">koogu.utils.detections.</span></span><span class="sig-name descname"><span class="pre">assess_annotations_and_detections_match</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">num_classes</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gt_times</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gt_labels</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">det_times</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">det_labels</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">min_gt_coverage</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">min_det_usage</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.5</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#koogu.utils.detections.assess_annotations_and_detections_match" title="Link to this definition"></a></dt>
+<dd><p>Match elements describing time-spans from two collections. Typically, one
+collection corresponds to ground-truth (gt) temporal extents and the other
+collection corresponds to detection (det) temporal extents.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>num_classes</strong> – Number of classes of the various time-events.</p></li>
+<li><p><strong>gt_times</strong> – Mx2 numpy array representing the start-end times of M
+ground-truth events.</p></li>
+<li><p><strong>gt_labels</strong> – M-length integer array indicating the class of each of
+the M ground-truth events.</p></li>
+<li><p><strong>det_times</strong> – Nx2 numpy array representing the start-end times of N
+detection events.</p></li>
+<li><p><strong>det_labels</strong> – N-length integer array indicating the class of each of
+the N detection events.</p></li>
+<li><p><strong>min_gt_coverage</strong> – A floating point value (in the range 0-1)
+indicating the minimum fraction of a ground-truth event that must be
+covered by one or more detections for it to be considered “recalled”.</p></li>
+<li><p><strong>min_det_usage</strong> – A floating point value (in the range 0-1)
+indicating the minimum fraction of a detection event that must have
+covered parts of one or more ground-truth events for it to be
+considered a “true positive”.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><p>A 5-element tuple containing -</p>
+<ul class="simple">
+<li><p>per-class counts of true positives</p></li>
+<li><p>per-class counts of detections (true + false positives)</p></li>
+<li><p>numerator for computing recall (note that given our definition of
+‘true positive’ and ‘recall’, this value may not be the same as the
+per-class counts of true positives).</p></li>
+<li><p>mask of ground-truth events that were “recalled”</p></li>
+<li><p>mask of detections that were true positives</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="koogu.utils.detections.postprocess_detections">
+<span class="sig-prename descclassname"><span class="pre">koogu.utils.detections.</span></span><span class="sig-name descname"><span class="pre">postprocess_detections</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">clip_scores</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">clip_offsets</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">clip_length</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">suppress_nonmax</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">squeeze_min_samps</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#koogu.utils.detections.postprocess_detections" title="Link to this definition"></a></dt>
+<dd><p>Post-process detections to group together successive detections from each
+class.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>clip_scores</strong> – An [N x M] array containing M per-class scores for each
+of the N clips.</p></li>
+<li><p><strong>clip_offsets</strong> – An N-length integer array containing indices of the
+first sample in each clip.</p></li>
+<li><p><strong>clip_length</strong> – Number of waveform samples in each clip.</p></li>
+<li><p><strong>threshold</strong> – (default: None) If not None, scores below this value will
+be ignored.</p></li>
+<li><p><strong>suppress_nonmax</strong> – (bool; default: False) If True, will apply
+non-max suppression to only consider the top-scoring class for each
+clip.</p></li>
+<li><p><strong>squeeze_min_samps</strong> – (default: None) If not None, will run the
+algorithm to squish contiguous detections of the same class. Squeezing
+will be limited to produce detections that are at least this many
+samples long.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><p>A 3-element or 4-element tuple containing -</p>
+<ul class="simple">
+<li><p>sample indices (array of start and end pairs),</p></li>
+<li><p>aggregated scores,</p></li>
+<li><p>class IDs, and</p></li>
+<li><p>if requested, start-end indices making up each combined streak.</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="index.html" class="btn btn-neutral float-left" title="Misc" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="performance_assessment.html" class="btn btn-neutral float-right" title="Performance assessment" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2020–present, Shyam Madhusudhana.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  
+
+  <div class="rst-versions" data-toggle="rst-versions" role="note" aria-label="versions">
+    <span class="rst-current-version" data-toggle="rst-current-version">
+      <span class="fa fa-book"> Alternate Versions</span>
+      v: v0.7.2
+      <span class="fa fa-caret-down"></span>
+    </span>
+    <div class="rst-other-versions">
+      
+      
+      <dl>
+        <dt>Versions</dt>
+        
+          
+          <dd><a href="/Koogu/en/dev/">dev</a></dd>
+          
+        
+          
+          <dd><a href="/Koogu/en/stable/">stable</a></dd>
+          
+        
+           <strong> 
+          <dd><a href="/Koogu/en/v0.7.2/">v0.7.2</a></dd>
+           </strong> 
+        
+          
+          <dd><a href="/Koogu/en/v0.7.1/">v0.7.1</a></dd>
+          
+        
+          
+          <dd><a href="/Koogu/en/v0.7.0/">v0.7.0</a></dd>
+          
+        
+          
+          <dd><a href="/Koogu/en/v0.6.5/">v0.6.5</a></dd>
+          
+        
+          
+          <dd><a href="/Koogu/en/v0.6.4/">v0.6.4</a></dd>
+          
+        
+          
+          <dd><a href="/Koogu/en/v0.6.3/">v0.6.3</a></dd>
+          
+        
+      </dl>
+      
+      
+      <dl>
+        <dt>Downloads</dt>
+        
+          <dd><a href="/Koogu/en/v0.7.2/Koogu-docs_en_v0.7.2.epub">epub</a></dd>
+        
+      </dl>
+      
+      
+      <hr/>
+      Free theme by <a href="http://www.readthedocs.org">Read the Docs</a>.
+
+    </div>
+  </div>
+
+<script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

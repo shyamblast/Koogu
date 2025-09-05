@@ -1,0 +1,265 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Koogu &mdash; Koogu  documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="_static/doctools.js?v=9bcbadda"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Quick-start guide" href="quickstart.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="#" class="icon icon-home">
+            Koogu
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul class="current">
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Koogu</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="quickstart.html">Quick-start guide</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="advanced/index.html">Advanced usage</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="api/index.html">API documentation</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="genindex.html">Index</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="#">Koogu</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="#" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Koogu</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="koogu">
+<h1>Koogu<a class="headerlink" href="#koogu" title="Link to this heading"></a></h1>
+<p>Koogu is a Python package for developing and using Machine Learning (ML) solutions in
+Animal Bioacoustics.</p>
+<blockquote>
+<div><div class="line-block">
+<div class="line">Koogu (<strong>ಕೂಗು</strong>)</div>
+<div class="line"><span class="raw-html"><span style="font-family: arial,sans-serif">/ko͞ogu/</span></span></div>
+<div class="line-block">
+<div class="line">a word in the Kannada language meaning</div>
+<div class="line-block">
+<div class="line">- <em>call</em>, <em>utterance</em> (used as a <em>noun</em>)</div>
+<div class="line">- <em>to call</em> (used as a <em>verb</em>)</div>
+</div>
+</div>
+</div>
+</div></blockquote>
+<p>The package offers tools for -</p>
+<ul class="simple">
+<li><p>preparing audio (pre-process and transform) to form inputs to ML models,</p></li>
+<li><p>training ML models,</p></li>
+<li><p>assessing their performance, and</p></li>
+<li><p>using trained ML models for automating analyses of large datasets.</p></li>
+</ul>
+<p>Koogu offers tools for ML development from the simplest of bioacoustics
+applications to more complex scenarios. All stages of the workflow
+(data preparation, training, inference, performance assessment) can be performed
+independently.</p>
+<section id="data-preparation">
+<h2>Data preparation<a class="headerlink" href="#data-preparation" title="Link to this heading"></a></h2>
+<p>Many of the neural networks models used in bioacoustics, especially convolutional
+neural networks, expect inputs to be of fixed-dimensions, both during training
+and while making inferences. Preparing model inputs involves, at a minimum,
+breaking up of long-duration audio files into shorter segments as suitable for
+the target sound(s) in consideration. Koogu provides convenient interfaces to
+efficiently <strong>batch-process</strong> large collections of acoustic recordings (stored
+in various file formats) in preparing model inputs.</p>
+<p>Data feeders offer an efficient pipeline for supplying batches of input samples
+during model training and validation. They …</p>
+<ul class="simple">
+<li><p>read pre-processed data from disk,</p></li>
+<li><p>apply transformation (if any) to the data,</p></li>
+<li><p>perform on-the-fly data augmentations (if any),</p></li>
+<li><p>cache, shuffle and batch input samples, and</p></li>
+<li><p>present the batched samples to the model.</p></li>
+</ul>
+<p>Performing on-the-fly transformations offers the ability to apply randomized
+data augmentations in both time- and spectrotemporal domains independently.
+Furthermore, custom user-defined feeders can be implemented by extending one of
+the available feeder classes.</p>
+</section>
+<section id="model-architectures-training">
+<h2>Model architectures &amp; Training<a class="headerlink" href="#model-architectures-training" title="Link to this heading"></a></h2>
+<p>Koogu provides a few varieties of customizable neural network architectures.
+Model complexity can be controlled with the customizations offered by the
+architecture-specific classes.</p>
+<p>User-defined architectures (including pre-trained models) can be implemented
+by extending the base class.</p>
+<p>Koogu offers a single-point interface for training and evaluating ML models. The
+training process can be controlled, along with various hyperparameter and
+regularization settings, by assigning appropriate values to the function’s
+parameters.</p>
+</section>
+<section id="performance-assessments">
+<h2>Performance assessments<a class="headerlink" href="#performance-assessments" title="Link to this heading"></a></h2>
+<p>When test datasets are available, Koogu’s built-in tools can be used to assess
+a trained model’s performance thoroughly against the test dataset.</p>
+</section>
+<section id="analyzing-field-recordings-soundscape-data-with-trained-models">
+<h2>Analyzing field recordings/soundscape data with trained models<a class="headerlink" href="#analyzing-field-recordings-soundscape-data-with-trained-models" title="Link to this heading"></a></h2>
+<p>Koogu facilitates <strong>batch-processing</strong> of large volumes of field recordings using
+a trained model. Currently, automatic recognition outputs from batch-processing are
+provided as <a class="reference external" href="https://ravensoundsoftware.com/software/raven-pro/">RavenPro</a>
+selection table files. A user can not only specify the application of detection
+thresholds and how outputs are produced, but also control the utilization of
+available computational resources.</p>
+<div class="toctree-wrapper compound">
+</div>
+<div class="toctree-wrapper compound">
+</div>
+<div class="toctree-wrapper compound">
+</div>
+<div class="toctree-wrapper compound">
+</div>
+<div class="toctree-wrapper compound">
+</div>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="quickstart.html" class="btn btn-neutral float-right" title="Quick-start guide" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2022, Shyam Madhusudhana.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  
+
+  <div class="rst-versions" data-toggle="rst-versions" role="note" aria-label="versions">
+    <span class="rst-current-version" data-toggle="rst-current-version">
+      <span class="fa fa-book"> Alternate Versions</span>
+      v: v0.6.4
+      <span class="fa fa-caret-down"></span>
+    </span>
+    <div class="rst-other-versions">
+      
+      
+      <dl>
+        <dt>Versions</dt>
+        
+          
+          <dd><a href="/Koogu/en/dev/">dev</a></dd>
+          
+        
+          
+          <dd><a href="/Koogu/en/stable/">stable</a></dd>
+          
+        
+          
+          <dd><a href="/Koogu/en/v0.7.2/">v0.7.2</a></dd>
+          
+        
+          
+          <dd><a href="/Koogu/en/v0.7.1/">v0.7.1</a></dd>
+          
+        
+          
+          <dd><a href="/Koogu/en/v0.7.0/">v0.7.0</a></dd>
+          
+        
+          
+          <dd><a href="/Koogu/en/v0.6.5/">v0.6.5</a></dd>
+          
+        
+           <strong> 
+          <dd><a href="/Koogu/en/v0.6.4/">v0.6.4</a></dd>
+           </strong> 
+        
+          
+          <dd><a href="/Koogu/en/v0.6.3/">v0.6.3</a></dd>
+          
+        
+      </dl>
+      
+      
+      <dl>
+        <dt>Downloads</dt>
+        
+          <dd><a href="/Koogu/en/v0.6.4/Koogu-docs_en_v0.6.4.epub">epub</a></dd>
+        
+      </dl>
+      
+      
+      <hr/>
+      Free theme by <a href="http://www.readthedocs.org">Read the Docs</a>.
+
+    </div>
+  </div>
+
+<script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

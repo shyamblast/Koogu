@@ -1,0 +1,268 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Transfer learning &mdash; Koogu  documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="API documentation" href="../api/index.html" />
+    <link rel="prev" title="Data augmentation" href="data_augmentation.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            Koogu
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../index.html">Koogu</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../quickstart.html">Quick-start guide</a></li>
+</ul>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Advanced usage</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="custom_feeders.html">Custom feeders</a></li>
+<li class="toctree-l2"><a class="reference internal" href="data_augmentation.html">Data augmentation</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Transfer learning</a></li>
+</ul>
+</li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../api/index.html">API documentation</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../genindex.html">Index</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">Koogu</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="index.html">Advanced usage</a></li>
+      <li class="breadcrumb-item active">Transfer learning</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="transfer-learning">
+<h1>Transfer learning<a class="headerlink" href="#transfer-learning" title="Link to this heading"></a></h1>
+<p>Bioacoustics researchers often tend to employ transfer learning approaches, using models that were pre-trained on other data (e.g., images). Such approaches are sometimes useful when training datasets are small. Using transfer learning in a Koogu workflow simply involves ‘plugging in’ a pre-trained model in an implementation of the abstract class <a class="reference internal" href="../api/model/index.html#koogu.model.architectures.BaseArchitecture" title="koogu.model.architectures.BaseArchitecture"><code class="xref py py-class docutils literal notranslate"><span class="pre">koogu.model.architectures.BaseArchitecture</span></code></a>.</p>
+<p>The below example implements <a class="reference internal" href="../api/model/index.html#koogu.model.architectures.BaseArchitecture" title="koogu.model.architectures.BaseArchitecture"><code class="xref py py-class docutils literal notranslate"><span class="pre">BaseArchitecture</span></code></a>, by defining <a class="reference internal" href="../api/model/index.html#koogu.model.architectures.BaseArchitecture.build_network" title="koogu.model.architectures.BaseArchitecture.build_network"><code class="xref py py-meth docutils literal notranslate"><span class="pre">build_network()</span></code></a> to incorporate a publicly available pre-trained <strong>MobileNetV2</strong> whose weights were trained using the large ImageNet dataset. You may choose to use a different pre-trained model from <a class="reference external" href="https://www.tensorflow.org/api_docs/python/tf/keras/applications">here</a> or from other sources.  Often, these pre-trained models have specific expectations with respect to input shapes, types, etc.</p>
+<p>Assuming a data pipeline similar to the example in <a class="reference internal" href="../quickstart.html"><span class="doc">Quick-start guide</span></a> (which uses <a class="reference internal" href="../api/data/feeder.html#koogu.data.feeder.SpectralDataFeeder" title="koogu.data.feeder.SpectralDataFeeder"><code class="xref py py-class docutils literal notranslate"><span class="pre">SpectralDataFeeder</span></code></a>), the 1-channel spectrograms generated by the feeder must be converted to a 3-channel RGB image using a suitable colorscale (and resized) before they become inputs to the pre-trained model. We use <a class="reference internal" href="../api/data/transformations.html#koogu.data.tf_transformations.Spec2Img" title="koogu.data.tf_transformations.Spec2Img"><code class="xref py py-class docutils literal notranslate"><span class="pre">Spec2Img</span></code></a> for this purpose. The pre-trained model will be used as a “feature extractor”, and a classification layer will be added. The “training” of the full model will only update weights of the added classification layer.</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">tensorflow</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">tf</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">koogu.data.tf_transformations</span><span class="w"> </span><span class="kn">import</span> <span class="n">Spec2Img</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">koogu.model.architectures</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseArchitecture</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">matplotlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">cm</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">MyTransferModel</span><span class="p">(</span><span class="n">BaseArchitecture</span><span class="p">):</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">build_network</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">input_tensor</span><span class="p">,</span> <span class="n">is_training</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+
+        <span class="c1"># Many of the available pre-trained models expect inputs to be of a</span>
+        <span class="c1"># particular size. The `input_tensor` may not already be in that shape,</span>
+        <span class="c1"># depending on the chosen data preparation parameters (e.g., with</span>
+        <span class="c1"># koogu.data.feeder.SpectralDataFeeder). We need to resize the images to</span>
+        <span class="c1"># match the input shape of the pre-trained model.</span>
+        <span class="c1"># MobileNetV2 defaults to an input size of 224x224, and also supports a</span>
+        <span class="c1"># few other sizes. 160x160 is a supported size, and we use that in this</span>
+        <span class="c1"># example.</span>
+        <span class="n">target_img_size</span> <span class="o">=</span> <span class="p">(</span><span class="mi">160</span><span class="p">,</span> <span class="mi">160</span><span class="p">)</span>
+
+        <span class="c1"># Choose your favourite colorscale from matplotlib or other sources.</span>
+        <span class="n">my_cmap</span> <span class="o">=</span> <span class="n">cm</span><span class="o">.</span><span class="n">get_cmap</span><span class="p">(</span><span class="s1">&#39;jet&#39;</span><span class="p">)(</span><span class="nb">range</span><span class="p">(</span><span class="mi">256</span><span class="p">))</span>
+        <span class="c1"># `my_cmap` will be a 256 element array of RGB color values from the</span>
+        <span class="c1"># &quot;Jet&quot; colorscale.</span>
+
+        <span class="c1"># First, need to convert input spectrograms to equivalent RGB images.</span>
+        <span class="c1"># Spec2Img will convert 1-channel spectrograms to 3-channel RGB images</span>
+        <span class="c1"># (with values in the range [0.0, 1.0]) and resize them as desired.</span>
+        <span class="n">to_image</span> <span class="o">=</span> <span class="n">Spec2Img</span><span class="p">(</span><span class="n">my_cmap</span><span class="p">,</span> <span class="n">img_size</span><span class="o">=</span><span class="n">target_img_size</span><span class="p">)</span>
+
+        <span class="c1"># The pre-trained MobileNetV2 expects RGB values to be scaled to the</span>
+        <span class="c1"># range [-1.0, 1.0].</span>
+        <span class="n">rescale</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">keras</span><span class="o">.</span><span class="n">layers</span><span class="o">.</span><span class="n">Rescaling</span><span class="p">(</span><span class="mf">2.0</span><span class="p">,</span> <span class="n">offset</span><span class="o">=-</span><span class="mf">1.0</span><span class="p">)</span>
+        <span class="c1"># NOTE: `Rescaling` was added in TensorFlow v2.6.0. If you use an older</span>
+        <span class="c1">#       version, you can implement this operation by simply multiplying</span>
+        <span class="c1">#       the output of to_image() by 2.0 and then subtracting 1.0.</span>
+
+        <span class="c1"># Load the pre-trained MobileNetV2 model with ImageNet weights, and</span>
+        <span class="c1"># without the trailing fully-connected layer.</span>
+        <span class="n">pretrained_cnn</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">keras</span><span class="o">.</span><span class="n">applications</span><span class="o">.</span><span class="n">MobileNetV2</span><span class="p">(</span>
+            <span class="n">input_shape</span><span class="o">=</span><span class="n">target_img_size</span> <span class="o">+</span> <span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="p">),</span>    <span class="c1"># Include RGB dimension</span>
+            <span class="n">include_top</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+            <span class="n">weights</span><span class="o">=</span><span class="s1">&#39;imagenet&#39;</span><span class="p">)</span>
+        <span class="n">pretrained_cnn</span><span class="o">.</span><span class="n">trainable</span> <span class="o">=</span> <span class="kc">False</span>            <span class="c1"># Freeze CNN weights</span>
+
+        <span class="c1"># Pooling layer</span>
+        <span class="n">global_average_layer</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">keras</span><span class="o">.</span><span class="n">layers</span><span class="o">.</span><span class="n">GlobalAveragePooling2D</span><span class="p">()</span>
+
+        <span class="c1"># Put them all together now.</span>
+        <span class="c1"># NOTE: The &quot;training=False&quot; parameter to `pretrained_cnn` is required</span>
+        <span class="c1">#       to ensure that BatchNorm layers in the model operate in</span>
+        <span class="c1">#       inference mode (for more details, see TensorFlow&#39;s webpage on</span>
+        <span class="c1">#       transfer learning).</span>
+        <span class="n">output</span> <span class="o">=</span> <span class="n">to_image</span><span class="p">(</span><span class="n">input_tensor</span><span class="p">)</span>
+        <span class="n">output</span> <span class="o">=</span> <span class="n">rescale</span><span class="p">(</span><span class="n">output</span><span class="p">)</span>
+        <span class="n">output</span> <span class="o">=</span> <span class="n">pretrained_cnn</span><span class="p">(</span><span class="n">output</span><span class="p">,</span> <span class="n">training</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="n">output</span> <span class="o">=</span> <span class="n">global_average_layer</span><span class="p">(</span><span class="n">output</span><span class="p">)</span>
+
+        <span class="c1"># NOTE: Do not add the classification layer. It will be added by Koogu&#39;s</span>
+        <span class="c1">#       internal code.</span>
+
+        <span class="k">return</span> <span class="n">output</span>
+</pre></div>
+</div>
+<p>With an architecture defined this way, you can simply replace the following code block in step 2 of the <a class="reference internal" href="../quickstart.html"><span class="doc">Quick-start guide</span></a></p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="linenos">71</span><span class="n">model</span> <span class="o">=</span> <span class="n">architectures</span><span class="o">.</span><span class="n">DenseNet</span><span class="p">(</span>
+<span class="linenos">72</span>    <span class="p">[</span><span class="mi">4</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">4</span><span class="p">],</span>                                 <span class="c1"># 3 dense-blocks, 4 layers each</span>
+<span class="linenos">73</span>    <span class="n">preproc</span><span class="o">=</span><span class="p">[</span> <span class="p">(</span><span class="s1">&#39;Conv2D&#39;</span><span class="p">,</span> <span class="p">{</span><span class="s1">&#39;filters&#39;</span><span class="p">:</span> <span class="mi">16</span><span class="p">})</span> <span class="p">],</span>   <span class="c1"># Add a 16-filter pre-conv layer</span>
+<span class="linenos">74</span>    <span class="n">dense_layers</span><span class="o">=</span><span class="p">[</span><span class="mi">32</span><span class="p">]</span>                          <span class="c1"># End with a 32-node dense layer</span>
+<span class="linenos">75</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>… with this -</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">model</span> <span class="o">=</span> <span class="n">MyTransferModel</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>That’s it! The remainder of the Koogu workflow described in the <a class="reference internal" href="../quickstart.html"><span class="doc">Quick-start guide</span></a> will now employ transfer learning.</p>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="data_augmentation.html" class="btn btn-neutral float-left" title="Data augmentation" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="../api/index.html" class="btn btn-neutral float-right" title="API documentation" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2020–present, Shyam Madhusudhana.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  
+
+  <div class="rst-versions" data-toggle="rst-versions" role="note" aria-label="versions">
+    <span class="rst-current-version" data-toggle="rst-current-version">
+      <span class="fa fa-book"> Alternate Versions</span>
+      v: v0.7.1
+      <span class="fa fa-caret-down"></span>
+    </span>
+    <div class="rst-other-versions">
+      
+      
+      <dl>
+        <dt>Versions</dt>
+        
+          
+          <dd><a href="/Koogu/en/dev/">dev</a></dd>
+          
+        
+          
+          <dd><a href="/Koogu/en/stable/">stable</a></dd>
+          
+        
+          
+          <dd><a href="/Koogu/en/v0.7.2/">v0.7.2</a></dd>
+          
+        
+           <strong> 
+          <dd><a href="/Koogu/en/v0.7.1/">v0.7.1</a></dd>
+           </strong> 
+        
+          
+          <dd><a href="/Koogu/en/v0.7.0/">v0.7.0</a></dd>
+          
+        
+          
+          <dd><a href="/Koogu/en/v0.6.5/">v0.6.5</a></dd>
+          
+        
+          
+          <dd><a href="/Koogu/en/v0.6.4/">v0.6.4</a></dd>
+          
+        
+          
+          <dd><a href="/Koogu/en/v0.6.3/">v0.6.3</a></dd>
+          
+        
+      </dl>
+      
+      
+      <dl>
+        <dt>Downloads</dt>
+        
+          <dd><a href="/Koogu/en/v0.7.1/Koogu-docs_en_v0.7.1.epub">epub</a></dd>
+        
+      </dl>
+      
+      
+      <hr/>
+      Free theme by <a href="http://www.readthedocs.org">Read the Docs</a>.
+
+    </div>
+  </div>
+
+<script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

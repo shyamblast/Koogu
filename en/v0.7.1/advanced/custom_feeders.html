@@ -1,0 +1,353 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Custom feeders &mdash; Koogu  documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Data augmentation" href="data_augmentation.html" />
+    <link rel="prev" title="Advanced usage" href="index.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            Koogu
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../index.html">Koogu</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../quickstart.html">Quick-start guide</a></li>
+</ul>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Advanced usage</a><ul class="current">
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Custom feeders</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#converting-waveforms-to-spectrograms">Converting waveforms to spectrograms</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="data_augmentation.html">Data augmentation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="transfer_learning.html">Transfer learning</a></li>
+</ul>
+</li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../api/index.html">API documentation</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../genindex.html">Index</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">Koogu</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="index.html">Advanced usage</a></li>
+      <li class="breadcrumb-item active">Custom feeders</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="custom-feeders">
+<h1>Custom feeders<a class="headerlink" href="#custom-feeders" title="Link to this heading"></a></h1>
+<p>While the basic feeders <a class="reference internal" href="../api/data/feeder.html#koogu.data.feeder.DataFeeder" title="koogu.data.feeder.DataFeeder"><code class="xref py py-class docutils literal notranslate"><span class="pre">DataFeeder</span></code></a> and <a class="reference internal" href="../api/data/feeder.html#koogu.data.feeder.SpectralDataFeeder" title="koogu.data.feeder.SpectralDataFeeder"><code class="xref py py-class docutils literal notranslate"><span class="pre">SpectralDataFeeder</span></code></a> were designed to work with data that were already pre-processed (resampled, filtered, segmented using the <a class="reference internal" href="../api/data/preprocess.html"><span class="doc">Data pre-processing</span></a> interface) and stored in compressed numpy format, certain applications may require data to be loaded and fed into the training pipeline via other mechanisms/files/formats (for example, feeding directly from audio files or from a database object). Koogu facilitates these by allowing users to define custom feeders that implement their desired logic.</p>
+<p>Custom feeders can be defined by extending the abstract class <a class="reference internal" href="../api/data/feeder.html#koogu.data.feeder.BaseFeeder" title="koogu.data.feeder.BaseFeeder"><code class="xref py py-class docutils literal notranslate"><span class="pre">koogu.data.feeder.BaseFeeder</span></code></a>.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>This requires writing code to use the TensorFlow API directly.</p>
+</div>
+<p>The below example shows an implementation which extends the <a class="reference internal" href="../api/data/feeder.html#koogu.data.feeder.BaseFeeder" title="koogu.data.feeder.BaseFeeder"><code class="xref py py-class docutils literal notranslate"><span class="pre">BaseFeeder</span></code></a> class to feed clips by loading directly from audio files.</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">tensorflow</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">tf</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">koogu.data.feeder</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseFeeder</span>
+
+<span class="c1"># Assuming that you have saved 1 second long audio clips each containing</span>
+<span class="c1"># sounds from one of three species of frogs, and that the audio clips</span>
+<span class="c1"># are available as .wav files organized under species-specific directories.</span>
+
+<span class="n">fs</span> <span class="o">=</span> <span class="mi">24000</span>        <span class="c1"># sampling frequency of the audio files</span>
+<span class="n">directories_as_class_names</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s1">&#39;Lithobates sylvaticus&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;Lithobates catesbeianus&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;Dryophytes versicolor&#39;</span>
+<span class="p">]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">read_files</span><span class="p">(</span><span class="n">filelist</span><span class="p">,</span> <span class="n">sp_idx</span><span class="p">):</span>
+    <span class="c1"># Utility function (a generator) to read a list of audio files one by one</span>
+
+    <span class="c1"># One-hot encoded label for the current species</span>
+    <span class="n">label</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">one_hot</span><span class="p">(</span><span class="n">sp_idx</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">fname</span> <span class="ow">in</span> <span class="n">filelist</span><span class="p">:</span>
+        <span class="c1"># Read in the audio samples from</span>
+        <span class="c1">#   directories_as_class_names[sp_idx] + &#39;/&#39; + fname.decode()</span>
+        <span class="c1"># using one of SoundFile, AudioRead, scipy.io.wavfile, etc.</span>
+        <span class="n">clip</span> <span class="o">=</span> <span class="o">...</span>
+
+        <span class="c1"># return the clip and the label</span>
+        <span class="k">yield</span> <span class="n">clip</span><span class="p">,</span> <span class="n">label</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">MyFeeder</span><span class="p">(</span><span class="n">BaseFeeder</span><span class="p">):</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Register number of samples available, and decide how to split</span>
+<span class="sd">        train vs test subsets.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="c1"># Get the list of files available in each directory/class</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sp0_files</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">listdir</span><span class="p">(</span><span class="n">directories_as_class_names</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sp1_files</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">listdir</span><span class="p">(</span><span class="n">directories_as_class_names</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sp2_files</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">listdir</span><span class="p">(</span><span class="n">directories_as_class_names</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+
+        <span class="c1"># Shuffle the lists&#39; contents as desired</span>
+        <span class="c1">#  ...</span>
+
+        <span class="c1"># File/sample counts per species</span>
+        <span class="n">file_counts</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sp0_files</span><span class="p">),</span>
+            <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sp1_files</span><span class="p">),</span>
+            <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sp2_files</span><span class="p">)</span>
+        <span class="p">]</span>
+
+        <span class="c1"># Earmark 15% for validation; remaining will be used as training samples</span>
+        <span class="n">per_class_training_samples</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+        <span class="n">per_class_eval_samples</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">class_idx</span><span class="p">,</span> <span class="n">fc</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">file_counts</span><span class="p">):</span>
+            <span class="n">per_class_training_samples</span><span class="p">[</span><span class="n">class_idx</span><span class="p">]</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="nb">round</span><span class="p">(</span><span class="n">fc</span> <span class="o">*</span> <span class="mf">0.85</span><span class="p">))</span>
+            <span class="n">per_class_eval_samples</span><span class="p">[</span><span class="n">class_idx</span><span class="p">]</span> <span class="o">=</span> \
+                <span class="n">fc</span> <span class="o">-</span> <span class="n">per_class_training_samples</span><span class="p">[</span><span class="n">class_idx</span><span class="p">]</span>
+
+        <span class="c1"># Invoke the parent constructor</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">MyFeeder</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span>
+            <span class="p">(</span><span class="n">fs</span><span class="p">,</span> <span class="p">),</span>
+            <span class="n">per_class_training_samples</span><span class="p">,</span> <span class="n">per_class_eval_samples</span><span class="p">,</span>
+            <span class="n">directories_as_class_names</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">make_dataset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">is_training</span><span class="p">,</span> <span class="n">batch_size</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Build a TensorFlow Dataset comprising all training or eval clips</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="c1"># Make class-specific datasets</span>
+        <span class="n">sp_ds</span> <span class="o">=</span> <span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">sp_idx</span><span class="p">,</span> <span class="n">sp_files</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span>
+                <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">sp0_files</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">sp1_files</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">sp2_files</span><span class="p">]):</span>
+
+            <span class="c1"># Restrict which files to read based on train/eval mode</span>
+            <span class="n">split_idx</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">training_samples_per_class</span><span class="p">[</span><span class="n">sp_idx</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">is_training</span><span class="p">:</span>
+                <span class="n">filelist</span> <span class="o">=</span> <span class="n">sp_files</span><span class="p">[:</span><span class="n">split_idx</span><span class="p">]</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">filelist</span> <span class="o">=</span> <span class="n">sp_files</span><span class="p">[</span><span class="n">split_idx</span><span class="p">:]</span>
+
+            <span class="n">sp_ds</span><span class="p">[</span><span class="n">sp_idx</span><span class="p">]</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">Dataset</span><span class="o">.</span><span class="n">from_generator</span><span class="p">(</span>
+                <span class="k">lambda</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">:</span> <span class="n">read_files</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">),</span>
+                <span class="n">args</span><span class="o">=</span><span class="p">(</span><span class="n">filelist</span><span class="p">,</span> <span class="n">sp_idx</span><span class="p">),</span>
+                <span class="n">output_signature</span><span class="o">=</span><span class="p">(</span>
+                    <span class="n">tf</span><span class="o">.</span><span class="n">TensorSpec</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="n">fs</span><span class="p">,</span> <span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">tf</span><span class="o">.</span><span class="n">float32</span><span class="p">),</span>  <span class="c1"># clip</span>
+                    <span class="n">tf</span><span class="o">.</span><span class="n">TensorSpec</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">tf</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>    <span class="c1"># label</span>
+                <span class="p">)</span>
+            <span class="p">)</span>
+
+        <span class="c1"># Concatenate all class-specific data</span>
+        <span class="n">dataset</span> <span class="o">=</span> <span class="n">sp_ds</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">concatenate</span><span class="p">(</span><span class="n">sp_ds</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span><span class="o">.</span><span class="n">concatenate</span><span class="p">(</span><span class="n">sp_ds</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+
+        <span class="c1"># Invoke the base class functionality to shuffle &amp; batch, or implement</span>
+        <span class="c1"># the logic yourself as needed.</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_queue_and_batch</span><span class="p">(</span><span class="n">dataset</span><span class="p">,</span> <span class="n">is_training</span><span class="p">,</span> <span class="n">batch_size</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">transform</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sample</span><span class="p">,</span> <span class="n">label</span><span class="p">,</span> <span class="n">is_training</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="c1"># Pass as-is, not doing any transformation in this example</span>
+        <span class="k">return</span> <span class="n">sample</span><span class="p">,</span> <span class="n">label</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">pre_transform</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sample</span><span class="p">,</span> <span class="n">label</span><span class="p">,</span> <span class="n">is_training</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="c1"># Pass as-is, not applying any augmentations in this example</span>
+        <span class="k">return</span> <span class="n">sample</span><span class="p">,</span> <span class="n">label</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">post_transform</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sample</span><span class="p">,</span> <span class="n">label</span><span class="p">,</span> <span class="n">is_training</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="c1"># Pass as-is, not applying any augmentations in this example</span>
+        <span class="k">return</span> <span class="n">sample</span><span class="p">,</span> <span class="n">label</span>
+</pre></div>
+</div>
+<section id="converting-waveforms-to-spectrograms">
+<span id="custom-feeder-psd-transform"></span><h2>Converting waveforms to spectrograms<a class="headerlink" href="#converting-waveforms-to-spectrograms" title="Link to this heading"></a></h2>
+<p>In the above example, the loaded audio clips will be presented as-is (as waveforms) to the model during training/validation. You can convert the clips into power spectral density spectrograms before they are presented to the model, by implementing the functionality in the <a class="reference internal" href="../api/data/feeder.html#koogu.data.feeder.BaseFeeder.transform" title="koogu.data.feeder.BaseFeeder.transform"><code class="xref py py-meth docutils literal notranslate"><span class="pre">transform()</span></code></a> method and overriding the <a class="reference internal" href="../api/data/feeder.html#koogu.data.feeder.BaseFeeder.get_shape_transformation_info" title="koogu.data.feeder.BaseFeeder.get_shape_transformation_info"><code class="xref py py-meth docutils literal notranslate"><span class="pre">get_shape_transformation_info()</span></code></a> method as shown below.</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span>    <span class="c1"># --- update the constructor from the above example ---</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+      <span class="o">...</span>
+      <span class="o">...</span>
+      <span class="c1"># Invoke the parent constructor</span>
+      <span class="nb">super</span><span class="p">(</span><span class="n">MyFeeder</span><span class="p">,</span> <span class="o">...</span>
+      <span class="o">...</span>
+      <span class="o">...</span>
+
+      <span class="c1"># Define the settings for transformation</span>
+      <span class="n">spec_settings</span> <span class="o">=</span> <span class="p">{</span>
+          <span class="s1">&#39;win_len&#39;</span><span class="p">:</span> <span class="o">...</span>
+          <span class="c1"># ...</span>
+          <span class="c1"># see koogu.data.tf_transformations.Audio2Spectral for list of keys</span>
+      <span class="p">}</span>
+
+      <span class="c1"># Instantiate the transformation object</span>
+      <span class="bp">self</span><span class="o">.</span><span class="n">_transform</span> <span class="o">=</span> <span class="n">koogu</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">tf_transformations</span><span class="o">.</span><span class="n">Audio2Spectral</span><span class="p">(</span><span class="n">fs</span><span class="p">,</span> <span class="n">spec_settings</span><span class="p">)</span>
+
+      <span class="bp">self</span><span class="o">.</span><span class="n">_in_shape</span> <span class="o">=</span> <span class="p">(</span><span class="n">fs</span><span class="p">,</span> <span class="p">)</span>
+
+      <span class="c1"># Update parent&#39;s member variable to reflect the transformed output shape</span>
+      <span class="bp">self</span><span class="o">.</span><span class="n">_shape</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_transform</span><span class="o">.</span><span class="n">compute_output_shape</span><span class="p">([</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">_in_shape</span><span class="p">)[</span><span class="mi">1</span><span class="p">:]</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">transform</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">clip</span><span class="p">,</span> <span class="n">label</span><span class="p">,</span> <span class="n">is_training</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+
+      <span class="c1"># Apply the transformation</span>
+      <span class="n">output</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_transform</span><span class="p">(</span><span class="n">clip</span><span class="p">)</span>
+
+      <span class="k">return</span> <span class="n">output</span><span class="p">,</span> <span class="n">label</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_shape_transformation_info</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+      <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_in_shape</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_transform</span>
+
+</pre></div>
+</div>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="index.html" class="btn btn-neutral float-left" title="Advanced usage" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="data_augmentation.html" class="btn btn-neutral float-right" title="Data augmentation" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2020–present, Shyam Madhusudhana.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  
+
+  <div class="rst-versions" data-toggle="rst-versions" role="note" aria-label="versions">
+    <span class="rst-current-version" data-toggle="rst-current-version">
+      <span class="fa fa-book"> Alternate Versions</span>
+      v: v0.7.1
+      <span class="fa fa-caret-down"></span>
+    </span>
+    <div class="rst-other-versions">
+      
+      
+      <dl>
+        <dt>Versions</dt>
+        
+          
+          <dd><a href="/Koogu/en/dev/">dev</a></dd>
+          
+        
+          
+          <dd><a href="/Koogu/en/stable/">stable</a></dd>
+          
+        
+          
+          <dd><a href="/Koogu/en/v0.7.2/">v0.7.2</a></dd>
+          
+        
+           <strong> 
+          <dd><a href="/Koogu/en/v0.7.1/">v0.7.1</a></dd>
+           </strong> 
+        
+          
+          <dd><a href="/Koogu/en/v0.7.0/">v0.7.0</a></dd>
+          
+        
+          
+          <dd><a href="/Koogu/en/v0.6.5/">v0.6.5</a></dd>
+          
+        
+          
+          <dd><a href="/Koogu/en/v0.6.4/">v0.6.4</a></dd>
+          
+        
+          
+          <dd><a href="/Koogu/en/v0.6.3/">v0.6.3</a></dd>
+          
+        
+      </dl>
+      
+      
+      <dl>
+        <dt>Downloads</dt>
+        
+          <dd><a href="/Koogu/en/v0.7.1/Koogu-docs_en_v0.7.1.epub">epub</a></dd>
+        
+      </dl>
+      
+      
+      <hr/>
+      Free theme by <a href="http://www.readthedocs.org">Read the Docs</a>.
+
+    </div>
+  </div>
+
+<script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
